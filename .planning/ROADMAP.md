@@ -12,7 +12,7 @@ This roadmap delivers measurable performance improvements to btop++ across CPU u
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Profiling & Baseline** - Establish reproducible benchmarks and identify actual bottlenecks before any code changes
+- [x] **Phase 1: Profiling & Baseline** - Establish reproducible benchmarks and identify actual bottlenecks before any code changes
 - [ ] **Phase 2: String & Allocation Reduction** - Eliminate per-frame string allocation overhead in utilities and draw path
 - [ ] **Phase 3: I/O & Data Collection** - Replace expensive ifstream/filesystem operations with POSIX I/O in collectors
 - [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
@@ -33,9 +33,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 01-01-PLAN.md -- Benchmark build infrastructure + string/draw/proc micro-benchmarks (Wave 1)
-- [ ] 01-02-PLAN.md -- Add --benchmark CLI mode for end-to-end measurement (Wave 1)
-- [ ] 01-03-PLAN.md -- CI performance regression detection workflow (Wave 2)
+- [x] 01-01-PLAN.md -- Benchmark build infrastructure + string/draw/proc micro-benchmarks (Wave 1)
+- [x] 01-02-PLAN.md -- Add --benchmark CLI mode for end-to-end measurement (Wave 1)
+- [x] 01-03-PLAN.md -- CI performance regression detection workflow (Wave 2)
 
 ### Phase 2: String & Allocation Reduction
 **Goal**: Per-frame heap allocation count in the draw path and string utilities is measurably reduced, with regex hot path eliminated
@@ -117,7 +117,7 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Profiling & Baseline | 0/3 | Planned | - |
+| 1. Profiling & Baseline | 3/3 | Complete | 2026-02-27 |
 | 2. String & Allocation Reduction | 0/0 | Not started | - |
 | 3. I/O & Data Collection | 0/0 | Not started | - |
 | 4. Data Structure Modernization | 0/0 | Not started | - |
