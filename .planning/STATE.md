@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T20:17:37.487Z"
+last_updated: "2026-02-27T20:51:24Z"
 progress:
   total_phases: 8
   completed_phases: 8
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 6: Compiler & Verification -- Complete (2/2 plans)
+**Current focus:** Phase 8: CI Coverage & Documentation Cleanup -- Complete (1/1 plans)
 
 ## Current Position
 
-Phase: 6 (Compiler & Verification)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Sanitizer sweeps clean, PGO 1.1% gain measured, mimalloc 1.6% gain documented
-Last activity: 2026-02-27 -- Sanitizer sweeps + PGO build + mimalloc evaluation + 06-RESULTS.md
+Phase: 8 (CI Coverage & Documentation Cleanup)
+Plan: 1 of 1 in current phase (COMPLETE)
+Status: btop_bench_ds wired into CI, PGO validation workflow added, ROADMAP updated
+Last activity: 2026-02-27 -- btop_bench_ds CI integration + PGO validation + ROADMAP cleanup
 
-Progress: [##########] 100% -- All 6 phases complete (18/18 plans)
+Progress: [##########] 100% -- All 8 phases complete (20/20 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
+- Total plans completed: 20
 - Average duration: ~8 min
-- Total execution time: ~2.2 hours
+- Total execution time: ~2.3 hours
 
 **By Phase:**
 
@@ -50,8 +50,8 @@ Progress: [##########] 100% -- All 6 phases complete (18/18 plans)
 | 5. Rendering Pipeline | 3/3 | 19 min | ~6 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 (7m), 05-02 (7m), 05-03 (5m), 06-01 (3m)
-- Trend: 06-02 Sanitizer sweeps + PGO + mimalloc (1 task, 4 files)
+- Last 5 plans: 05-03 (5m), 06-01 (3m), 06-02 (8m), 07-01 (3m), 08-01 (3m)
+- Trend: Consistent fast execution on CI/documentation tasks
 
 *Updated after each plan completion*
 | Phase 05 P01 | 7min | 2 tasks | 5 files |
@@ -59,6 +59,7 @@ Progress: [##########] 100% -- All 6 phases complete (18/18 plans)
 | Phase 05 P03 | 5min | 2 tasks | 5 files |
 | Phase 06 P01 | 3min | 2 tasks | 3 files |
 | Phase 06 P02 | 8min | 1 task | 4 files |
+| Phase 08 P01 | 3min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 06]: PGO ~1% improvement valid result for I/O-bound workload (68% system time)
 - [Phase 06]: mimalloc ~2% improvement confirms Phase 2-5 allocation reduction was effective
 - [Phase 06]: pgo-build.sh uses xcrun llvm-profdata on macOS, BUILD_TESTING=OFF
+- [Phase 08]: btop_bench_ds runs without error-handling wrapper (self-contained, no OS dependency)
+- [Phase 08]: PGO validation in separate workflow to avoid running full cmake-linux.yml matrix on schedule
+- [Phase 08]: isinstance(data, list) check ordered before dict key checks for array format dispatch
 
 ### Pending Todos
 
@@ -132,5 +136,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 06-02-PLAN.md (sanitizer sweeps + PGO + mimalloc) -- Phase 6: 2/2 plans COMPLETE
+Stopped at: Completed 08-01-PLAN.md (CI coverage + PGO validation + ROADMAP cleanup) -- Phase 8: 1/1 plans COMPLETE -- ALL PHASES COMPLETE
 Resume file: None
