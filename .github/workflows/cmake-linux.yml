@@ -65,3 +65,50 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build
+
+  sanitizer:
+    name: sanitizer-${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-sanitizer-${{ matrix.name }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: asan-ubsan
+            sanitizer: "address,undefined"
+          - name: tsan
+            sanitizer: "thread"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Clang 19
+        run: wget -qO - https://apt.llvm.org/llvm.sh | sudo bash -s -- 19 all
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++-19 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld-19 -rtlib=compiler-rt -unwindlib=libunwind" \
+            -DBTOP_SANITIZER="${{ matrix.sanitizer }}" \
+            -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run tests
+        env:
+          ASAN_OPTIONS: ${{ matrix.name == 'asan-ubsan' && 'detect_leaks=1:halt_on_error=1' || '' }}
+          UBSAN_OPTIONS: ${{ matrix.name == 'asan-ubsan' && 'halt_on_error=1:print_stacktrace=1' || '' }}
+          TSAN_OPTIONS: ${{ matrix.name == 'tsan' && 'halt_on_error=1:second_deadlock_stack=1' || '' }}
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Run benchmark workload under sanitizer
+        env:
+          ASAN_OPTIONS: ${{ matrix.name == 'asan-ubsan' && 'detect_leaks=1:halt_on_error=1' || '' }}
+          UBSAN_OPTIONS: ${{ matrix.name == 'asan-ubsan' && 'halt_on_error=1:print_stacktrace=1' || '' }}
+          TSAN_OPTIONS: ${{ matrix.name == 'tsan' && 'halt_on_error=1:second_deadlock_stack=1' || '' }}
+        run: ./build/btop --benchmark 10
