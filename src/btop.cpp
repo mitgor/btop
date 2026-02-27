@@ -164,7 +164,7 @@ void term_resize(bool force) {
 		sleep_ms(100);
 		if (Term::width < minWidth or Term::height < minHeight) {
 			int width = Term::width, height = Term::height;
-			cout << fmt::format("{clear}{bg_black}{fg_white}"
+			Tools::write_stdout(fmt::format("{clear}{bg_black}{fg_white}"
 					"{mv1}Terminal size too small:"
 					"{mv2} Width = {fg_width}{width} {fg_white}Height = {fg_height}{height}"
 					"{mv3}{fg_white}Needed for current config:"
@@ -180,7 +180,7 @@ void term_resize(bool force) {
 					"mv4"_a = Mv::to((height / 2) + 2, (width / 2) - 10),
 						"minWidth"_a = minWidth,
 						"minHeight"_a = minHeight
-			) << std::flush;
+			));
 
 			bool got_key = false;
 			for (; not Term::refresh() and not got_key; got_key = Input::poll(10));
@@ -729,10 +729,27 @@ namespace Runner {
 
 			//? If overlay isn't empty, print output without color and then print overlay on top
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
-			cout << (term_sync ? Term::sync_start : "") << (conf.overlay.empty()
+			{
+				string frame_buf;
+				const auto& content = conf.overlay.empty()
 					? output
-					: (output.empty() ? "" : Fx::ub + Theme::c("inactive_fg") + Fx::uncolor(output)) + conf.overlay)
-				<< (term_sync ? Term::sync_end : "") << flush;
+					: [&]() -> const string& {
+						static thread_local string overlay_buf;
+						overlay_buf.clear();
+						if (!output.empty()) {
+							overlay_buf += Fx::ub;
+							overlay_buf += Theme::c("inactive_fg");
+							overlay_buf += Fx::uncolor(output);
+						}
+						overlay_buf += conf.overlay;
+						return overlay_buf;
+					}();
+				frame_buf.reserve(content.size() + 32);
+				if (term_sync) frame_buf += Term::sync_start;
+				frame_buf += content;
+				if (term_sync) frame_buf += Term::sync_end;
+				Tools::write_stdout(frame_buf);
+			}
 		}
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
 		return {};
@@ -764,11 +781,25 @@ namespace Runner {
 
 		if (box == "overlay") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
-			cout << (term_sync ? Term::sync_start : "") << Global::overlay << (term_sync ? Term::sync_end : "") << flush;
+			{
+				string buf;
+				buf.reserve(Global::overlay.size() + 32);
+				if (term_sync) buf += Term::sync_start;
+				buf += Global::overlay;
+				if (term_sync) buf += Term::sync_end;
+				Tools::write_stdout(buf);
+			}
 		}
 		else if (box == "clock") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
-			cout << (term_sync ? Term::sync_start : "") << Global::clock << (term_sync ? Term::sync_end : "") << flush;
+			{
+				string buf;
+				buf.reserve(Global::clock.size() + 32);
+				if (term_sync) buf += Term::sync_start;
+				buf += Global::clock;
+				if (term_sync) buf += Term::sync_end;
+				Tools::write_stdout(buf);
+			}
 		}
 		else {
 			Config::unlock();
@@ -1235,7 +1266,17 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 
 	//? Print out box outlines
 	const bool term_sync = Config::getB(BoolKey::terminal_sync);
-	cout << (term_sync ? Term::sync_start : "") << Cpu::box << Mem::box << Net::box << Proc::box << (term_sync ? Term::sync_end : "") << flush;
+	{
+		string buf;
+		buf.reserve(Cpu::box.size() + Mem::box.size() + Net::box.size() + Proc::box.size() + 32);
+		if (term_sync) buf += Term::sync_start;
+		buf += Cpu::box;
+		buf += Mem::box;
+		buf += Net::box;
+		buf += Proc::box;
+		if (term_sync) buf += Term::sync_end;
+		Tools::write_stdout(buf);
+	}
 
 
 	//? ------------------------------------------------ MAIN LOOP ----------------------------------------------------
