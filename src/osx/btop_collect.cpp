@@ -1581,6 +1581,7 @@ namespace Net {
 namespace Proc {
 
 	vector<proc_info> current_procs;
+	static std::unordered_map<size_t, proc_info> proc_map;
 	std::unordered_map<string, string> uid_user;
 	string current_sort;
 	string current_filter;
@@ -1682,7 +1683,7 @@ namespace Proc {
 		const int cmult = (per_core) ? Shared::coreCount : 1;
 		bool got_detailed = false;
 
-		static vector<size_t> found;
+		static std::unordered_set<size_t> alive_pids;
 
 		//* Use pids from last update if only changing filter, sorting or tree options
 		if (no_update and not current_procs.empty()) {
@@ -1711,7 +1712,8 @@ namespace Proc {
 
 			should_filter = true;
 			int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
-			found.clear();
+			alive_pids.clear();
+			proc_map.reserve(current_procs.size() + 64);
 			size_t size = 0;
 			const auto timeNow = time_micros();
 
@@ -1727,23 +1729,21 @@ namespace Proc {
 					struct kinfo_proc& kproc = processes.get()[i];
 					const size_t pid = (size_t)kproc.kp_proc.p_pid;
 					if (pid < 1) continue;
-					found.push_back(pid);
+					alive_pids.insert(pid);
 
-					//? Check if pid already exists in current_procs
-					bool no_cache = false;
-					auto find_old = rng::find(current_procs, pid, &proc_info::pid);
+					//? Check if pid already exists in proc_map (O(1) hash lookup)
+					auto [it, inserted] = proc_map.try_emplace(pid, proc_info{pid});
+					bool no_cache = inserted;
 					//? Only add new processes if not paused
-					if (find_old == current_procs.end()) {
-						if (not pause_proc_list) {
-							current_procs.push_back({pid});
-							find_old = current_procs.end() - 1;
-							no_cache = true;
+					if (inserted) {
+						if (pause_proc_list) {
+							proc_map.erase(it);
+							continue;
 						}
-						else continue;
 					}
 					else if (dead_procs.contains(pid)) continue;
 
-					auto &new_proc = *find_old;
+					auto &new_proc = it->second;
 
 					//? Get program name, command, username, parent pid, nice and status
 					if (no_cache) {
@@ -1823,24 +1823,23 @@ namespace Proc {
 					}
 				}
 
-				//? Clear dead processes from current_procs if not paused
+				//? Clear dead processes from proc_map if not paused
 				if (not pause_proc_list) {
-					auto eraser = rng::remove_if(current_procs, [&](const auto& element) { return not v_contains(found, element.pid); });
-					current_procs.erase(eraser.begin(), eraser.end());
+					std::erase_if(proc_map, [&](const auto& pair) { return not alive_pids.contains(pair.first); });
 					if (!dead_procs.empty()) dead_procs.clear();
 				}
 				//? Set correct state of dead processes if paused
 				else {
 					const bool keep_dead_proc_usage = Config::getB("keep_dead_proc_usage");
-					for (auto& r : current_procs) {
-						if (rng::find(found, r.pid) == found.end()) {
+					for (auto& [pid, r] : proc_map) {
+						if (not alive_pids.contains(pid)) {
 							if (r.state != 'X') {
 								struct timeval currentTime;
 								gettimeofday(&currentTime, nullptr);
 								r.death_time = currentTime.tv_sec - (r.cpu_s / 1'000'000);
 							}
 							r.state = 'X';
-							dead_procs.emplace(r.pid);
+							dead_procs.emplace(pid);
 							//? Reset cpu usage for dead processes if paused and option is set
 							if (!keep_dead_proc_usage) {
 								r.cpu_p = 0.0;
@@ -1848,6 +1847,13 @@ namespace Proc {
 							}
 						}
 					}
+				}
+
+				//? Build sorted vector view from map
+				current_procs.clear();
+				current_procs.reserve(proc_map.size());
+				for (auto& [pid, info] : proc_map) {
+					current_procs.push_back(info);
 				}
 
 				//? Update the details info box for process if active
@@ -1929,7 +1935,7 @@ namespace Proc {
 
 			if (!pause_proc_list) {
 				for (auto& p : current_procs) {
-					if (not v_contains(found, p.ppid)) p.ppid = 0;
+					if (not alive_pids.contains(p.ppid)) p.ppid = 0;
 				}
 			}
 
