@@ -16,6 +16,7 @@ indent = tab
 tab-size = 4
 */
 
+#include <cerrno>
 #include <cmath>
 #include <ctime>
 #include <filesystem>
@@ -565,6 +566,22 @@ namespace Tools {
 			return fallback;
 		}
 		return (out.empty() ? fallback : out);
+	}
+
+	void write_stdout(const char* data, size_t len) {
+		while (len > 0) {
+			ssize_t n = ::write(STDOUT_FILENO, data, len);
+			if (n < 0) {
+				if (errno == EINTR) continue;
+				return;  // Terminal gone or error
+			}
+			data += n;
+			len -= static_cast<size_t>(n);
+		}
+	}
+
+	void write_stdout(const std::string& s) {
+		write_stdout(s.data(), s.size());
 	}
 
 	auto celsius_to(const long long& celsius, const string& scale) -> tuple<long long, string> {

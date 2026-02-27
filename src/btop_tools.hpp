@@ -36,9 +36,9 @@ tab-size = 4
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+#include <unistd.h>
 #ifdef __linux__
 #include <fcntl.h>
-#include <unistd.h>
 #endif
 #ifdef BTOP_DEBUG
 #include <source_location>
@@ -397,6 +397,10 @@ namespace Tools {
 		return total;
 	}
 #endif
+
+	//* Write data to stdout via POSIX write(), handling EINTR and partial writes.
+	void write_stdout(const char* data, size_t len);
+	void write_stdout(const std::string& s);
 
 	//* Convert a celsius value to celsius, fahrenheit, kelvin or rankin and return tuple with new value and unit.
 	auto celsius_to(const long long& celsius, const string& scale) -> tuple<long long, string>;
