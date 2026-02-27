@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T20:00:57.000Z"
+last_updated: "2026-02-27T20:13:14.679Z"
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 17
-  completed_plans: 18
+  total_phases: 8
+  completed_phases: 8
+  total_plans: 19
+  completed_plans: 19
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 6: Compiler & Verification -- Plan 1 of 2 complete
+**Current focus:** Phase 6: Compiler & Verification -- Complete (2/2 plans)
 
 ## Current Position
 
 Phase: 6 (Compiler & Verification)
-Plan: 1 of 2 in current phase
-Status: PGO + sanitizer CMake options, PGO build script, CI sanitizer sweep jobs
-Last activity: 2026-02-27 -- CMakeLists.txt PGO/sanitizer options + scripts/pgo-build.sh + CI sanitizer jobs
+Plan: 2 of 2 in current phase (COMPLETE)
+Status: Sanitizer sweeps clean, PGO 1.1% gain measured, mimalloc 1.6% gain documented
+Last activity: 2026-02-27 -- Sanitizer sweeps + PGO build + mimalloc evaluation + 06-RESULTS.md
 
-Progress: [##########] 100% (prior phases) + Phase 6: 1/2 plans
+Progress: [##########] 100% -- All 6 phases complete (18/18 plans)
 
 ## Performance Metrics
 
@@ -51,13 +51,14 @@ Progress: [##########] 100% (prior phases) + Phase 6: 1/2 plans
 
 **Recent Trend:**
 - Last 5 plans: 05-01 (7m), 05-02 (7m), 05-03 (5m), 06-01 (3m)
-- Trend: 06-01 PGO + sanitizer build infrastructure (2 tasks, 3 files)
+- Trend: 06-02 Sanitizer sweeps + PGO + mimalloc (1 task, 4 files)
 
 *Updated after each plan completion*
 | Phase 05 P01 | 7min | 2 tasks | 5 files |
 | Phase 05 P02 | 7min | 2 tasks | 5 files |
 | Phase 05 P03 | 5min | 2 tasks | 5 files |
 | Phase 06 P01 | 3min | 2 tasks | 3 files |
+| Phase 06 P02 | 8min | 1 task | 4 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,10 @@ Recent decisions affecting current work:
 - [Phase 06]: Sanitizer CI uses Clang 19 with libc++ for consistent toolchain
 - [Phase 06]: Benchmark uses 10 cycles under sanitizer (vs 50 normally) due to 2-15x overhead
 - [Phase 06]: fail-fast: false in sanitizer matrix so both asan-ubsan and tsan always run
+- [Phase 06]: 3 pre-existing ASan/UBSan issues fixed inline (smc.cpp overflow, misaligned access, NaN conversion)
+- [Phase 06]: PGO ~1% improvement valid result for I/O-bound workload (68% system time)
+- [Phase 06]: mimalloc ~2% improvement confirms Phase 2-5 allocation reduction was effective
+- [Phase 06]: pgo-build.sh uses xcrun llvm-profdata on macOS, BUILD_TESTING=OFF
 
 ### Pending Todos
 
@@ -127,5 +132,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 06-01-PLAN.md (PGO + sanitizer build infrastructure) -- Phase 6: 1/2 plans
+Stopped at: Completed 06-02-PLAN.md (sanitizer sweeps + PGO + mimalloc) -- Phase 6: 2/2 plans COMPLETE
 Resume file: None

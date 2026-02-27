@@ -43,7 +43,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **BILD-01**: Profile-Guided Optimization (PGO) CMake workflow implemented (10-20% gain target)
 - [x] **BILD-02**: Full ASan/TSan/UBSan sanitizer sweep completed verifying no correctness regressions from optimizations
-- [ ] **BILD-03**: mimalloc evaluated as drop-in allocator replacement, with benchmark comparison against default allocator
+- [x] **BILD-03**: mimalloc evaluated as drop-in allocator replacement, with benchmark comparison against default allocator
 
 ## v2 Requirements
 
@@ -101,7 +101,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REND-03 | Phase 5: Rendering Pipeline | Complete |
 | BILD-01 | Phase 6: Compiler & Verification | Complete |
 | BILD-02 | Phase 6: Compiler & Verification | Complete |
-| BILD-03 | Phase 6: Compiler & Verification | Pending |
+| BILD-03 | Phase 6: Compiler & Verification | Complete |
 
 **Coverage:**
 - v1 requirements: 20 total
