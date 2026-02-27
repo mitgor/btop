@@ -83,13 +83,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PROF-01 | Phase 1 + Phase 3.1: Profiling Gap Closure | Complete |
-| PROF-02 | Phase 1: Profiling & Baseline | Complete |
-| PROF-03 | Phase 1: Profiling & Baseline | Complete |
+| PROF-02 | Phase 1: Profiling & Baseline + Phase 7: Benchmark Integration Fixes | Complete (integration gap closure pending) |
+| PROF-03 | Phase 1: Profiling & Baseline + Phase 7: Benchmark Integration Fixes | Complete (integration gap closure pending) |
 | STRN-01 | Phase 2: String & Allocation Reduction | Complete |
 | STRN-02 | Phase 2: String & Allocation Reduction | Complete |
 | STRN-03 | Phase 2: String & Allocation Reduction | Complete |
 | STRN-04 | Phase 2: String & Allocation Reduction | Complete |
-| IODC-01 | Phase 3: I/O & Data Collection | Complete |
+| IODC-01 | Phase 3: I/O & Data Collection + Phase 7: Benchmark Integration Fixes | Complete (integration gap closure pending) |
 | IODC-02 | Phase 3: I/O & Data Collection | Complete |
 | IODC-03 | Phase 3: I/O & Data Collection | Complete |
 | IODC-04 | Phase 3: I/O & Data Collection | Complete |

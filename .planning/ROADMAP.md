@@ -19,6 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
 - [ ] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
 - [ ] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
+- [ ] **Phase 7: Benchmark Integration Fixes** - Fix stale sub-benchmarks and CI reliability to close integration/flow gaps from audit
 
 ## Phase Details
 
@@ -124,10 +125,24 @@ Plans:
 - [ ] 06-01: TBD
 - [ ] 06-02: TBD
 
+### Phase 7: Benchmark Integration Fixes
+**Goal**: Stale micro-benchmarks measure optimized code paths and CI benchmark runs fail visibly instead of silently
+**Depends on**: Phase 3
+**Requirements**: PROF-02, PROF-03, IODC-01 (strengthens existing satisfied requirements)
+**Gap Closure**: Closes integration and flow gaps from v1.0 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. bench_proc_collect.cpp sub-benchmarks use Tools::read_proc_file() instead of std::ifstream, measuring the Phase 3 optimized I/O path
+  2. CI benchmark workflow removes || true from proc benchmark invocation or adds explicit failure reporting so zero-data runs are detected
+  3. Proc::collect full benchmark handles Shared::init() failure gracefully with a clear skip message instead of silent try/catch swallow
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed sequentially for clean attribution of performance gains.
 
 | Phase | Plans Complete | Status | Completed |
@@ -139,3 +154,4 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 4. Data Structure Modernization | 0/0 | Not started | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
+| 7. Benchmark Integration Fixes | 0/0 | Not started | - |
