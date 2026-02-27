@@ -66,6 +66,7 @@ The inclusive profile attributes samples to the btop-level function that initiat
 ## Raw Profile Location
 
 Raw sample output saved to: `/tmp/btop_profile.txt`
+Script used: `bash scripts/profile_hotfunctions.sh 500`
 Command used: `sample <PID> 5 -f /tmp/btop_profile.txt`
 
 The raw file contains the full call graph tree with per-function hit counts, binary image addresses, and thread-level breakdown.
