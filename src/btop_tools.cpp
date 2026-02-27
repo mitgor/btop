@@ -262,7 +262,7 @@ namespace Tools {
 		return chars;
 	}
 
-	string uresize(string str, const size_t len, bool wide) {
+	string uresize(const string& str, const size_t len, bool wide) {
 		if (len < 1 or str.empty())
 			return "";
 
@@ -286,16 +286,14 @@ namespace Tools {
 			for (size_t x = 0, i = 0; i < str.size(); i++) {
 				if ((static_cast<unsigned char>(str.at(i)) & 0xC0) != 0x80) x++;
 				if (x >= len + 1) {
-					str.resize(i);
-					break;
+					return str.substr(0, i);
 				}
 			}
 		}
-		str.shrink_to_fit();
 		return str;
 	}
 
-	string luresize(string str, const size_t len, bool wide) {
+	string luresize(const string& str, const size_t len, bool wide) {
 		if (len < 1 or str.empty())
 			return "";
 
@@ -309,9 +307,7 @@ namespace Tools {
 				last_pos = i;
 			}
 			if (x >= len) {
-				str = str.substr(last_pos);
-				str.shrink_to_fit();
-				break;
+				return str.substr(last_pos);
 			}
 		}
 		return str;
@@ -339,7 +335,7 @@ namespace Tools {
 		return str;
 	}
 
-	string ljust(string str, const size_t x, bool utf, bool wide, bool limit) {
+	string ljust(const string& str, const size_t x, bool utf, bool wide, bool limit) {
 		if (utf) {
 			if (limit and ulen(str, wide) > x)
 				return uresize(str, x, wide);
@@ -348,14 +344,13 @@ namespace Tools {
 		}
 		else {
 			if (limit and str.size() > x) {
-				str.resize(x);
-				return str;
+				return str.substr(0, x);
 			}
 			return str + string(max((int)(x - str.size()), 0), ' ');
 		}
 	}
 
-	string rjust(string str, const size_t x, bool utf, bool wide, bool limit) {
+	string rjust(const string& str, const size_t x, bool utf, bool wide, bool limit) {
 		if (utf) {
 			if (limit and ulen(str, wide) > x)
 				return uresize(str, x, wide);
@@ -364,14 +359,13 @@ namespace Tools {
 		}
 		else {
 			if (limit and str.size() > x) {
-				str.resize(x);
-				return str;
-			};
+				return str.substr(0, x);
+			}
 			return string(max((int)(x - str.size()), 0), ' ') + str;
 		}
 	}
 
-	string cjust(string str, const size_t x, bool utf, bool wide, bool limit) {
+	string cjust(const string& str, const size_t x, bool utf, bool wide, bool limit) {
 		if (utf) {
 			if (limit and ulen(str, wide) > x)
 				return uresize(str, x, wide);
@@ -380,8 +374,7 @@ namespace Tools {
 		}
 		else {
 			if (limit and str.size() > x) {
-				str.resize(x);
-				return str;
+				return str.substr(0, x);
 			}
 			return string(max((int)ceil((double)(x - str.size()) / 2), 0), ' ') + str + string(max((int)floor((double)(x - str.size()) / 2), 0), ' ');
 		}

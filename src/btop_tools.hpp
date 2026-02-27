@@ -168,10 +168,10 @@ namespace Tools {
 	}
 
 	//* Resize a string consisting of UTF8 characters (only reduces size)
-	string uresize(const string str, const size_t len, bool wide = false);
+	string uresize(const string& str, const size_t len, bool wide = false);
 
 	//* Resize a string consisting of UTF8 characters from left (only reduces size)
-	string luresize(const string str, const size_t len, bool wide = false);
+	string luresize(const string& str, const size_t len, bool wide = false);
 
 	//* Replace <from> in <str> with <to> and return new string
 	string s_replace(const string& str, const string& from, const string& to);
@@ -283,13 +283,13 @@ namespace Tools {
 	}
 
 	//* Left justify string <str> if <x> is greater than <str> length, limit return size to <x> by default
-	string ljust(string str, const size_t x, bool utf = false, bool wide = false, bool limit = true);
+	string ljust(const string& str, const size_t x, bool utf = false, bool wide = false, bool limit = true);
 
 	//* Right justify string <str> if <x> is greater than <str> length, limit return size to <x> by default
-	string rjust(string str, const size_t x, bool utf = false, bool wide = false, bool limit = true);
+	string rjust(const string& str, const size_t x, bool utf = false, bool wide = false, bool limit = true);
 
 	//* Center justify string <str> if <x> is greater than <str> length, limit return size to <x> by default
-	string cjust(string str, const size_t x, bool utf = false, bool wide = false, bool limit = true);
+	string cjust(const string& str, const size_t x, bool utf = false, bool wide = false, bool limit = true);
 
 	//* Replace whitespaces " " with escape code for move right
 	string trans(const string& str);
