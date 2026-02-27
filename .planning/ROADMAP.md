@@ -61,11 +61,11 @@ Plans:
   2. readfile() no longer calls fs::exists() before opening -- double-stat eliminated for every file read
   3. PID lookup in current_procs uses a hash-based container -- process collection time scales linearly (not quadratically) with process count
   4. macOS and FreeBSD collectors have equivalent optimizations applied to their respective APIs (sysctl, proc_pidinfo, kvm_getprocs)
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md -- POSIX read_proc_file() helper + readfile() double-stat fix + Linux ifstream replacement (Wave 1)
+- [ ] 03-02-PLAN.md -- Hash-map PID lookup for Linux, macOS, and FreeBSD collectors (Wave 2)
 
 ### Phase 4: Data Structure Modernization
 **Goal**: Core data structures use contiguous memory with O(1) index access, eliminating per-lookup string hashing and per-append allocation
