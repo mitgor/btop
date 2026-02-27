@@ -10,9 +10,7 @@
 #include <nanobench.h>
 
 #include <cstring>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <string>
 
 #include "btop_shared.hpp"
@@ -42,32 +40,19 @@ int main(int argc, char* argv[]) {
 
 	// Benchmark /proc/self/stat parsing (lightweight, no init needed)
 	{
-		std::string stat_content;
-		{
-			std::ifstream f("/proc/self/stat");
-			std::stringstream ss;
-			ss << f.rdbuf();
-			stat_content = ss.str();
-		}
-
 		bench.run("/proc/self/stat read+parse", [&] {
-			std::ifstream f("/proc/self/stat");
-			std::string content;
-			std::getline(f, content);
-			ankerl::nanobench::doNotOptimizeAway(content);
+			char buf[4096];
+			ssize_t n = Tools::read_proc_file("/proc/self/stat", buf, sizeof(buf));
+			ankerl::nanobench::doNotOptimizeAway(n);
 		});
 	}
 
 	// Benchmark /proc/stat parsing (CPU usage data)
 	{
 		bench.run("/proc/stat read", [&] {
-			std::ifstream f("/proc/stat");
-			std::string line;
-			std::vector<std::string> lines;
-			while (std::getline(f, line)) {
-				lines.push_back(line);
-			}
-			ankerl::nanobench::doNotOptimizeAway(lines);
+			char buf[16384];
+			ssize_t n = Tools::read_proc_file("/proc/stat", buf, sizeof(buf));
+			ankerl::nanobench::doNotOptimizeAway(n);
 		});
 	}
 
@@ -88,21 +73,25 @@ int main(int argc, char* argv[]) {
 
 	// Try full Proc::collect if initialization is feasible
 	{
+		bool init_success = false;
 		try {
-			// Minimal config initialization
 			std::vector<std::string> load_warnings;
 			Config::load("", load_warnings);
-
 			Shared::init();
+			init_success = true;
+		} catch (const std::exception& e) {
+			std::cerr << "WARNING: Shared::init() failed: " << e.what() << std::endl;
+			std::cerr << "Proc::collect full benchmark will be SKIPPED." << std::endl;
+		}
 
+		if (init_success) {
 			bench.minEpochIterations(3);
 			bench.run("Proc::collect (full)", [&] {
 				auto& result = Proc::collect(false);
 				ankerl::nanobench::doNotOptimizeAway(result);
 			});
-		} catch (const std::exception& e) {
-			std::cerr << "Note: Full Proc::collect benchmark skipped: " << e.what() << std::endl;
-			std::cerr << "      /proc parsing sub-benchmarks above still provide useful data." << std::endl;
+		} else {
+			std::cout << "SKIP: Proc::collect (full) -- Shared::init() failed" << std::endl;
 		}
 	}
 
