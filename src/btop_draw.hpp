@@ -19,6 +19,7 @@ tab-size = 4
 #pragma once
 
 #include <array>
+#include <climits>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -136,6 +137,7 @@ namespace Draw {
 		bool invert, no_zero;
 		long long offset;
 		long long last = 0, max_value = 0;
+		long long last_data_back = LLONG_MIN;  // Track last data.back() value for skip optimization
 		bool current = true, tty_mode = false;
 		std::array<vector<string>, 2> graphs{};
 

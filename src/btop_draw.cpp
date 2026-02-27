@@ -443,6 +443,7 @@ namespace Draw {
 			if (mult and i >= 0) last = data_value;
 		}
 		last = data_value;
+		out.reserve(width * height * 8);  // Pre-allocate for escape codes + UTF-8 chars + cursor moves
 		out.clear();
 		if (height == 1) {
 			//if (not color_gradient.empty())
@@ -488,10 +489,21 @@ namespace Draw {
 		}
 		if (data.size() == 0) return;
 		this->_create(data, data_offset);
+		last_data_back = data.back();
 	}
 
 	string& Graph::operator()(const RingBuffer<long long>& data, bool data_same) {
 		if (data_same) return out;
+
+		//? If the newest data point hasn't changed, the graph output is identical
+		//? (shift produces same visual result when rightmost value is unchanged)
+		if (not data.empty()) {
+			long long current_back = data.back();
+			if (current_back == last_data_back and not out.empty()) {
+				return out;
+			}
+			last_data_back = current_back;
+		}
 
 		//? Make room for new characters on graph
 		if (not tty_mode) current = not current;
