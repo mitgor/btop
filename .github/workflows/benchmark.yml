@@ -1,0 +1,121 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  benchmark-linux:
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ${{ github.workflow }}-linux-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" \
+            -DBTOP_BENCHMARKS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run micro-benchmarks
+        run: |
+          ./build/benchmarks/btop_bench_strings --json > bench_strings.json
+          ./build/benchmarks/btop_bench_draw --json > bench_draw.json
+          ./build/benchmarks/btop_bench_proc --json > bench_proc.json || true
+
+      - name: Run macro-benchmark
+        run: |
+          ./build/btop --benchmark 20 > bench_macro.json
+
+      - name: Convert results
+        run: |
+          python3 benchmarks/convert_nanobench_json.py \
+            bench_strings.json bench_draw.json bench_proc.json bench_macro.json \
+            > benchmark_results.json
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'customSmallerIsBetter'
+          output-file-path: benchmark_results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          alert-threshold: '200%'
+          comment-on-alert: true
+          fail-on-alert: false
+          alert-comment-cc-users: '@aristocratos'
+          benchmark-data-dir-path: 'dev/bench'
+
+  benchmark-macos:
+    runs-on: macos-15
+    concurrency:
+      group: ${{ github.workflow }}-macos-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: |
+          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+          brew update --quiet
+          brew install --force --overwrite cmake llvm lld ninja
+
+      - name: Configure
+        run: |
+          export LLVM_PREFIX="$(brew --prefix llvm)"
+          export LLD_PREFIX="$(brew --prefix lld)"
+          export CXX="$LLVM_PREFIX/bin/clang++"
+          export CPPFLAGS="-I$LLVM_PREFIX/include"
+          export LDFLAGS="-L$LLVM_PREFIX/lib -L$LLVM_PREFIX/lib/c++ -Wl,-rpath,$LLVM_PREFIX/lib/c++ -fuse-ld=$LLD_PREFIX/bin/ld64.lld"
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" \
+            -DBTOP_BENCHMARKS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run micro-benchmarks
+        run: |
+          ./build/benchmarks/btop_bench_strings --json > bench_strings.json
+          ./build/benchmarks/btop_bench_draw --json > bench_draw.json
+
+      - name: Run macro-benchmark
+        run: |
+          ./build/btop --benchmark 20 > bench_macro.json
+
+      - name: Convert results
+        run: |
+          python3 benchmarks/convert_nanobench_json.py \
+            bench_strings.json bench_draw.json bench_macro.json \
+            > benchmark_results.json
+
+      # macOS results stored separately, not auto-pushed (Linux is primary baseline)
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'customSmallerIsBetter'
+          output-file-path: benchmark_results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: false
+          alert-threshold: '200%'
+          comment-on-alert: true
+          fail-on-alert: false
+          benchmark-data-dir-path: 'dev/bench-macos'
