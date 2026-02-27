@@ -17,8 +17,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **STRN-01**: std::regex in Fx::uncolor() replaced with hand-written ANSI escape code parser (10-100x improvement target)
 - [x] **STRN-02**: String-by-value parameters in utility functions (uresize, luresize, etc.) replaced with const ref or string_view
-- [ ] **STRN-03**: fmt::format calls in draw pipeline replaced with fmt::format_to to eliminate intermediate string allocations
-- [ ] **STRN-04**: String reserve() calls added to draw functions with accurate size estimates accounting for escape code overhead
+- [x] **STRN-03**: fmt::format calls in draw pipeline replaced with fmt::format_to to eliminate intermediate string allocations
+- [x] **STRN-04**: String reserve() calls added to draw functions with accurate size estimates accounting for escape code overhead
 
 ### I/O & Data Collection Optimization
 
@@ -87,8 +87,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROF-03 | Phase 1: Profiling & Baseline | Pending |
 | STRN-01 | Phase 2: String & Allocation Reduction | Complete |
 | STRN-02 | Phase 2: String & Allocation Reduction | Complete |
-| STRN-03 | Phase 2: String & Allocation Reduction | Pending |
-| STRN-04 | Phase 2: String & Allocation Reduction | Pending |
+| STRN-03 | Phase 2: String & Allocation Reduction | Complete |
+| STRN-04 | Phase 2: String & Allocation Reduction | Complete |
 | IODC-01 | Phase 3: I/O & Data Collection | Pending |
 | IODC-02 | Phase 3: I/O & Data Collection | Pending |
 | IODC-03 | Phase 3: I/O & Data Collection | Pending |
