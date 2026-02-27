@@ -91,11 +91,12 @@ Plans:
   1. Time-series fields in cpu_info, mem_info, and net_info use enum-indexed arrays instead of unordered_map<string, ...> -- Cachegrind confirms improved cache hit rate
   2. Graph history data uses fixed-size ring buffers instead of deque<long long> -- zero heap allocations during steady-state data collection
   3. Small fixed-key map instances (graph symbol lookup, config bools) use sorted vectors or flat arrays -- nanobench confirms faster lookup than unordered_map for these key sets
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md -- RingBuffer template + enum definitions + unit tests + graph_symbols/Graph::graphs migration (Wave 1)
+- [ ] 04-02-PLAN.md -- Migrate collector structs + all 5 platform collectors + draw code to enum-indexed RingBuffer arrays (Wave 2)
+- [ ] 04-03-PLAN.md -- Config enum migration: bools/ints/strings to enum-indexed arrays + 364 call site updates (Wave 3)
 
 ### Phase 5: Rendering Pipeline
 **Goal**: Terminal output per frame is minimized to only changed content, with I/O batched into a single write
@@ -151,7 +152,7 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 2. String & Allocation Reduction | 2/2 | Complete | 2026-02-27 |
 | 3. I/O & Data Collection | 2/2 | Complete | 2026-02-27 |
 | 3.1 Profiling Gap Closure | 0/1 | Not started | - |
-| 4. Data Structure Modernization | 0/0 | Not started | - |
+| 4. Data Structure Modernization | 0/3 | Not started | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
 | 7. Benchmark Integration Fixes | 0/0 | Not started | - |
