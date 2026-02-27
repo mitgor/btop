@@ -58,55 +58,50 @@ namespace Symbols {
 	const string meter = "■";
 
 	const array<string, 10> superscript = { "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹" };
-
-	const std::unordered_map<string, vector<string>> graph_symbols = {
-		{ "braille_up", {
-			" ", "⢀", "⢠", "⢰", "⢸",
-			"⡀", "⣀", "⣠", "⣰", "⣸",
-			"⡄", "⣄", "⣤", "⣴", "⣼",
-			"⡆", "⣆", "⣦", "⣶", "⣾",
-			"⡇", "⣇", "⣧", "⣷", "⣿"
-		}},
-		{"braille_down", {
-			" ", "⠈", "⠘", "⠸", "⢸",
-			"⠁", "⠉", "⠙", "⠹", "⢹",
-			"⠃", "⠋", "⠛", "⠻", "⢻",
-			"⠇", "⠏", "⠟", "⠿", "⢿",
-			"⡇", "⡏", "⡟", "⡿", "⣿"
-		}},
-		{"block_up", {
-			" ", "▗", "▗", "▐", "▐",
-			"▖", "▄", "▄", "▟", "▟",
-			"▖", "▄", "▄", "▟", "▟",
-			"▌", "▙", "▙", "█", "█",
-			"▌", "▙", "▙", "█", "█"
-		}},
-		{"block_down", {
-			" ", "▝", "▝", "▐", "▐",
-			"▘", "▀", "▀", "▜", "▜",
-			"▘", "▀", "▀", "▜", "▜",
-			"▌", "▛", "▛", "█", "█",
-			"▌", "▛", "▛", "█", "█"
-		}},
-		{"tty_up", {
-			" ", "░", "░", "▒", "▒",
-			"░", "░", "▒", "▒", "█",
-			"░", "▒", "▒", "▒", "█",
-			"▒", "▒", "▒", "█", "█",
-			"▒", "█", "█", "█", "█"
-		}},
-		{"tty_down", {
-			" ", "░", "░", "▒", "▒",
-			"░", "░", "▒", "▒", "█",
-			"░", "▒", "▒", "▒", "█",
-			"▒", "▒", "▒", "█", "█",
-			"▒", "█", "█", "█", "█"
-		}}
-	};
-
 }
 
 namespace Draw {
+
+	// Enum-indexed graph symbol array -- replaces unordered_map<string, vector<string>>
+	// Order must match GraphSymbolType enum: braille_up, braille_down, block_up, block_down, tty_up, tty_down
+	const std::array<vector<string>, static_cast<size_t>(GraphSymbolType::COUNT)> graph_symbols = {{
+		// braille_up [0]
+		{ " ", "⢀", "⢠", "⢰", "⢸",
+		  "⡀", "⣀", "⣠", "⣰", "⣸",
+		  "⡄", "⣄", "⣤", "⣴", "⣼",
+		  "⡆", "⣆", "⣦", "⣶", "⣾",
+		  "⡇", "⣇", "⣧", "⣷", "⣿" },
+		// braille_down [1]
+		{ " ", "⠈", "⠘", "⠸", "⢸",
+		  "⠁", "⠉", "⠙", "⠹", "⢹",
+		  "⠃", "⠋", "⠛", "⠻", "⢻",
+		  "⠇", "⠏", "⠟", "⠿", "⢿",
+		  "⡇", "⡏", "⡟", "⡿", "⣿" },
+		// block_up [2]
+		{ " ", "▗", "▗", "▐", "▐",
+		  "▖", "▄", "▄", "▟", "▟",
+		  "▖", "▄", "▄", "▟", "▟",
+		  "▌", "▙", "▙", "█", "█",
+		  "▌", "▙", "▙", "█", "█" },
+		// block_down [3]
+		{ " ", "▝", "▝", "▐", "▐",
+		  "▘", "▀", "▀", "▜", "▜",
+		  "▘", "▀", "▀", "▜", "▜",
+		  "▌", "▛", "▛", "█", "█",
+		  "▌", "▛", "▛", "█", "█" },
+		// tty_up [4]
+		{ " ", "░", "░", "▒", "▒",
+		  "░", "░", "▒", "▒", "█",
+		  "░", "▒", "▒", "▒", "█",
+		  "▒", "▒", "▒", "█", "█",
+		  "▒", "█", "█", "█", "█" },
+		// tty_down [5]
+		{ " ", "░", "░", "▒", "▒",
+		  "░", "░", "▒", "▒", "█",
+		  "░", "▒", "▒", "▒", "█",
+		  "▒", "▒", "▒", "█", "█",
+		  "▒", "█", "█", "█", "█" },
+	}};
 
 	string banner_gen(int y, int x, bool centered, bool redraw) {
 		static string banner;
@@ -394,7 +389,7 @@ namespace Draw {
 	//* Graph class ------------------------------------------------------------------------------------------------------------>
 	void Graph::_create(const deque<long long>& data, int data_offset) {
 		bool mult = (data.size() - data_offset > 1);
-		const auto& graph_symbol = Symbols::graph_symbols.at(symbol + '_' + (invert ? "down" : "up"));
+		const auto& graph_symbol = graph_symbols[std::to_underlying(to_graph_symbol_type(symbol, invert))];
 		array<int, 2> result;
 		const float mod = (height == 1) ? 0.3 : 0.1;
 		long long data_value = 0;
@@ -571,7 +566,7 @@ namespace Cpu {
 		}
 		auto tty_mode = Config::getB("tty_mode");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_cpu"));
-		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
+		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto& temp_scale = Config::getS("temp_scale");
 		auto cpu_bottom = Config::getB("cpu_bottom");
 
@@ -1038,7 +1033,7 @@ namespace Gpu {
         auto tty_mode = Config::getB("tty_mode");
 		auto& temp_scale = Config::getS("temp_scale");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_gpu"));
-		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
+		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
         auto single_graph = !Config::getB("gpu_mirror_graph");
 		string out;
 		int height = gpu_b_height_offsets[index] + 4;
@@ -1217,7 +1212,7 @@ namespace Mem {
 		auto use_graphs = Config::getB("mem_graphs");
 		auto tty_mode = Config::getB("tty_mode");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_mem"));
-		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
+		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto totalMem = Mem::get_totalMem();
 		string out;
 		out.reserve(height * width * 12);  // ~12 bytes/visible char: moderate escape density for mem/disk
@@ -1683,7 +1678,7 @@ namespace Proc {
 		auto proc_colors = Config::getB("proc_colors");
 		auto tty_mode = Config::getB("tty_mode");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_proc"));
-		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
+		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto mem_bytes = Config::getB("proc_mem_bytes");
 		auto vim_keys = Config::getB("vim_keys");
 		auto show_graphs = Config::getB("proc_cpu_graphs");

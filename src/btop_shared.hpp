@@ -279,6 +279,63 @@ public:
 	const_iterator cend() const { return {this, size_}; }
 };
 
+//---------------------------------------------
+// Field enums for O(1) array-indexed data structures
+// Replace string-keyed unordered_maps in collector structs (Plan 02 migration).
+//---------------------------------------------
+
+// CPU time fields -- matches Linux /proc/stat order; BSD uses subset (total, user, nice, system, idle)
+enum class CpuField : size_t {
+	total, user, nice, system, idle,
+	iowait, irq, softirq, steal, guest, guest_nice,
+	COUNT  // = 11
+};
+
+// Memory stat/percent fields
+enum class MemField : size_t {
+	used, available, cached, free,
+	swap_total, swap_used, swap_free,
+	COUNT  // = 7
+};
+
+// Network direction
+enum class NetDir : size_t { download, upload, COUNT };
+
+// Per-GPU percent fields
+enum class GpuField : size_t {
+	gpu_totals, gpu_vram_totals, gpu_pwr_totals,
+	COUNT  // = 3
+};
+
+// Shared (aggregated) GPU percent fields
+enum class SharedGpuField : size_t {
+	gpu_average, gpu_vram_total, gpu_pwr_total,
+	COUNT  // = 3
+};
+
+// Constexpr name tables for debug/serialization (replaces time_names strings in collectors in Plan 02)
+inline constexpr std::array<std::string_view, static_cast<size_t>(CpuField::COUNT)> cpu_field_names = {
+	"total", "user", "nice", "system", "idle",
+	"iowait", "irq", "softirq", "steal", "guest", "guest_nice"
+};
+
+inline constexpr std::array<std::string_view, static_cast<size_t>(MemField::COUNT)> mem_field_names = {
+	"used", "available", "cached", "free",
+	"swap_total", "swap_used", "swap_free"
+};
+
+inline constexpr std::array<std::string_view, static_cast<size_t>(NetDir::COUNT)> net_dir_names = {
+	"download", "upload"
+};
+
+inline constexpr std::array<std::string_view, static_cast<size_t>(GpuField::COUNT)> gpu_field_names = {
+	"gpu-totals", "gpu-vram-totals", "gpu-pwr-totals"
+};
+
+inline constexpr std::array<std::string_view, static_cast<size_t>(SharedGpuField::COUNT)> shared_gpu_field_names = {
+	"gpu-average", "gpu-vram-total", "gpu-pwr-total"
+};
+
 void term_resize(bool force=false);
 void banner_gen();
 

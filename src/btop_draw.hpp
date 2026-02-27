@@ -23,6 +23,7 @@ tab-size = 4
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 using std::array;
@@ -60,6 +61,33 @@ namespace Symbols {
 }
 
 namespace Draw {
+
+	// Graph symbol type enum -- indexes into graph_symbols array (replaces string-keyed unordered_map)
+	enum class GraphSymbolType : size_t {
+		braille_up, braille_down,
+		block_up, block_down,
+		tty_up, tty_down,
+		COUNT  // = 6
+	};
+
+	// Convert runtime symbol name + invert flag to GraphSymbolType enum
+	inline GraphSymbolType to_graph_symbol_type(const string& symbol, bool invert) {
+		if (symbol == "braille" || symbol == "default")
+			return invert ? GraphSymbolType::braille_down : GraphSymbolType::braille_up;
+		if (symbol == "block")
+			return invert ? GraphSymbolType::block_down : GraphSymbolType::block_up;
+		// tty
+		return invert ? GraphSymbolType::tty_down : GraphSymbolType::tty_up;
+	}
+
+	// Enum-indexed array of graph symbol vectors (defined in btop_draw.cpp)
+	extern const std::array<vector<string>, static_cast<size_t>(GraphSymbolType::COUNT)> graph_symbols;
+
+	// Helper: get the background fill symbol (index 6) for a given symbol name
+	inline const string& graph_bg_symbol(const string& symbol_name) {
+		return graph_symbols[std::to_underlying(to_graph_symbol_type(
+			symbol_name == "default" ? "braille" : symbol_name, false))].at(6);
+	}
 
 	//* Generate if needed and return the btop++ banner
 	string banner_gen(int y=0, int x=0, bool centered=false, bool redraw=false);
@@ -109,7 +137,7 @@ namespace Draw {
 		long long offset;
 		long long last = 0, max_value = 0;
 		bool current = true, tty_mode = false;
-		std::unordered_map<bool, vector<string>> graphs = { {true, {}}, {false, {}}};
+		std::array<vector<string>, 2> graphs{};
 
 		//* Create two representations of the graph to switch between to represent two values for each braille character
 		void _create(const deque<long long>& data, int data_offset);

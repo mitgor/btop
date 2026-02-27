@@ -13,9 +13,7 @@ add_library(libbtop_test)
 target_include_directories(libbtop_test PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(libbtop_test libbtop GTest::gtest_main)
 
-# test_enum_arrays.cpp depends on Task 2 (GraphSymbolType + graph_symbols migration)
-# It will be added back after Task 2 completes the enum-indexed array migration.
-add_executable(btop_test tools.cpp test_uncolor.cpp test_ring_buffer.cpp)
+add_executable(btop_test tools.cpp test_uncolor.cpp test_ring_buffer.cpp test_enum_arrays.cpp)
 target_link_libraries(btop_test libbtop_test)
 
 include(GoogleTest)
