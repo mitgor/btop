@@ -25,7 +25,8 @@ cmake -B build-pgo-gen -G Ninja \
   -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
   -DCMAKE_CXX_COMPILER="$CXX_COMPILER" \
   -DBTOP_PGO_GENERATE=ON \
-  -DBTOP_LTO=ON
+  -DBTOP_LTO=ON \
+  -DBUILD_TESTING=OFF
 cmake --build build-pgo-gen
 
 # Step 2: Run training workload
@@ -53,7 +54,11 @@ if [ "$IS_CLANG" = true ]; then
     exit 1
   fi
   # shellcheck disable=SC2086
-  llvm-profdata merge -output=btop.profdata $PROFRAW_FILES
+  PROFDATA_CMD="llvm-profdata"
+  if ! command -v "$PROFDATA_CMD" &>/dev/null; then
+    PROFDATA_CMD="$(xcrun -f llvm-profdata 2>/dev/null || echo llvm-profdata)"
+  fi
+  "$PROFDATA_CMD" merge -output=btop.profdata $PROFRAW_FILES
   PROFILE_PATH="$(pwd)/btop.profdata"
   echo "Clang profile merged: $PROFILE_PATH"
 else
@@ -74,7 +79,8 @@ cmake -B build-pgo-use -G Ninja \
   -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
   -DCMAKE_CXX_COMPILER="$CXX_COMPILER" \
   -DBTOP_PGO_USE="$PROFILE_PATH" \
-  -DBTOP_LTO=ON
+  -DBTOP_LTO=ON \
+  -DBUILD_TESTING=OFF
 cmake --build build-pgo-use
 
 echo ""

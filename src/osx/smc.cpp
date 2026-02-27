@@ -99,9 +99,9 @@ namespace Cpu {
 			snprintf(key, 5, "TC%1cc", KeyIndexes[core]);
 		}
 		long long result = getSMCTemp(key);
-		if (result == -1) {
+		if (result == -1 && core >= 0) {
 			// try again with C
-			snprintf(key, 5, "TC%1dC", KeyIndexes[core]);
+			snprintf(key, 5, "TC%1cc", KeyIndexes[core]);
 			result = getSMCTemp(key);
 		}
 		return result;

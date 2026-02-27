@@ -1027,7 +1027,7 @@ namespace Cpu {
 				core_old_idles.at(i) = idles;
 
 				if (cpu.core_percent.at(i).capacity() != 40) cpu.core_percent.at(i).resize(40);
-				cpu.core_percent.at(i).push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
+				cpu.core_percent.at(i).push_back(calc_totals > 0 ? clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll) : 0ll);
 
 			} catch (const std::exception &e) {
 				Logger::error("Cpu::collect() : {}", e.what());
@@ -1467,12 +1467,13 @@ namespace Net {
 						struct if_msghdr *ifm = (struct if_msghdr *)next;
 						next += ifm->ifm_msglen;
 						if (ifm->ifm_type == RTM_IFINFO2) {
-							struct if_msghdr2 *if2m = (struct if_msghdr2 *)ifm;
-							struct sockaddr_dl *sdl = (struct sockaddr_dl *)(if2m + 1);
+							struct if_msghdr2 if2m_copy;
+							memcpy(&if2m_copy, ifm, sizeof(if2m_copy));
+							struct sockaddr_dl *sdl = (struct sockaddr_dl *)((char *)ifm + sizeof(struct if_msghdr2));
 							char iface[32];
 							strncpy(iface, sdl->sdl_data, sdl->sdl_nlen);
 							iface[sdl->sdl_nlen] = 0;
-							ifstats[iface] = std::tuple(if2m->ifm_data.ifi_ibytes, if2m->ifm_data.ifi_obytes);
+							ifstats[iface] = std::tuple(if2m_copy.ifm_data.ifi_ibytes, if2m_copy.ifm_data.ifi_obytes);
 						}
 					}
 				}
