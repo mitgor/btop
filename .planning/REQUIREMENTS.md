@@ -24,8 +24,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **IODC-01**: Linux Proc::collect() ifstream usage replaced with POSIX read() and stack buffers, eliminating 1,500-2,000+ heap-allocating file opens per update
 - [x] **IODC-02**: Redundant fs::exists() calls removed from readfile() utility (eliminating double-stat)
-- [ ] **IODC-03**: O(N^2) linear PID scan replaced with hash-based PID lookup
-- [ ] **IODC-04**: Equivalent I/O optimizations applied to macOS and FreeBSD data collectors
+- [x] **IODC-03**: O(N^2) linear PID scan replaced with hash-based PID lookup
+- [x] **IODC-04**: Equivalent I/O optimizations applied to macOS and FreeBSD data collectors
 
 ### Data Structure Optimization
 
@@ -91,8 +91,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STRN-04 | Phase 2: String & Allocation Reduction | Complete |
 | IODC-01 | Phase 3: I/O & Data Collection | Complete |
 | IODC-02 | Phase 3: I/O & Data Collection | Complete |
-| IODC-03 | Phase 3: I/O & Data Collection | Pending |
-| IODC-04 | Phase 3: I/O & Data Collection | Pending |
+| IODC-03 | Phase 3: I/O & Data Collection | Complete |
+| IODC-04 | Phase 3: I/O & Data Collection | Complete |
 | DATA-01 | Phase 4: Data Structure Modernization | Pending |
 | DATA-02 | Phase 4: Data Structure Modernization | Pending |
 | DATA-03 | Phase 4: Data Structure Modernization | Pending |

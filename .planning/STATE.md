@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-02-27T09:33:21Z"
+last_updated: "2026-02-27T09:44:37.103Z"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 3 of 6 (I/O & Data Collection)
-Plan: 1 of 2 in current phase
-Status: In Progress
-Last activity: 2026-02-27 -- Completed 03-01 (POSIX read /proc hot path)
+Phase: 3 of 6 (I/O & Data Collection) -- COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase 3 Complete
+Last activity: 2026-02-27 -- Completed 03-02 (Hash-map PID lookup)
 
-Progress: [########--] 85%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: ~7 min
-- Total execution time: ~0.7 hours
+- Total plans completed: 7
+- Average duration: ~6 min
+- Total execution time: ~0.8 hours
 
 **By Phase:**
 
@@ -42,11 +42,11 @@ Progress: [########--] 85%
 |-------|-------|-------|----------|
 | 1. Profiling & Baseline | 3 | ~30 min | ~10 min |
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
-| 3. I/O & Data Collection | 1 | 4 min | 4 min |
+| 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-03 (8m), 02-01 (6m), 02-02 (3m), 03-01 (4m)
-- Trend: Improving
+- Last 5 plans: 02-01 (6m), 02-02 (3m), 03-01 (4m), 03-02 (5m)
+- Trend: Stable ~4-5 min
 
 *Updated after each plan completion*
 
@@ -69,6 +69,10 @@ Recent decisions affecting current work:
 - [Phase 03]: Used rfind(')') for /proc/[pid]/stat comm field skipping instead of offset-based space counting
 - [Phase 03]: Replaced ifstream line-by-line status parsing with string_view::find for Uid field extraction
 - [Phase 03]: Removed unused long_string and short_str from PID loop scope after POSIX conversion
+- [Phase 03]: proc_map owns process data; current_procs vector rebuilt from map each cycle for sorting/return compatibility
+- [Phase 03]: alive_pids declared static to persist across collection cycles for tree view ppid orphan detection
+- [Phase 03]: FreeBSD idle process skip adapted to erase from proc_map and alive_pids instead of pop_back
+- [Phase 03]: Linux kernel thread filtering uses alive_pids.erase(pid) instead of found.pop_back()
 
 ### Pending Todos
 
@@ -81,5 +85,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 03-01-PLAN.md (POSIX read /proc hot path) -- Phase 3 plan 1 of 2
+Stopped at: Completed 03-02-PLAN.md (Hash-map PID lookup) -- Phase 3 complete (2 of 2 plans)
 Resume file: None

@@ -13,8 +13,8 @@ This roadmap delivers measurable performance improvements to btop++ across CPU u
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Profiling & Baseline** - Establish reproducible benchmarks and identify actual bottlenecks before any code changes
-- [ ] **Phase 2: String & Allocation Reduction** - Eliminate per-frame string allocation overhead in utilities and draw path
-- [ ] **Phase 3: I/O & Data Collection** - Replace expensive ifstream/filesystem operations with POSIX I/O in collectors
+- [x] **Phase 2: String & Allocation Reduction** - Eliminate per-frame string allocation overhead in utilities and draw path
+- [x] **Phase 3: I/O & Data Collection** - Replace expensive ifstream/filesystem operations with POSIX I/O in collectors
 - [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
 - [ ] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
 - [ ] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
@@ -49,8 +49,8 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 02-01-PLAN.md -- Replace Fx::uncolor() regex with hand-written parser + const-ref string utility params (Wave 1)
-- [ ] 02-02-PLAN.md -- Convert fmt::format to fmt::format_to in draw pipeline + escape-aware reserve estimates (Wave 2)
+- [x] 02-01-PLAN.md -- Replace Fx::uncolor() regex with hand-written parser + const-ref string utility params (Wave 1)
+- [x] 02-02-PLAN.md -- Convert fmt::format to fmt::format_to in draw pipeline + escape-aware reserve estimates (Wave 2)
 
 ### Phase 3: I/O & Data Collection
 **Goal**: System data collection uses minimal syscalls and zero heap-allocating file I/O, with O(1) PID lookup replacing linear scan
@@ -64,8 +64,8 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 03-01-PLAN.md -- POSIX read_proc_file() helper + readfile() double-stat fix + Linux ifstream replacement (Wave 1)
-- [ ] 03-02-PLAN.md -- Hash-map PID lookup for Linux, macOS, and FreeBSD collectors (Wave 2)
+- [x] 03-01-PLAN.md -- POSIX read_proc_file() helper + readfile() double-stat fix + Linux ifstream replacement (Wave 1)
+- [x] 03-02-PLAN.md -- Hash-map PID lookup for Linux, macOS, and FreeBSD collectors (Wave 2)
 
 ### Phase 4: Data Structure Modernization
 **Goal**: Core data structures use contiguous memory with O(1) index access, eliminating per-lookup string hashing and per-append allocation
@@ -118,8 +118,8 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Profiling & Baseline | 3/3 | Complete | 2026-02-27 |
-| 2. String & Allocation Reduction | 0/0 | Not started | - |
-| 3. I/O & Data Collection | 0/0 | Not started | - |
+| 2. String & Allocation Reduction | 2/2 | Complete | 2026-02-27 |
+| 3. I/O & Data Collection | 2/2 | Complete | 2026-02-27 |
 | 4. Data Structure Modernization | 0/0 | Not started | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
