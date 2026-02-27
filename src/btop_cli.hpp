@@ -32,6 +32,8 @@ namespace Cli {
 		std::optional<stdfs::path> themes_dir;
 		// The initial refresh rate
 		std::optional<std::uint32_t> updates;
+		// Number of collect+draw cycles to run in benchmark mode (0 = normal operation)
+		std::optional<std::uint32_t> benchmark_cycles;
 	};
 
 	using Result = std::expected<Cli, std::int32_t>;
