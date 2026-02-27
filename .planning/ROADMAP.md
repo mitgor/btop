@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
 - [ ] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
 - [ ] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
-- [ ] **Phase 7: Benchmark Integration Fixes** - Fix stale sub-benchmarks and CI reliability to close integration/flow gaps from audit
+- [x] **Phase 7: Benchmark Integration Fixes** - Fix stale sub-benchmarks and CI reliability to close integration/flow gaps from audit
 
 ## Phase Details
 
@@ -140,7 +140,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 07-01-PLAN.md -- Update proc sub-benchmarks to read_proc_file() + fix CI silent failure + structured skip reporting (Wave 1)
+- [x] 07-01-PLAN.md -- Update proc sub-benchmarks to read_proc_file() + fix CI silent failure + structured skip reporting (Wave 1)
 
 ## Progress
 
@@ -157,4 +157,4 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 4. Data Structure Modernization | 3/5 | Gap Closure | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
-| 7. Benchmark Integration Fixes | 0/1 | Not started | - |
+| 7. Benchmark Integration Fixes | 1/1 | Complete | 2026-02-27 |
