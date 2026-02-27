@@ -17,6 +17,10 @@ add_executable(btop_bench_draw bench_draw.cpp)
 target_include_directories(btop_bench_draw PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(btop_bench_draw PRIVATE libbtop nanobench)
 
+add_executable(btop_bench_ds bench_data_structures.cpp)
+target_include_directories(btop_bench_ds PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(btop_bench_ds PRIVATE libbtop nanobench)
+
 if(LINUX)
     add_executable(btop_bench_proc bench_proc_collect.cpp)
     target_include_directories(btop_bench_proc PRIVATE ${PROJECT_SOURCE_DIR}/src)
