@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-last_updated: "2026-02-27T23:14:00Z"
+status: unknown
+last_updated: "2026-02-27T16:33:14.278Z"
 progress:
-  total_phases: 5
-  completed_phases: 4
+  total_phases: 6
+  completed_phases: 5
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 4 (Data Structure Modernization)
-Plan: 2 of 3 in current phase -- COMPLETE
-Status: Plan 04-02 complete -- all struct definitions and collectors migrated to enum-indexed RingBuffers
-Last activity: 2026-02-27 -- struct migration, 5 platform collectors updated, pop_front eliminated
+Phase: 4 (Data Structure Modernization) -- COMPLETE
+Plan: 3 of 3 in current phase -- COMPLETE
+Status: Phase 4 complete -- all data structures modernized (RingBuffer, enum-indexed arrays, Config enums)
+Last activity: 2026-02-27 -- Config enum migration, 436 call sites across 14 files
 
-Progress: [#########-] 91%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
@@ -44,13 +44,14 @@ Progress: [#########-] 91%
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 | 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
-| 4. Data Structure Modernization | 2/3 | ~51 min | ~26 min |
+| 4. Data Structure Modernization | 3/3 | ~62 min | ~21 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (4m), 03-02 (5m), 03.1-01 (5m), 04-01 (6m), 04-02 (~45m)
-- Trend: 04-02 longer due to 10-file migration across 5 platform collectors
+- Last 5 plans: 03-02 (5m), 03.1-01 (5m), 04-01 (6m), 04-02 (~45m), 04-03 (11m)
+- Trend: 04-03 faster than 04-02 (mechanical find-replace vs complex struct migration)
 
 *Updated after each plan completion*
+| Phase 04 P03 | 11min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,10 @@ Recent decisions affecting current work:
 - [Phase 04]: Used capacity-based resize() instead of pop_front trimming for ring buffer size management
 - [Phase 04]: Migrated Net::graph_max/max_count from string-keyed maps to std::array for consistency
 - [Phase 04]: Used bsd_time_fields (4 entries) vs linux_time_fields (10 entries) for platform CPU field counts
+- [Phase 04]: Kept string-accepting Config overloads for menu runtime key resolution alongside enum overloads
+- [Phase 04]: Added is_bool_key/is_int_key/is_string_key helpers to replace map .contains() in menu dispatch
+- [Phase 04]: Used IIFE for std::array initialization with non-zero default values
+- [Phase 04]: Kept string-accepting Config overloads for menu runtime key resolution alongside enum overloads
 
 ### Pending Todos
 
@@ -96,5 +101,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-02-PLAN.md (Struct Migration & Collector Update) -- Phase 4 plan 2 of 3 complete
+Stopped at: Completed 04-03-PLAN.md (Config Enum Migration) -- Phase 4 complete (3/3 plans)
 Resume file: None
