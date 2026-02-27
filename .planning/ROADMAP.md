@@ -15,10 +15,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Profiling & Baseline** - Establish reproducible benchmarks and identify actual bottlenecks before any code changes
 - [x] **Phase 2: String & Allocation Reduction** - Eliminate per-frame string allocation overhead in utilities and draw path
 - [x] **Phase 3: I/O & Data Collection** - Replace expensive ifstream/filesystem operations with POSIX I/O in collectors
-- [ ] **Phase 3.1: Profiling Gap Closure** - INSERTED — Run CPU sampling profiling session and document hot function ranking
-- [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
+- [x] **Phase 3.1: Profiling Gap Closure** - INSERTED — Run CPU sampling profiling session and document hot function ranking
+- [x] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
 - [x] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
-- [ ] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
+- [x] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
 - [x] **Phase 7: Benchmark Integration Fixes** - Fix stale sub-benchmarks and CI reliability to close integration/flow gaps from audit
 
 ## Phase Details
@@ -81,7 +81,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 03.1-01-PLAN.md -- Run macOS CPU sampling profiler and document ranked hot function list (Wave 1)
+- [x] 03.1-01-PLAN.md -- Run macOS CPU sampling profiler and document ranked hot function list (Wave 1)
 
 ### Phase 4: Data Structure Modernization
 **Goal**: Core data structures use contiguous memory with O(1) index access, eliminating per-lookup string hashing and per-append allocation
@@ -97,8 +97,8 @@ Plans:
 - [x] 04-01-PLAN.md -- RingBuffer template + enum definitions + unit tests + graph_symbols/Graph::graphs migration (Wave 1)
 - [x] 04-02-PLAN.md -- Migrate collector structs + all 5 platform collectors + draw code to enum-indexed RingBuffer arrays (Wave 2)
 - [x] 04-03-PLAN.md -- Config enum migration: bools/ints/strings to enum-indexed arrays + 436 call site updates (Wave 3)
-- [ ] 04-04-PLAN.md -- Gap closure: Fix BSD temperature/core_percent ring buffer bugs + bench_draw.cpp RingBuffer migration (Wave 4)
-- [ ] 04-05-PLAN.md -- Gap closure: nanobench data structure comparison + measurement evidence documentation (Wave 5)
+- [x] 04-04-PLAN.md -- Gap closure: Fix BSD temperature/core_percent ring buffer bugs + bench_draw.cpp RingBuffer migration (Wave 4)
+- [x] 04-05-PLAN.md -- Gap closure: nanobench data structure comparison + measurement evidence documentation (Wave 5)
 
 ### Phase 5: Rendering Pipeline
 **Goal**: Terminal output per frame is minimized to only changed content, with I/O batched into a single write
@@ -111,9 +111,9 @@ Plans:
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 05-01-PLAN.md -- write_stdout() POSIX helper + replace all cout output sites (Wave 1)
-- [ ] 05-02-PLAN.md -- Graph column caching: skip computation when data.back() unchanged (Wave 1)
-- [ ] 05-03-PLAN.md -- Cell buffer + escape-string parser + differential terminal output (Wave 2)
+- [x] 05-01-PLAN.md -- write_stdout() POSIX helper + replace all cout output sites (Wave 1)
+- [x] 05-02-PLAN.md -- Graph column caching: skip computation when data.back() unchanged (Wave 1)
+- [x] 05-03-PLAN.md -- Cell buffer + escape-string parser + differential terminal output (Wave 2)
 
 ### Phase 6: Compiler & Verification
 **Goal**: Compiler-level optimizations are applied to the fully-optimized codebase, and the entire optimization effort is verified correct
@@ -126,8 +126,8 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 06-01-PLAN.md -- PGO + sanitizer CMake options, PGO build script, CI sanitizer jobs (Wave 1)
-- [ ] 06-02-PLAN.md -- Execute sanitizer sweeps, PGO measurement, mimalloc evaluation, results documentation (Wave 2)
+- [x] 06-01-PLAN.md -- PGO + sanitizer CMake options, PGO build script, CI sanitizer jobs (Wave 1)
+- [x] 06-02-PLAN.md -- Execute sanitizer sweeps, PGO measurement, mimalloc evaluation, results documentation (Wave 2)
 
 ### Phase 7: Benchmark Integration Fixes
 **Goal**: Stale micro-benchmarks measure optimized code paths and CI benchmark runs fail visibly instead of silently
@@ -143,6 +143,20 @@ Plans:
 Plans:
 - [x] 07-01-PLAN.md -- Update proc sub-benchmarks to read_proc_file() + fix CI silent failure + structured skip reporting (Wave 1)
 
+### Phase 8: CI Coverage & Documentation Cleanup
+**Goal**: Close remaining CI coverage gaps from milestone audit and update stale documentation
+**Depends on**: Phase 7
+**Requirements**: PROF-02, PROF-03, DATA-01, DATA-02 (strengthens CI regression detection for these requirements)
+**Gap Closure**: Closes integration and flow gaps from v1.0 milestone audit (btop_bench_ds CI blind spot, PGO CI gap, stale ROADMAP)
+**Success Criteria** (what must be TRUE):
+  1. benchmark.yml invokes btop_bench_ds, captures JSON output, and feeds it through convert_nanobench_json.py into github-action-benchmark — DATA-01/DATA-02 regressions are now CI-detectable
+  2. PGO build path is validated in CI (either a dedicated job or a periodic scheduled workflow) confirming pgo-build.sh produces a working binary
+  3. ROADMAP.md progress table accurately reflects completion status of all phases
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [ ] 08-01-PLAN.md -- Add btop_bench_ds to CI + PGO validation + ROADMAP cleanup (Wave 1)
+
 ## Progress
 
 **Execution Order:**
@@ -154,8 +168,9 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 1. Profiling & Baseline | 3/3 | Complete | 2026-02-27 |
 | 2. String & Allocation Reduction | 2/2 | Complete | 2026-02-27 |
 | 3. I/O & Data Collection | 2/2 | Complete | 2026-02-27 |
-| 3.1 Profiling Gap Closure | 0/1 | Not started | - |
-| 4. Data Structure Modernization | 3/5 | Gap Closure | - |
+| 3.1 Profiling Gap Closure | 1/1 | Complete | 2026-02-27 |
+| 4. Data Structure Modernization | 5/5 | Complete | 2026-02-27 |
 | 5. Rendering Pipeline | 3/3 | Complete | 2026-02-27 |
-| 6. Compiler & Verification | 0/0 | Not started | - |
+| 6. Compiler & Verification | 2/2 | Complete | 2026-02-27 |
 | 7. Benchmark Integration Fixes | 1/1 | Complete | 2026-02-27 |
+| 8. CI Coverage & Documentation Cleanup | 0/1 | Not started | - |
