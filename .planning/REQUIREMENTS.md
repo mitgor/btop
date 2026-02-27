@@ -36,7 +36,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Rendering Optimization
 
 - [ ] **REND-01**: Differential terminal output implemented — only emit escape sequences for cells that changed between frames (30-50% draw time reduction target)
-- [ ] **REND-02**: Terminal output batched into single write() call per frame instead of multiple small writes
+- [x] **REND-02**: Terminal output batched into single write() call per frame instead of multiple small writes
 - [ ] **REND-03**: Graph rendering optimized — braille/tty graph characters cached, recomputation avoided for unchanged data points
 
 ### Compiler & Build Optimization
@@ -97,7 +97,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-02 | Phase 4: Data Structure Modernization | Complete |
 | DATA-03 | Phase 4: Data Structure Modernization | Complete |
 | REND-01 | Phase 5: Rendering Pipeline | Pending |
-| REND-02 | Phase 5: Rendering Pipeline | Pending |
+| REND-02 | Phase 5: Rendering Pipeline | Complete |
 | REND-03 | Phase 5: Rendering Pipeline | Pending |
 | BILD-01 | Phase 6: Compiler & Verification | Pending |
 | BILD-02 | Phase 6: Compiler & Verification | Pending |

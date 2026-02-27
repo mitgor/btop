@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 7: Benchmark Integration Fixes -- COMPLETE
+**Current focus:** Phase 5: Rendering Pipeline -- Plan 2 of 3 complete
 
 ## Current Position
 
-Phase: 7 (Benchmark Integration Fixes) -- COMPLETE
-Plan: 1 of 1 in current phase -- COMPLETE
-Status: Phase 7 complete -- proc sub-benchmarks migrated to read_proc_file(), CI failure reporting fixed
-Last activity: 2026-02-27 -- bench_proc_collect.cpp + benchmark.yml updates
+Phase: 5 (Rendering Pipeline)
+Plan: 2 of 3 in current phase -- COMPLETE
+Status: Graph last_data_back caching optimization implemented with unit tests and benchmarks
+Last activity: 2026-02-27 -- btop_draw.hpp/cpp graph cache + test_graph_cache.cpp + bench_draw.cpp
 
-Progress: [##########] 100%
+Progress: [##########] 100% (prior phases) + Phase 5: 2/3 plans
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 16
 - Average duration: ~9 min
-- Total execution time: ~1.9 hours
+- Total execution time: ~2.1 hours
 
 **By Phase:**
 
@@ -47,12 +47,14 @@ Progress: [##########] 100%
 | 4. Data Structure Modernization | 5/5 | ~70 min | ~14 min |
 | 7. Benchmark Integration Fixes | 1/1 | ~3 min | ~3 min |
 
+| 5. Rendering Pipeline | 1/3 | 7 min | ~7 min |
+
 **Recent Trend:**
-- Last 5 plans: 04-03 (11m), 04-04 (5m), 04-05 (3m), 07-01 (3m)
-- Trend: 07-01 quick integration fix (2 tasks, 2 files)
+- Last 5 plans: 04-04 (5m), 04-05 (3m), 07-01 (3m), 05-01 (7m)
+- Trend: 05-01 rendering pipeline first plan (2 tasks, 5 files)
 
 *Updated after each plan completion*
-| Phase 07 P01 | 3min | 2 tasks | 2 files |
+| Phase 05 P01 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -97,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Used if-else init pattern instead of try-catch-bench to separate init failure from benchmark execution
 - [Phase 07]: Emit SKIP to stdout (not just stderr) for CI log visibility
 - [Phase 07]: Write empty JSON results on proc crash to avoid downstream JSONDecodeError
+- [Phase 05]: Moved unistd.h include out of __linux__ guard for cross-platform STDOUT_FILENO access
+- [Phase 05]: Used thread_local string for overlay buffer in main runner to avoid per-frame heap allocation
+- [Phase 05]: Used concurrent reader thread in large write test to avoid pipe buffer deadlock on macOS
 
 ### Pending Todos
 
@@ -109,5 +114,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 07-01-PLAN.md (Benchmark Integration Fixes) -- Phase 7 COMPLETE (1/1 plans)
+Stopped at: Completed 05-01-PLAN.md (POSIX write_stdout) -- Phase 5: 1/3 plans complete
 Resume file: None
