@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T16:33:14.278Z"
+last_updated: "2026-02-27T17:01:22Z"
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 12
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 4 (Data Structure Modernization) -- COMPLETE
-Plan: 3 of 3 in current phase -- COMPLETE
-Status: Phase 4 complete -- all data structures modernized (RingBuffer, enum-indexed arrays, Config enums)
-Last activity: 2026-02-27 -- Config enum migration, 436 call sites across 14 files
+Phase: 4 (Data Structure Modernization) -- Gap Closure
+Plan: 4 of 5 in current phase -- COMPLETE
+Status: Gap closure plan 04 complete -- BSD ring buffer fixes and benchmark migration done
+Last activity: 2026-02-27 -- BSD resize-before-push fixes, bench_draw RingBuffer migration
 
-Progress: [##########] 100%
+Progress: [#########-] 92%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 12
 - Average duration: ~10 min
-- Total execution time: ~1.7 hours
+- Total execution time: ~1.8 hours
 
 **By Phase:**
 
@@ -44,14 +44,14 @@ Progress: [##########] 100%
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 | 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
-| 4. Data Structure Modernization | 3/3 | ~62 min | ~21 min |
+| 4. Data Structure Modernization | 4/5 | ~67 min | ~17 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (5m), 03.1-01 (5m), 04-01 (6m), 04-02 (~45m), 04-03 (11m)
-- Trend: 04-03 faster than 04-02 (mechanical find-replace vs complex struct migration)
+- Last 5 plans: 03.1-01 (5m), 04-01 (6m), 04-02 (~45m), 04-03 (11m), 04-04 (5m)
+- Trend: 04-04 fast gap closure (targeted fixes in 6 files)
 
 *Updated after each plan completion*
-| Phase 04 P03 | 11min | 3 tasks | 14 files |
+| Phase 04 P04 | 5min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -89,6 +89,7 @@ Recent decisions affecting current work:
 - [Phase 04]: Added is_bool_key/is_int_key/is_string_key helpers to replace map .contains() in menu dispatch
 - [Phase 04]: Used IIFE for std::array initialization with non-zero default values
 - [Phase 04]: Kept string-accepting Config overloads for menu runtime key resolution alongside enum overloads
+- [Phase 04]: Removed inline keyword from Config::set enum overloads to fix static library symbol export for benchmarks
 
 ### Pending Todos
 
@@ -101,5 +102,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-03-PLAN.md (Config Enum Migration) -- Phase 4 complete (3/3 plans)
+Stopped at: Completed 04-04-PLAN.md (BSD Ring Buffer Fixes and Benchmark Migration) -- Phase 4 plan 4/5
 Resume file: None
