@@ -1019,7 +1019,126 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 		}
 	}
 
-	//? Initialize terminal and set options
+	//? Benchmark mode: run N collect+draw cycles without terminal initialization
+	if (cli.benchmark_cycles.has_value()) {
+		const auto cycles = cli.benchmark_cycles.value();
+
+		// Set terminal dimensions to reasonable defaults (no real terminal)
+		Term::width = 200;
+		Term::height = 50;
+
+		// Initialize platform-dependent data
+		try {
+			Shared::init();
+		} catch (const std::exception& e) {
+			fmt::println(std::cerr, "{{\"error\": \"Shared::init failed: {}\"}}", e.what());
+			return 1;
+		}
+
+		// Set up boxes and theme for draw functions
+		Config::set_boxes("cpu mem net proc");
+		Config::set("shown_boxes", "cpu mem net proc"s);
+		Theme::updateThemes();
+		Theme::setTheme();
+		Draw::calcSizes();
+
+		// Timing data
+		struct CycleTiming {
+			double wall_us;
+			double collect_us;
+			double draw_us;
+		};
+		std::vector<CycleTiming> timings;
+		timings.reserve(cycles);
+
+		try {
+			for (uint32_t i = 0; i < cycles; ++i) {
+				auto cycle_start = std::chrono::high_resolution_clock::now();
+
+				// Collect phase
+				auto collect_start = std::chrono::high_resolution_clock::now();
+				auto& cpu = Cpu::collect(false);
+				auto& mem = Mem::collect(false);
+				auto& net = Net::collect(false);
+				auto& proc = Proc::collect(false);
+				auto collect_end = std::chrono::high_resolution_clock::now();
+
+				// Draw phase (output discarded -- we only measure time)
+				auto draw_start = std::chrono::high_resolution_clock::now();
+#if defined(GPU_SUPPORT)
+				std::vector<Gpu::gpu_info> empty_gpus;
+				auto cpu_out = Cpu::draw(cpu, empty_gpus, true, false);
+#else
+				auto cpu_out = Cpu::draw(cpu, true, false);
+#endif
+				auto mem_out = Mem::draw(mem, true, false);
+				auto net_out = Net::draw(net, true, false);
+				auto proc_out = Proc::draw(proc, true, false);
+				auto draw_end = std::chrono::high_resolution_clock::now();
+
+				auto cycle_end = std::chrono::high_resolution_clock::now();
+
+				timings.push_back({
+					std::chrono::duration<double, std::micro>(cycle_end - cycle_start).count(),
+					std::chrono::duration<double, std::micro>(collect_end - collect_start).count(),
+					std::chrono::duration<double, std::micro>(draw_end - draw_start).count()
+				});
+			}
+		} catch (const std::exception& e) {
+			fmt::println(std::cerr, "{{\"error\": \"Benchmark cycle failed: {}\"}}", e.what());
+			return 1;
+		}
+
+		// Calculate summary statistics
+		double sum_wall = 0, sum_collect = 0, sum_draw = 0;
+		double min_wall = timings[0].wall_us, max_wall = timings[0].wall_us;
+		for (const auto& t : timings) {
+			sum_wall += t.wall_us;
+			sum_collect += t.collect_us;
+			sum_draw += t.draw_us;
+			if (t.wall_us < min_wall) min_wall = t.wall_us;
+			if (t.wall_us > max_wall) max_wall = t.wall_us;
+		}
+		const double n = static_cast<double>(cycles);
+
+		// Determine platform string
+#if defined(__linux__)
+		const char* platform = "linux";
+#elif defined(__APPLE__)
+		const char* platform = "macos";
+#elif defined(__FreeBSD__)
+		const char* platform = "freebsd";
+#else
+		const char* platform = "unknown";
+#endif
+
+		// Output JSON to stdout
+		std::string json = "{\n";
+		json += "  \"benchmark\": {\n";
+		json += fmt::format("    \"cycles\": {},\n", cycles);
+		json += fmt::format("    \"platform\": \"{}\",\n", platform);
+		json += "    \"timings\": [\n";
+		for (uint32_t i = 0; i < cycles; ++i) {
+			json += fmt::format("      {{\"cycle\": {}, \"wall_us\": {:.1f}, \"collect_us\": {:.1f}, \"draw_us\": {:.1f}}}",
+				i + 1, timings[i].wall_us, timings[i].collect_us, timings[i].draw_us);
+			json += (i + 1 < cycles) ? ",\n" : "\n";
+		}
+		json += "    ],\n";
+		json += "    \"summary\": {\n";
+		json += fmt::format("      \"mean_wall_us\": {:.1f},\n", sum_wall / n);
+		json += fmt::format("      \"mean_collect_us\": {:.1f},\n", sum_collect / n);
+		json += fmt::format("      \"mean_draw_us\": {:.1f},\n", sum_draw / n);
+		json += fmt::format("      \"min_wall_us\": {:.1f},\n", min_wall);
+		json += fmt::format("      \"max_wall_us\": {:.1f}\n", max_wall);
+		json += "    }\n";
+		json += "  }\n";
+		json += "}\n";
+		fmt::print("{}", json);
+
+		return 0;
+	}
+
+		//? Initialize terminal and set options
 	if (not Term::init()) {
 		Global::exit_error_msg = "No tty detected!\nbtop++ needs an interactive shell to run.";
 		clean_quit(1);
