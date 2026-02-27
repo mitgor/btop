@@ -288,13 +288,13 @@ namespace Draw {
 
 		//? Draw titles if defined
 		if (not title.empty()) {
-			out += fmt::format(
+			fmt::format_to(std::back_inserter(out),
 				"{}{}{}{}{}{}{}{}{}", Mv::to(y, x + 2), Symbols::title_left, Fx::b, numbering, Theme::c("title"), title, Fx::ub,
 				line_color, Symbols::title_right
 			);
 		}
 		if (not title2.empty()) {
-			out += fmt::format(
+			fmt::format_to(std::back_inserter(out),
 				"{}{}{}{}{}{}{}{}{}", Mv::to(y + height - 1, x + 2), Symbols::title_left_down, Fx::b, numbering, Theme::c("title"), title2, Fx::ub,
 				line_color, Symbols::title_right_down
 			);
@@ -851,7 +851,8 @@ namespace Cpu {
 		}
 
 		if (show_watts) {
-			string cwatts = fmt::format(" {:>4.{}f}", cpu.usage_watts, cpu.usage_watts < 10.0f ? 2 : cpu.usage_watts < 100.0f ? 1 : 0);
+			string cwatts;
+			fmt::format_to(std::back_inserter(cwatts), " {:>4.{}f}", cpu.usage_watts, cpu.usage_watts < 10.0f ? 2 : cpu.usage_watts < 100.0f ? 1 : 0);
 			string cwatts_post = "W";
 
 			max_observed_pwr = max(max_observed_pwr, cpu.usage_watts);
@@ -931,7 +932,7 @@ namespace Cpu {
 			string load_avg;
 
 			for (const auto& val : cpu.load_avg) {
-				load_avg += fmt::format(" {:.2f}", val);
+				fmt::format_to(std::back_inserter(load_avg), " {:.2f}", val);
 			}
 
 			int len = load_avg_pre.size() + load_avg.size();
@@ -977,8 +978,10 @@ namespace Cpu {
 					out += rjust(to_string(temp), 3) + Theme::c("main_fg") + unit;
 				}
 				if (gpus[i].supported_functions.pwr_usage) {
-					out += ' ' + Theme::g("cached").at(clamp(safeVal(gpus[i].gpu_percent, "gpu-pwr-totals"s).back(), 0ll, 100ll))
-						+ fmt::format("{:>4.{}f}", gpus[i].pwr_usage / 1000.0, gpus[i].pwr_usage < 10'000 ? 2 : gpus[i].pwr_usage < 100'000 ? 1 : 0) + Theme::c("main_fg") + 'W';
+					out += ' ' + Theme::g("cached").at(clamp(safeVal(gpus[i].gpu_percent, "gpu-pwr-totals"s).back(), 0ll, 100ll));
+					fmt::format_to(std::back_inserter(out), "{:>4.{}f}", gpus[i].pwr_usage / 1000.0, gpus[i].pwr_usage < 10'000 ? 2 : gpus[i].pwr_usage < 100'000 ? 1 : 0);
+					out += Theme::c("main_fg");
+					out += 'W';
 				}
 
 				if (cy > b_height - 1) break;
@@ -1105,8 +1108,10 @@ namespace Gpu {
 		//? Power usage meter, power state
 		if (gpu.supported_functions.pwr_usage) {
 			out += Mv::to(b_y + rows_used, b_x + 1) + Theme::c("main_fg") + Fx::b + "PWR " + pwr_meter(safeVal(gpu.gpu_percent, "gpu-pwr-totals"s).back())
-				+ Theme::g("cached").at(clamp(safeVal(gpu.gpu_percent, "gpu-pwr-totals"s).back(), 0ll, 100ll))
-				+ fmt::format("{:>5.{}f}", gpu.pwr_usage / 1000.0, gpu.pwr_usage < 10'000 ? 2 : gpu.pwr_usage < 100'000 ? 1 : 0) + Theme::c("main_fg") + 'W';
+				+ Theme::g("cached").at(clamp(safeVal(gpu.gpu_percent, "gpu-pwr-totals"s).back(), 0ll, 100ll));
+			fmt::format_to(std::back_inserter(out), "{:>5.{}f}", gpu.pwr_usage / 1000.0, gpu.pwr_usage < 10'000 ? 2 : gpu.pwr_usage < 100'000 ? 1 : 0);
+			out += Theme::c("main_fg");
+			out += 'W';
 			if (gpu.supported_functions.pwr_state and gpu.pwr_state != 32) // NVML_PSTATE_UNKNOWN; unsupported or non-nvidia card
 				out += std::string(" P-state: ") + (gpu.pwr_state > 9 ? "" : " ") + 'P' + Theme::g("cached").at(clamp(gpu.pwr_state, 0ll, 100ll)) + to_string(gpu.pwr_state);
 			rows_used++;
@@ -1969,10 +1974,14 @@ namespace Proc {
 			const int item_width = floor((double)(d_width - 2) / min(item_fit, 8));
 
 			//? Graph part of box
+			string cpu_str_val;
+			if (alive or pause_proc_list) {
+				fmt::format_to(std::back_inserter(cpu_str_val), "{:>4.{}f}", detailed.entry.cpu_p, detailed.entry.cpu_p < 9.995f ? 2 : detailed.entry.cpu_p < 99.95f ? 1 : 0);
+			}
 			fmt::format_to(std::back_inserter(out), "{move}{unbold}{graph}{move}{fg_color}{bold}{cpu_str}%",
 				"move"_a = Mv::to(d_y + 1, dgraph_x + 1), "bold"_a = Fx::b, "unbold"_a = Fx::ub, "fg_color"_a = Theme::c("title"),
 				"graph"_a = detailed_cpu_graph(detailed.cpu_percent, (redraw or data_same or not alive)),
-				"cpu_str"_a = (alive or pause_proc_list) ? fmt::format("{:>4.{}f}", detailed.entry.cpu_p, detailed.entry.cpu_p < 9.995f ? 2 : detailed.entry.cpu_p < 99.95f ? 1 : 0) : "");
+				"cpu_str"_a = cpu_str_val);
 			for (int i = 0; const auto& l : {'C', 'P', 'U'})
 				fmt::format_to(std::back_inserter(out), "{}{}", Mv::to(d_y + 3 + i++, dgraph_x + 1), l);
 
@@ -1990,7 +1999,8 @@ namespace Proc {
 
 
 			const double mem_p = detailed.mem_bytes.back() * 100.0 / totalMem;
-			string mem_str = fmt::format("{:.2f}", mem_p);
+			string mem_str;
+			fmt::format_to(std::back_inserter(mem_str), "{:.2f}", mem_p);
 			mem_str.resize(4);
 			if (mem_str.ends_with('.')) mem_str.pop_back();
 			out += Mv::to(d_y + 4, d_x + 1) + Theme::c("title") + Fx::b + rjust((item_fit > 4 ? "Memory: " : "M:") + rjust(mem_str, 4) + "% ", (d_width / 3) - 2)
@@ -2102,10 +2112,12 @@ namespace Proc {
 				out += string(max(0, width_left), ' ') + Mv::to(y+2+lc, x+2+tree_size);
 			}
 			//? Common end of line
-			string cpu_str = fmt::format("{:.2f}", p.cpu_p);
+			string cpu_str;
+			fmt::format_to(std::back_inserter(cpu_str), "{:.2f}", p.cpu_p);
 			if (p.cpu_p < 10 or (p.cpu_p >= 100 and p.cpu_p < 1000)) cpu_str.resize(3);
 			else if (p.cpu_p >= 10'000) {
-				cpu_str = fmt::format("{:.2f}", p.cpu_p / 1000);
+				cpu_str.clear();
+				fmt::format_to(std::back_inserter(cpu_str), "{:.2f}", p.cpu_p / 1000);
 				cpu_str.resize(3);
 				if (cpu_str.ends_with('.')) cpu_str.pop_back();
 				cpu_str += "k";
@@ -2113,7 +2125,12 @@ namespace Proc {
 			string mem_str = (mem_bytes ? floating_humanizer(p.mem, true) : "");
 			if (not mem_bytes) {
 				double mem_p = clamp((double)p.mem * 100 / totalMem, 0.0, 100.0);
-				mem_str = mem_p < 0.01 ? "0" : fmt::format("{:.1f}", mem_p);
+				if (mem_p < 0.01) {
+					mem_str = "0";
+				} else {
+					mem_str.clear();
+					fmt::format_to(std::back_inserter(mem_str), "{:.1f}", mem_p);
+				}
 				if (mem_str.size() > 3) mem_str.resize(3);
 				if (mem_str.ends_with('.')) mem_str.pop_back();
 				mem_str += '%';
