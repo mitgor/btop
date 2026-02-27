@@ -18,16 +18,20 @@ tab-size = 4
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <unistd.h>
@@ -50,6 +54,230 @@ using std::tuple;
 using std::vector;
 
 using namespace std::literals; // for operator""s
+
+//---------------------------------------------
+// RingBuffer<T> -- fixed-capacity circular buffer
+// Replaces deque<long long> for time-series data with zero steady-state allocation.
+// Provides deque-compatible interface: push_back, pop_front, operator[], iterators.
+//---------------------------------------------
+template<typename T>
+class RingBuffer {
+	std::unique_ptr<T[]> data_;
+	size_t capacity_ = 0;
+	size_t head_ = 0;  // index of first (oldest) element
+	size_t size_ = 0;
+
+public:
+	//-- Iterator -----------------------------------------------------------------
+	class iterator {
+	public:
+		using iterator_category = std::random_access_iterator_tag;
+		using value_type        = T;
+		using difference_type   = std::ptrdiff_t;
+		using pointer           = T*;
+		using reference         = T&;
+
+		iterator() = default;
+		iterator(RingBuffer* buf, size_t logical)
+			: buf_(buf), logical_(logical) {}
+
+		reference operator*() const { return (*buf_)[logical_]; }
+		pointer   operator->() const { return &(*buf_)[logical_]; }
+
+		iterator& operator++() { ++logical_; return *this; }
+		iterator  operator++(int) { auto tmp = *this; ++logical_; return tmp; }
+		iterator& operator--() { --logical_; return *this; }
+		iterator  operator--(int) { auto tmp = *this; --logical_; return tmp; }
+
+		iterator& operator+=(difference_type n) { logical_ += n; return *this; }
+		iterator& operator-=(difference_type n) { logical_ -= n; return *this; }
+		iterator  operator+(difference_type n) const { return {buf_, logical_ + static_cast<size_t>(static_cast<difference_type>(logical_) + n - static_cast<difference_type>(logical_))}; }
+		iterator  operator-(difference_type n) const { return {buf_, logical_ - n}; }
+		difference_type operator-(const iterator& o) const { return static_cast<difference_type>(logical_) - static_cast<difference_type>(o.logical_); }
+
+		reference operator[](difference_type n) const { return (*buf_)[logical_ + n]; }
+
+		bool operator==(const iterator& o) const { return logical_ == o.logical_; }
+		bool operator!=(const iterator& o) const { return logical_ != o.logical_; }
+		bool operator< (const iterator& o) const { return logical_ <  o.logical_; }
+		bool operator<=(const iterator& o) const { return logical_ <= o.logical_; }
+		bool operator> (const iterator& o) const { return logical_ >  o.logical_; }
+		bool operator>=(const iterator& o) const { return logical_ >= o.logical_; }
+
+		friend iterator operator+(difference_type n, const iterator& it) { return it + n; }
+
+	private:
+		RingBuffer* buf_ = nullptr;
+		size_t logical_ = 0;
+	};
+
+	class const_iterator {
+	public:
+		using iterator_category = std::random_access_iterator_tag;
+		using value_type        = T;
+		using difference_type   = std::ptrdiff_t;
+		using pointer           = const T*;
+		using reference         = const T&;
+
+		const_iterator() = default;
+		const_iterator(const RingBuffer* buf, size_t logical)
+			: buf_(buf), logical_(logical) {}
+
+		reference operator*() const { return (*buf_)[logical_]; }
+		pointer   operator->() const { return &(*buf_)[logical_]; }
+
+		const_iterator& operator++() { ++logical_; return *this; }
+		const_iterator  operator++(int) { auto tmp = *this; ++logical_; return tmp; }
+		const_iterator& operator--() { --logical_; return *this; }
+		const_iterator  operator--(int) { auto tmp = *this; --logical_; return tmp; }
+
+		const_iterator& operator+=(difference_type n) { logical_ += n; return *this; }
+		const_iterator& operator-=(difference_type n) { logical_ -= n; return *this; }
+		const_iterator  operator+(difference_type n) const { return {buf_, logical_ + static_cast<size_t>(static_cast<difference_type>(logical_) + n - static_cast<difference_type>(logical_))}; }
+		const_iterator  operator-(difference_type n) const { return {buf_, logical_ - n}; }
+		difference_type operator-(const const_iterator& o) const { return static_cast<difference_type>(logical_) - static_cast<difference_type>(o.logical_); }
+
+		reference operator[](difference_type n) const { return (*buf_)[logical_ + n]; }
+
+		bool operator==(const const_iterator& o) const { return logical_ == o.logical_; }
+		bool operator!=(const const_iterator& o) const { return logical_ != o.logical_; }
+		bool operator< (const const_iterator& o) const { return logical_ <  o.logical_; }
+		bool operator<=(const const_iterator& o) const { return logical_ <= o.logical_; }
+		bool operator> (const const_iterator& o) const { return logical_ >  o.logical_; }
+		bool operator>=(const const_iterator& o) const { return logical_ >= o.logical_; }
+
+		friend const_iterator operator+(difference_type n, const const_iterator& it) { return it + n; }
+
+	private:
+		const RingBuffer* buf_ = nullptr;
+		size_t logical_ = 0;
+	};
+
+	//-- Constructors & assignment ------------------------------------------------
+
+	RingBuffer() = default;
+
+	explicit RingBuffer(size_t capacity)
+		: data_(capacity > 0 ? std::make_unique<T[]>(capacity) : nullptr)
+		, capacity_(capacity) {}
+
+	// Copy
+	RingBuffer(const RingBuffer& other)
+		: data_(other.capacity_ > 0 ? std::make_unique<T[]>(other.capacity_) : nullptr)
+		, capacity_(other.capacity_)
+		, head_(other.head_)
+		, size_(other.size_) {
+		if (data_ && other.data_) {
+			std::copy_n(other.data_.get(), capacity_, data_.get());
+		}
+	}
+
+	RingBuffer& operator=(const RingBuffer& other) {
+		if (this != &other) {
+			capacity_ = other.capacity_;
+			head_ = other.head_;
+			size_ = other.size_;
+			data_ = capacity_ > 0 ? std::make_unique<T[]>(capacity_) : nullptr;
+			if (data_ && other.data_) {
+				std::copy_n(other.data_.get(), capacity_, data_.get());
+			}
+		}
+		return *this;
+	}
+
+	// Move
+	RingBuffer(RingBuffer&& other) noexcept
+		: data_(std::move(other.data_))
+		, capacity_(other.capacity_)
+		, head_(other.head_)
+		, size_(other.size_) {
+		other.capacity_ = 0;
+		other.head_ = 0;
+		other.size_ = 0;
+	}
+
+	RingBuffer& operator=(RingBuffer&& other) noexcept {
+		if (this != &other) {
+			data_ = std::move(other.data_);
+			capacity_ = other.capacity_;
+			head_ = other.head_;
+			size_ = other.size_;
+			other.capacity_ = 0;
+			other.head_ = 0;
+			other.size_ = 0;
+		}
+		return *this;
+	}
+
+	//-- Capacity -----------------------------------------------------------------
+	[[nodiscard]] size_t size() const noexcept { return size_; }
+	[[nodiscard]] bool   empty() const noexcept { return size_ == 0; }
+	[[nodiscard]] size_t capacity() const noexcept { return capacity_; }
+
+	//-- Element access -----------------------------------------------------------
+	T& operator[](size_t i) { return data_[(head_ + i) % capacity_]; }
+	const T& operator[](size_t i) const { return data_[(head_ + i) % capacity_]; }
+
+	T& front() { return data_[head_]; }
+	const T& front() const { return data_[head_]; }
+
+	T& back() { return data_[(head_ + size_ - 1) % capacity_]; }
+	const T& back() const { return data_[(head_ + size_ - 1) % capacity_]; }
+
+	//-- Modifiers ----------------------------------------------------------------
+	void push_back(const T& value) {
+		if (capacity_ == 0) return;
+		if (size_ < capacity_) {
+			data_[(head_ + size_) % capacity_] = value;
+			++size_;
+		} else {
+			// Overwrite oldest
+			data_[head_] = value;
+			head_ = (head_ + 1) % capacity_;
+		}
+	}
+
+	void pop_front() {
+		if (size_ == 0) return;
+		head_ = (head_ + 1) % capacity_;
+		--size_;
+	}
+
+	void clear() noexcept {
+		head_ = 0;
+		size_ = 0;
+	}
+
+	void resize(size_t new_capacity) {
+		if (new_capacity == capacity_) return;
+		if (new_capacity == 0) {
+			data_.reset();
+			capacity_ = 0;
+			head_ = 0;
+			size_ = 0;
+			return;
+		}
+		auto new_data = std::make_unique<T[]>(new_capacity);
+		size_t to_keep = std::min(size_, new_capacity);
+		// Copy the most recent `to_keep` elements
+		size_t skip = size_ - to_keep;
+		for (size_t i = 0; i < to_keep; ++i) {
+			new_data[i] = data_[(head_ + skip + i) % capacity_];
+		}
+		data_ = std::move(new_data);
+		capacity_ = new_capacity;
+		head_ = 0;
+		size_ = to_keep;
+	}
+
+	//-- Iterators ----------------------------------------------------------------
+	iterator begin() { return {this, 0}; }
+	iterator end() { return {this, size_}; }
+	const_iterator begin() const { return {this, 0}; }
+	const_iterator end() const { return {this, size_}; }
+	const_iterator cbegin() const { return {this, 0}; }
+	const_iterator cend() const { return {this, size_}; }
+};
 
 void term_resize(bool force=false);
 void banner_gen();
