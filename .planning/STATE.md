@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T19:36:49.895Z"
+last_updated: "2026-02-27T20:00:57.000Z"
 progress:
   total_phases: 7
   completed_phases: 7
   total_plans: 17
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 5: Rendering Pipeline -- Plan 3 of 3 complete (PHASE COMPLETE)
+**Current focus:** Phase 6: Compiler & Verification -- Plan 1 of 2 complete
 
 ## Current Position
 
-Phase: 5 (Rendering Pipeline)
-Plan: 3 of 3 in current phase -- COMPLETE
-Status: Differential terminal output via double-buffered cell buffer integrated into Runner thread
-Last activity: 2026-02-27 -- btop_draw.hpp/cpp ScreenBuffer + btop.cpp runner integration + test_screen_buffer.cpp
+Phase: 6 (Compiler & Verification)
+Plan: 1 of 2 in current phase
+Status: PGO + sanitizer CMake options, PGO build script, CI sanitizer sweep jobs
+Last activity: 2026-02-27 -- CMakeLists.txt PGO/sanitizer options + scripts/pgo-build.sh + CI sanitizer jobs
 
-Progress: [##########] 100% (prior phases) + Phase 5: 3/3 plans COMPLETE
+Progress: [##########] 100% (prior phases) + Phase 6: 1/2 plans
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: ~9 min
-- Total execution time: ~2.1 hours
+- Total plans completed: 17
+- Average duration: ~8 min
+- Total execution time: ~2.2 hours
 
 **By Phase:**
 
@@ -50,13 +50,14 @@ Progress: [##########] 100% (prior phases) + Phase 5: 3/3 plans COMPLETE
 | 5. Rendering Pipeline | 3/3 | 19 min | ~6 min |
 
 **Recent Trend:**
-- Last 5 plans: 07-01 (3m), 05-01 (7m), 05-02 (7m), 05-03 (5m)
-- Trend: 05-03 differential rendering ScreenBuffer (2 tasks, 5 files)
+- Last 5 plans: 05-01 (7m), 05-02 (7m), 05-03 (5m), 06-01 (3m)
+- Trend: 06-01 PGO + sanitizer build infrastructure (2 tasks, 3 files)
 
 *Updated after each plan completion*
 | Phase 05 P01 | 7min | 2 tasks | 5 files |
 | Phase 05 P02 | 7min | 2 tasks | 5 files |
 | Phase 05 P03 | 5min | 2 tasks | 5 files |
+| Phase 06 P01 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,10 @@ Recent decisions affecting current work:
 - [Phase 05]: Overlay/clock bypass screen buffer as ephemeral partial updates -- next full frame re-syncs
 - [Phase 05]: Cell color encoding: 0=default, bit24=truecolor(RGB in low 24), else 256-color index+1
 - [Phase 05]: full_emit skips default (empty) cells since terminal already has blank space from clearing
+- [Phase 06]: PGO and sanitizer options mutually exclusive with FATAL_ERROR enforcement
+- [Phase 06]: Sanitizer CI uses Clang 19 with libc++ for consistent toolchain
+- [Phase 06]: Benchmark uses 10 cycles under sanitizer (vs 50 normally) due to 2-15x overhead
+- [Phase 06]: fail-fast: false in sanitizer matrix so both asan-ubsan and tsan always run
 
 ### Pending Todos
 
@@ -122,5 +127,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 05-03-PLAN.md (Differential terminal output) -- Phase 5: 3/3 plans COMPLETE
+Stopped at: Completed 06-01-PLAN.md (PGO + sanitizer build infrastructure) -- Phase 6: 1/2 plans
 Resume file: None

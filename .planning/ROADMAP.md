@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: I/O & Data Collection** - Replace expensive ifstream/filesystem operations with POSIX I/O in collectors
 - [ ] **Phase 3.1: Profiling Gap Closure** - INSERTED — Run CPU sampling profiling session and document hot function ranking
 - [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
-- [ ] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
+- [x] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
 - [ ] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
 - [x] **Phase 7: Benchmark Integration Fixes** - Fix stale sub-benchmarks and CI reliability to close integration/flow gaps from audit
 
@@ -123,11 +123,11 @@ Plans:
   1. A PGO CMake workflow exists (pgo-generate and pgo-use targets) and hyperfine confirms 10%+ additional performance gain over the non-PGO optimized build
   2. Full ASan, TSan, and UBSan sanitizer sweeps pass cleanly on the optimized build -- zero new issues introduced by any optimization
   3. mimalloc has been benchmarked as a drop-in replacement via LD_PRELOAD, with results documented comparing against the default allocator on the optimized build
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md -- PGO + sanitizer CMake options, PGO build script, CI sanitizer jobs (Wave 1)
+- [ ] 06-02-PLAN.md -- Execute sanitizer sweeps, PGO measurement, mimalloc evaluation, results documentation (Wave 2)
 
 ### Phase 7: Benchmark Integration Fixes
 **Goal**: Stale micro-benchmarks measure optimized code paths and CI benchmark runs fail visibly instead of silently
@@ -156,6 +156,6 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 3. I/O & Data Collection | 2/2 | Complete | 2026-02-27 |
 | 3.1 Profiling Gap Closure | 0/1 | Not started | - |
 | 4. Data Structure Modernization | 3/5 | Gap Closure | - |
-| 5. Rendering Pipeline | 0/0 | Not started | - |
+| 5. Rendering Pipeline | 3/3 | Complete | 2026-02-27 |
 | 6. Compiler & Verification | 0/0 | Not started | - |
 | 7. Benchmark Integration Fixes | 1/1 | Complete | 2026-02-27 |
