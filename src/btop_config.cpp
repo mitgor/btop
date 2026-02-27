@@ -249,132 +249,142 @@ namespace Config {
 	#endif
 	};
 
-	std::unordered_map<std::string_view, string> strings = {
-		{"color_theme", "Default"},
-		{"shown_boxes", "cpu mem net proc"},
-		{"graph_symbol", "braille"},
-		{"disable_presets", "Off"},
-		{"presets", "cpu:1:default,proc:0:default cpu:0:default,mem:0:default,net:0:default cpu:0:block,net:0:tty"},
-		{"graph_symbol_cpu", "default"},
-		{"graph_symbol_gpu", "default"},
-		{"graph_symbol_mem", "default"},
-		{"graph_symbol_net", "default"},
-		{"graph_symbol_proc", "default"},
-		{"proc_sorting", "cpu lazy"},
-		{"cpu_graph_upper", "Auto"},
-		{"cpu_graph_lower", "Auto"},
-		{"cpu_sensor", "Auto"},
-		{"selected_battery", "Auto"},
-		{"cpu_core_map", ""},
-		{"temp_scale", "celsius"},
+	//----------------------------------------------------------
+	// Array-based storage initialization
+	//----------------------------------------------------------
+
+	std::array<string, static_cast<size_t>(StringKey::COUNT)> strings = []() {
+		std::array<string, static_cast<size_t>(StringKey::COUNT)> a{};
+		a[std::to_underlying(StringKey::color_theme)] = "Default";
+		a[std::to_underlying(StringKey::shown_boxes)] = "cpu mem net proc";
+		a[std::to_underlying(StringKey::graph_symbol)] = "braille";
+		a[std::to_underlying(StringKey::disable_presets)] = "Off";
+		a[std::to_underlying(StringKey::presets)] = "cpu:1:default,proc:0:default cpu:0:default,mem:0:default,net:0:default cpu:0:block,net:0:tty";
+		a[std::to_underlying(StringKey::graph_symbol_cpu)] = "default";
+		a[std::to_underlying(StringKey::graph_symbol_gpu)] = "default";
+		a[std::to_underlying(StringKey::graph_symbol_mem)] = "default";
+		a[std::to_underlying(StringKey::graph_symbol_net)] = "default";
+		a[std::to_underlying(StringKey::graph_symbol_proc)] = "default";
+		a[std::to_underlying(StringKey::proc_sorting)] = "cpu lazy";
+		a[std::to_underlying(StringKey::cpu_graph_upper)] = "Auto";
+		a[std::to_underlying(StringKey::cpu_graph_lower)] = "Auto";
+		a[std::to_underlying(StringKey::cpu_sensor)] = "Auto";
+		a[std::to_underlying(StringKey::selected_battery)] = "Auto";
+		a[std::to_underlying(StringKey::cpu_core_map)] = "";
+		a[std::to_underlying(StringKey::temp_scale)] = "celsius";
 	#ifdef __linux__
-		{"freq_mode", "first"},
+		a[std::to_underlying(StringKey::freq_mode)] = "first";
 	#endif
-		{"clock_format", "%X"},
-		{"custom_cpu_name", ""},
-		{"disks_filter", ""},
-		{"io_graph_speeds", ""},
-		{"net_iface", ""},
-		{"base_10_bitrate", "Auto"},
-		{"log_level", "WARNING"},
-		{"proc_filter", ""},
-		{"proc_command", ""},
-		{"selected_name", ""},
+		a[std::to_underlying(StringKey::clock_format)] = "%X";
+		a[std::to_underlying(StringKey::custom_cpu_name)] = "";
+		a[std::to_underlying(StringKey::disks_filter)] = "";
+		a[std::to_underlying(StringKey::io_graph_speeds)] = "";
+		a[std::to_underlying(StringKey::net_iface)] = "";
+		a[std::to_underlying(StringKey::base_10_bitrate)] = "Auto";
+		a[std::to_underlying(StringKey::log_level)] = "WARNING";
+		a[std::to_underlying(StringKey::proc_filter)] = "";
+		a[std::to_underlying(StringKey::proc_command)] = "";
+		a[std::to_underlying(StringKey::selected_name)] = "";
 	#ifdef GPU_SUPPORT
-		{"custom_gpu_name0", ""},
-		{"custom_gpu_name1", ""},
-		{"custom_gpu_name2", ""},
-		{"custom_gpu_name3", ""},
-		{"custom_gpu_name4", ""},
-		{"custom_gpu_name5", ""},
-		{"show_gpu_info", "Auto"},
-		{"shown_gpus", "nvidia amd intel apple"}
+		a[std::to_underlying(StringKey::custom_gpu_name0)] = "";
+		a[std::to_underlying(StringKey::custom_gpu_name1)] = "";
+		a[std::to_underlying(StringKey::custom_gpu_name2)] = "";
+		a[std::to_underlying(StringKey::custom_gpu_name3)] = "";
+		a[std::to_underlying(StringKey::custom_gpu_name4)] = "";
+		a[std::to_underlying(StringKey::custom_gpu_name5)] = "";
+		a[std::to_underlying(StringKey::show_gpu_info)] = "Auto";
+		a[std::to_underlying(StringKey::shown_gpus)] = "nvidia amd intel apple";
 	#endif
-	};
-	std::unordered_map<std::string_view, string> stringsTmp;
+		return a;
+	}();
+	std::array<std::optional<string>, static_cast<size_t>(StringKey::COUNT)> stringsTmp{};
 
-	std::unordered_map<std::string_view, bool> bools = {
-		{"theme_background", true},
-		{"truecolor", true},
-		{"rounded_corners", true},
-		{"proc_reversed", false},
-		{"proc_tree", false},
-		{"proc_colors", true},
-		{"proc_gradient", true},
-		{"proc_per_core", false},
-		{"proc_mem_bytes", true},
-		{"proc_cpu_graphs", true},
-		{"proc_info_smaps", false},
-		{"proc_left", false},
-		{"proc_filter_kernel", false},
-		{"cpu_invert_lower", true},
-		{"cpu_single_graph", false},
-		{"cpu_bottom", false},
-		{"show_uptime", true},
-		{"show_cpu_watts", true},
-		{"check_temp", true},
-		{"show_coretemp", true},
-		{"show_cpu_freq", true},
-		{"background_update", true},
-		{"mem_graphs", true},
-		{"mem_below_net", false},
-		{"zfs_arc_cached", true},
-		{"show_swap", true},
-		{"swap_disk", true},
-		{"show_disks", true},
-		{"only_physical", true},
-		{"use_fstab", true},
-		{"zfs_hide_datasets", false},
-		{"show_io_stat", true},
-		{"io_mode", false},
-		{"swap_upload_download", false},
-		{"base_10_sizes", false},
-		{"io_graph_combined", false},
-		{"net_auto", true},
-		{"net_sync", true},
-		{"show_battery", true},
-		{"show_battery_watts", true},
-		{"vim_keys", false},
-		{"tty_mode", false},
-		{"disk_free_priv", false},
-		{"force_tty", false},
-		{"lowcolor", false},
-		{"show_detailed", false},
-		{"proc_filtering", false},
-		{"proc_aggregate", false},
-		{"pause_proc_list", false},
-		{"keep_dead_proc_usage", false},
-		{"proc_banner_shown", false},
-		{"proc_follow_detailed", true},
-		{"follow_process", false},
-		{"update_following", false},
-		{"should_selection_return_to_followed", false},
+	std::array<bool, static_cast<size_t>(BoolKey::COUNT)> bools = []() {
+		std::array<bool, static_cast<size_t>(BoolKey::COUNT)> a{};
+		a[std::to_underlying(BoolKey::theme_background)] = true;
+		a[std::to_underlying(BoolKey::truecolor)] = true;
+		a[std::to_underlying(BoolKey::rounded_corners)] = true;
+		a[std::to_underlying(BoolKey::proc_reversed)] = false;
+		a[std::to_underlying(BoolKey::proc_tree)] = false;
+		a[std::to_underlying(BoolKey::proc_colors)] = true;
+		a[std::to_underlying(BoolKey::proc_gradient)] = true;
+		a[std::to_underlying(BoolKey::proc_per_core)] = false;
+		a[std::to_underlying(BoolKey::proc_mem_bytes)] = true;
+		a[std::to_underlying(BoolKey::proc_cpu_graphs)] = true;
+		a[std::to_underlying(BoolKey::proc_info_smaps)] = false;
+		a[std::to_underlying(BoolKey::proc_left)] = false;
+		a[std::to_underlying(BoolKey::proc_filter_kernel)] = false;
+		a[std::to_underlying(BoolKey::cpu_invert_lower)] = true;
+		a[std::to_underlying(BoolKey::cpu_single_graph)] = false;
+		a[std::to_underlying(BoolKey::cpu_bottom)] = false;
+		a[std::to_underlying(BoolKey::show_uptime)] = true;
+		a[std::to_underlying(BoolKey::show_cpu_watts)] = true;
+		a[std::to_underlying(BoolKey::check_temp)] = true;
+		a[std::to_underlying(BoolKey::show_coretemp)] = true;
+		a[std::to_underlying(BoolKey::show_cpu_freq)] = true;
+		a[std::to_underlying(BoolKey::background_update)] = true;
+		a[std::to_underlying(BoolKey::mem_graphs)] = true;
+		a[std::to_underlying(BoolKey::mem_below_net)] = false;
+		a[std::to_underlying(BoolKey::zfs_arc_cached)] = true;
+		a[std::to_underlying(BoolKey::show_swap)] = true;
+		a[std::to_underlying(BoolKey::swap_disk)] = true;
+		a[std::to_underlying(BoolKey::show_disks)] = true;
+		a[std::to_underlying(BoolKey::only_physical)] = true;
+		a[std::to_underlying(BoolKey::use_fstab)] = true;
+		a[std::to_underlying(BoolKey::zfs_hide_datasets)] = false;
+		a[std::to_underlying(BoolKey::show_io_stat)] = true;
+		a[std::to_underlying(BoolKey::io_mode)] = false;
+		a[std::to_underlying(BoolKey::swap_upload_download)] = false;
+		a[std::to_underlying(BoolKey::base_10_sizes)] = false;
+		a[std::to_underlying(BoolKey::io_graph_combined)] = false;
+		a[std::to_underlying(BoolKey::net_auto)] = true;
+		a[std::to_underlying(BoolKey::net_sync)] = true;
+		a[std::to_underlying(BoolKey::show_battery)] = true;
+		a[std::to_underlying(BoolKey::show_battery_watts)] = true;
+		a[std::to_underlying(BoolKey::vim_keys)] = false;
+		a[std::to_underlying(BoolKey::tty_mode)] = false;
+		a[std::to_underlying(BoolKey::disk_free_priv)] = false;
+		a[std::to_underlying(BoolKey::force_tty)] = false;
+		a[std::to_underlying(BoolKey::lowcolor)] = false;
+		a[std::to_underlying(BoolKey::show_detailed)] = false;
+		a[std::to_underlying(BoolKey::proc_filtering)] = false;
+		a[std::to_underlying(BoolKey::proc_aggregate)] = false;
+		a[std::to_underlying(BoolKey::pause_proc_list)] = false;
+		a[std::to_underlying(BoolKey::keep_dead_proc_usage)] = false;
+		a[std::to_underlying(BoolKey::proc_banner_shown)] = false;
+		a[std::to_underlying(BoolKey::proc_follow_detailed)] = true;
+		a[std::to_underlying(BoolKey::follow_process)] = false;
+		a[std::to_underlying(BoolKey::update_following)] = false;
+		a[std::to_underlying(BoolKey::should_selection_return_to_followed)] = false;
 	#ifdef GPU_SUPPORT
-		{"nvml_measure_pcie_speeds", true},
-		{"rsmi_measure_pcie_speeds", true},
-		{"gpu_mirror_graph", true},
+		a[std::to_underlying(BoolKey::nvml_measure_pcie_speeds)] = true;
+		a[std::to_underlying(BoolKey::rsmi_measure_pcie_speeds)] = true;
+		a[std::to_underlying(BoolKey::gpu_mirror_graph)] = true;
 	#endif
-		{"terminal_sync", true},
-		{"save_config_on_exit", true},
-		{"disable_mouse", false},
-	};
-	std::unordered_map<std::string_view, bool> boolsTmp;
+		a[std::to_underlying(BoolKey::terminal_sync)] = true;
+		a[std::to_underlying(BoolKey::save_config_on_exit)] = true;
+		a[std::to_underlying(BoolKey::disable_mouse)] = false;
+		return a;
+	}();
+	std::array<std::optional<bool>, static_cast<size_t>(BoolKey::COUNT)> boolsTmp{};
 
-	std::unordered_map<std::string_view, int> ints = {
-		{"update_ms", 2000},
-		{"net_download", 100},
-		{"net_upload", 100},
-		{"detailed_pid", 0},
-		{"restore_detailed_pid", 0},
-		{"selected_pid", 0},
-		{"followed_pid", 0},
-		{"selected_depth", 0},
-		{"proc_start", 0},
-		{"proc_selected", 0},
-		{"proc_last_selected", 0},
-		{"proc_followed", 0},
-	};
-	std::unordered_map<std::string_view, int> intsTmp;
+	std::array<int, static_cast<size_t>(IntKey::COUNT)> ints = []() {
+		std::array<int, static_cast<size_t>(IntKey::COUNT)> a{};
+		a[std::to_underlying(IntKey::update_ms)] = 2000;
+		a[std::to_underlying(IntKey::net_download)] = 100;
+		a[std::to_underlying(IntKey::net_upload)] = 100;
+		a[std::to_underlying(IntKey::detailed_pid)] = 0;
+		a[std::to_underlying(IntKey::restore_detailed_pid)] = 0;
+		a[std::to_underlying(IntKey::selected_pid)] = 0;
+		a[std::to_underlying(IntKey::followed_pid)] = 0;
+		a[std::to_underlying(IntKey::selected_depth)] = 0;
+		a[std::to_underlying(IntKey::proc_start)] = 0;
+		a[std::to_underlying(IntKey::proc_selected)] = 0;
+		a[std::to_underlying(IntKey::proc_last_selected)] = 0;
+		a[std::to_underlying(IntKey::proc_followed)] = 0;
+		return a;
+	}();
+	std::array<std::optional<int>, static_cast<size_t>(IntKey::COUNT)> intsTmp{};
 
 	// Returns a valid config dir or an empty optional
 	// The config dir might be read only, a warning is printed, but a path is returned anyway
@@ -507,21 +517,25 @@ namespace Config {
 		for (const auto& box : ssplit(preset, ',')) {
 			const auto& vals = ssplit(box, ':');
 			if (vals.at(0) == "cpu") {
-				set("cpu_bottom", (vals.at(1) != "0"));
+				set(BoolKey::cpu_bottom, (vals.at(1) != "0"));
 			} else if (vals.at(0) == "mem") {
-				set("mem_below_net", (vals.at(1) != "0"));
+				set(BoolKey::mem_below_net, (vals.at(1) != "0"));
 			} else if (vals.at(0) == "proc") {
-				set("proc_left", (vals.at(1) != "0"));
+				set(BoolKey::proc_left, (vals.at(1) != "0"));
 			}
 			if (vals.at(0).starts_with("gpu")) {
-				set("graph_symbol_gpu", vals.at(2));
+				set(StringKey::graph_symbol_gpu, vals.at(2));
 			} else {
-				set(strings.find("graph_symbol_" + vals.at(0))->first, vals.at(2));
+				// Runtime string-to-enum lookup for graph_symbol_<boxname>
+				const string key_name = "graph_symbol_" + vals.at(0);
+				if (auto sk = string_key_from_name(key_name)) {
+					set(*sk, vals.at(2));
+				}
 			}
 		}
 
 		if (set_boxes(boxes)) {
-			set("shown_boxes", boxes);
+			set(StringKey::shown_boxes, boxes);
 			return true;
 		}
 		return false;
@@ -640,21 +654,70 @@ namespace Config {
 	}
 
 	string getAsString(const std::string_view name) {
-		if (auto it = bools.find(name); it != bools.end())
-			return it->second ? "True" : "False";
-		if (auto it = ints.find(name); it != ints.end())
-			return to_string(it->second);
-		if (auto it = strings.find(name); it != strings.end())
-			return it->second;
+		if (auto bk = bool_key_from_name(name))
+			return bools[std::to_underlying(*bk)] ? "True" : "False";
+		if (auto ik = int_key_from_name(name))
+			return to_string(ints[std::to_underlying(*ik)]);
+		if (auto sk = string_key_from_name(name))
+			return strings[std::to_underlying(*sk)];
 		return "";
 	}
 
-	void flip(const std::string_view name) {
+	//----------------------------------------------------------
+	// Enum-based set/flip implementations
+	//----------------------------------------------------------
+
+	inline void set(BoolKey key, bool value) {
+		const auto name = bool_key_names[std::to_underlying(key)];
+		if (_locked(name)) boolsTmp[std::to_underlying(key)] = value;
+		else bools[std::to_underlying(key)] = value;
+	}
+
+	inline void set(IntKey key, int value) {
+		const auto name = int_key_names[std::to_underlying(key)];
+		if (_locked(name)) intsTmp[std::to_underlying(key)] = value;
+		else ints[std::to_underlying(key)] = value;
+	}
+
+	inline void set(StringKey key, const string& value) {
+		const auto name = string_key_names[std::to_underlying(key)];
+		if (_locked(name)) stringsTmp[std::to_underlying(key)] = value;
+		else strings[std::to_underlying(key)] = value;
+	}
+
+	void flip(BoolKey key) {
+		const auto name = bool_key_names[std::to_underlying(key)];
 		if (_locked(name)) {
-			if (boolsTmp.contains(name)) boolsTmp.at(name) = not boolsTmp.at(name);
-			else boolsTmp.insert_or_assign(name, (not bools.at(name)));
+			if (boolsTmp[std::to_underlying(key)].has_value())
+				boolsTmp[std::to_underlying(key)] = not *boolsTmp[std::to_underlying(key)];
+			else
+				boolsTmp[std::to_underlying(key)] = not bools[std::to_underlying(key)];
 		}
-		else bools.at(name) = not bools.at(name);
+		else bools[std::to_underlying(key)] = not bools[std::to_underlying(key)];
+	}
+
+	//----------------------------------------------------------
+	// String-based set/flip implementations (runtime lookup for menu)
+	//----------------------------------------------------------
+
+	void set(const std::string_view name, bool value) {
+		if (auto bk = bool_key_from_name(name))
+			set(*bk, value);
+	}
+
+	void set(const std::string_view name, const int value) {
+		if (auto ik = int_key_from_name(name))
+			set(*ik, value);
+	}
+
+	void set(const std::string_view name, const string& value) {
+		if (auto sk = string_key_from_name(name))
+			set(*sk, value);
+	}
+
+	void flip(const std::string_view name) {
+		if (auto bk = bool_key_from_name(name))
+			flip(*bk);
 	}
 
 	void unlock() {
@@ -663,27 +726,33 @@ namespace Config {
 		atomic_lock lck(writelock, true);
 		try {
 			if (Proc::shown) {
-				ints.at("selected_pid") = Proc::selected_pid;
-				strings.at("selected_name") = Proc::selected_name;
-				ints.at("proc_start") = Proc::start;
-				ints.at("proc_selected") = Proc::selected;
-				ints.at("selected_depth") = Proc::selected_depth;
+				ints[std::to_underlying(IntKey::selected_pid)] = Proc::selected_pid;
+				strings[std::to_underlying(StringKey::selected_name)] = Proc::selected_name;
+				ints[std::to_underlying(IntKey::proc_start)] = Proc::start;
+				ints[std::to_underlying(IntKey::proc_selected)] = Proc::selected;
+				ints[std::to_underlying(IntKey::selected_depth)] = Proc::selected_depth;
 			}
 
-			for (auto& item : stringsTmp) {
-				strings.at(item.first) = item.second;
+			for (size_t i = 0; i < stringsTmp.size(); ++i) {
+				if (stringsTmp[i].has_value()) {
+					strings[i] = std::move(*stringsTmp[i]);
+					stringsTmp[i].reset();
+				}
 			}
-			stringsTmp.clear();
 
-			for (auto& item : intsTmp) {
-				ints.at(item.first) = item.second;
+			for (size_t i = 0; i < intsTmp.size(); ++i) {
+				if (intsTmp[i].has_value()) {
+					ints[i] = *intsTmp[i];
+					intsTmp[i].reset();
+				}
 			}
-			intsTmp.clear();
 
-			for (auto& item : boolsTmp) {
-				bools.at(item.first) = item.second;
+			for (size_t i = 0; i < boolsTmp.size(); ++i) {
+				if (boolsTmp[i].has_value()) {
+					bools[i] = *boolsTmp[i];
+					boolsTmp[i].reset();
+				}
 			}
-			boolsTmp.clear();
 		}
 		catch (const std::exception& e) {
 			Global::exit_error_msg = fmt::format("Exception during Config::unlock() : {}", e.what());
@@ -729,7 +798,7 @@ namespace Config {
 			return false;
 		}
 
-		Config::set("shown_boxes", new_boxes);
+		Config::set(StringKey::shown_boxes, new_boxes);
 		return true;
 	}
 
@@ -768,14 +837,14 @@ namespace Config {
 				}
 				cread >> std::ws;
 
-				if (bools.contains(name)) {
+				if (auto bk = bool_key_from_name(name)) {
 					cread >> value;
 					if (not isbool(value))
 						load_warnings.push_back("Got an invalid bool value for config name: " + name);
 					else
-						bools.at(name) = stobool(value);
+						bools[std::to_underlying(*bk)] = stobool(value);
 				}
-				else if (ints.contains(name)) {
+				else if (auto ik = int_key_from_name(name)) {
 					cread >> value;
 					if (not isint(value))
 						load_warnings.push_back("Got an invalid integer value for config name: " + name);
@@ -783,9 +852,9 @@ namespace Config {
 						load_warnings.push_back(validError);
 					}
 					else
-						ints.at(name) = stoi(value);
+						ints[std::to_underlying(*ik)] = stoi(value);
 				}
-				else if (strings.contains(name)) {
+				else if (auto sk = string_key_from_name(name)) {
 					if (cread.peek() == '"') {
 						cread.ignore(1);
 						getline(cread, value, '"');
@@ -795,7 +864,7 @@ namespace Config {
 					if (not stringValid(name, value))
 						load_warnings.push_back(validError);
 					else
-						strings.at(name) = value;
+						strings[std::to_underlying(*sk)] = value;
 				}
 
 				cread.ignore(SSmax, '\n');
@@ -858,13 +927,13 @@ namespace Config {
 			}
 
 			fmt::format_to(std::back_inserter(buffer), "{} = ", name);
-			// Lookup default value by name and write it out.
-			if (strings.contains(name)) {
-				fmt::format_to(std::back_inserter(buffer), R"("{}")", strings[name]);
-			} else if (ints.contains(name)) {
-				fmt::format_to(std::back_inserter(buffer), std::locale::classic(), "{:L}", ints[name]);
-			} else if (bools.contains(name)) {
-				fmt::format_to(std::back_inserter(buffer), "{}", bools[name] ? "true" : "false");
+			// Lookup value by name using enum tables.
+			if (auto sk = string_key_from_name(name)) {
+				fmt::format_to(std::back_inserter(buffer), R"("{}")", strings[std::to_underlying(*sk)]);
+			} else if (auto ik = int_key_from_name(name)) {
+				fmt::format_to(std::back_inserter(buffer), std::locale::classic(), "{:L}", ints[std::to_underlying(*ik)]);
+			} else if (auto bk = bool_key_from_name(name)) {
+				fmt::format_to(std::back_inserter(buffer), "{}", bools[std::to_underlying(*bk)] ? "true" : "false");
 			}
 			fmt::format_to(std::back_inserter(buffer), "\n");
 		}
