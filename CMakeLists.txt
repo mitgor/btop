@@ -39,6 +39,8 @@ else()
   option(BTOP_LTO "Enable LTO" OFF)
 endif()
 
+option(BTOP_BENCHMARKS "Build performance benchmarks" OFF)
+
 if(BTOP_STATIC AND NOT APPLE)
   # Set this before calling find_package
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -280,4 +282,8 @@ install(DIRECTORY "themes" DESTINATION "share/btop")
 include(CTest)
 if(BUILD_TESTING)
   add_subdirectory(tests)
+endif()
+
+if(BTOP_BENCHMARKS)
+  add_subdirectory(benchmarks)
 endif()
