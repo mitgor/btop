@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T17:01:22Z"
+last_updated: "2026-02-27T17:07:42Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 4 (Data Structure Modernization) -- Gap Closure
-Plan: 4 of 5 in current phase -- COMPLETE
-Status: Gap closure plan 04 complete -- BSD ring buffer fixes and benchmark migration done
-Last activity: 2026-02-27 -- BSD resize-before-push fixes, bench_draw RingBuffer migration
+Phase: 4 (Data Structure Modernization) -- COMPLETE
+Plan: 5 of 5 in current phase -- COMPLETE
+Status: Phase 4 complete -- all 5 plans executed, measurement evidence documented
+Last activity: 2026-02-27 -- nanobench comparison benchmarks, 04-MEASUREMENT.md
 
-Progress: [#########-] 92%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: ~10 min
-- Total execution time: ~1.8 hours
+- Total plans completed: 13
+- Average duration: ~9 min
+- Total execution time: ~1.85 hours
 
 **By Phase:**
 
@@ -44,14 +44,14 @@ Progress: [#########-] 92%
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 | 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
-| 4. Data Structure Modernization | 4/5 | ~67 min | ~17 min |
+| 4. Data Structure Modernization | 5/5 | ~70 min | ~14 min |
 
 **Recent Trend:**
-- Last 5 plans: 03.1-01 (5m), 04-01 (6m), 04-02 (~45m), 04-03 (11m), 04-04 (5m)
-- Trend: 04-04 fast gap closure (targeted fixes in 6 files)
+- Last 5 plans: 04-01 (6m), 04-02 (~45m), 04-03 (11m), 04-04 (5m), 04-05 (3m)
+- Trend: 04-05 fast measurement plan (2 tasks, 3 files)
 
 *Updated after each plan completion*
-| Phase 04 P04 | 5min | 2 tasks | 6 files |
+| Phase 04 P05 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -90,6 +90,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Used IIFE for std::array initialization with non-zero default values
 - [Phase 04]: Kept string-accepting Config overloads for menu runtime key resolution alongside enum overloads
 - [Phase 04]: Removed inline keyword from Config::set enum overloads to fix static library symbol export for benchmarks
+- [Phase 04]: RingBuffer single-op throughput comparable to deque; key benefit is zero heap allocations in steady state
+- [Phase 04]: SC1/SC2 formally descoped for macOS (Cachegrind/heaptrack Linux-only); architectural rationale + Linux CI instructions provided
+- [Phase 04]: Benchmark kept self-contained without btop runtime init, using local data structures replicating old patterns
 
 ### Pending Todos
 
@@ -102,5 +105,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-04-PLAN.md (BSD Ring Buffer Fixes and Benchmark Migration) -- Phase 4 plan 4/5
+Stopped at: Completed 04-05-PLAN.md (Measurement Evidence) -- Phase 4 COMPLETE (5/5 plans)
 Resume file: None
