@@ -585,7 +585,7 @@ namespace Cpu {
 			or safeVal(cpu.core_percent, 0).empty()
 			or (show_temps and safeVal(cpu.temp, 0).empty())) return "";
 		string out;
-		out.reserve(width * height);
+		out.reserve(width * height * 16);  // ~16 bytes/visible char: escape codes + cursor moves
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
@@ -1042,7 +1042,7 @@ namespace Gpu {
         auto single_graph = !Config::getB("gpu_mirror_graph");
 		string out;
 		int height = gpu_b_height_offsets[index] + 4;
-		out.reserve(width * height);
+		out.reserve(width * height * 16);  // ~16 bytes/visible char: escape codes + cursor moves
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw[index]) {
@@ -1220,7 +1220,7 @@ namespace Mem {
 		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
 		auto totalMem = Mem::get_totalMem();
 		string out;
-		out.reserve(height * width);
+		out.reserve(height * width * 12);  // ~12 bytes/visible char: moderate escape density for mem/disk
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
@@ -1481,7 +1481,7 @@ namespace Net {
 			redraw = true;
 		}
 		string out;
-		out.reserve(width * height);
+		out.reserve(width * height * 10);  // ~10 bytes/visible char: sparse graphs with few color changes
 		const string title_left = Theme::c("net_box") + Fx::ub + Symbols::title_left;
 		const string title_right = Theme::c("net_box") + Fx::ub + Symbols::title_right;
 		const int i_size = min((int)selected_iface.size(), MAX_IFNAMSIZ);
@@ -1704,7 +1704,7 @@ namespace Proc {
 		int numpids = Proc::numpids;
 		if (force_redraw) redraw = true;
 		string out;
-		out.reserve(width * height);
+		out.reserve(width * height * 18);  // ~18 bytes/visible char: dense per-process rows with many color changes
 
 		//? Move current selection/view to the selected process when a process should be followed
 		//? Restore view and selection to the detailed view process when detailed view is closed
