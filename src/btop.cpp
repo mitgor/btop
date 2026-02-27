@@ -403,6 +403,8 @@ namespace Runner {
 	sigset_t mask;
 	std::mutex mtx;
 
+	Draw::ScreenBuffer screen_buffer;  // Double-buffered cell buffer for differential rendering
+
 	enum debug_actions {
 		collect_begin,
 		collect_done,
@@ -668,6 +670,7 @@ namespace Runner {
 
 			if (redraw or conf.force_redraw) {
 				empty_bg.clear();
+				screen_buffer.set_force_full();
 				redraw = false;
 			}
 
@@ -727,28 +730,41 @@ namespace Runner {
 				}
 			}
 
-			//? If overlay isn't empty, print output without color and then print overlay on top
+			//? Render output to cell buffer and produce differential output
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
 			{
-				string frame_buf;
-				const auto& content = conf.overlay.empty()
-					? output
-					: [&]() -> const string& {
+				screen_buffer.clear_current();
+				if (conf.overlay.empty()) {
+					Draw::render_to_buffer(screen_buffer, output);
+				} else {
+					// Render main output uncolored, then overlay on top
+					if (!output.empty()) {
 						static thread_local string overlay_buf;
 						overlay_buf.clear();
-						if (!output.empty()) {
-							overlay_buf += Fx::ub;
-							overlay_buf += Theme::c("inactive_fg");
-							overlay_buf += Fx::uncolor(output);
-						}
-						overlay_buf += conf.overlay;
-						return overlay_buf;
-					}();
-				frame_buf.reserve(content.size() + 32);
+						overlay_buf += Fx::ub;
+						overlay_buf += Theme::c("inactive_fg");
+						overlay_buf += Fx::uncolor(output);
+						Draw::render_to_buffer(screen_buffer, overlay_buf);
+					}
+					Draw::render_to_buffer(screen_buffer, conf.overlay);
+				}
+
+				string diff_output;
+				if (screen_buffer.needs_full() || conf.force_redraw) {
+					Draw::full_emit(screen_buffer, diff_output);
+					screen_buffer.clear_force_full();
+				} else {
+					Draw::diff_and_emit(screen_buffer, diff_output);
+				}
+
+				string frame_buf;
+				frame_buf.reserve(diff_output.size() + 32);
 				if (term_sync) frame_buf += Term::sync_start;
-				frame_buf += content;
+				frame_buf += diff_output;
 				if (term_sync) frame_buf += Term::sync_end;
 				Tools::write_stdout(frame_buf);
+
+				screen_buffer.swap();
 			}
 		}
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
@@ -1263,6 +1279,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 	}
 
 	Draw::calcSizes();
+	Runner::screen_buffer.resize(Term::width, Term::height);
 
 	//? Print out box outlines
 	const bool term_sync = Config::getB(BoolKey::terminal_sync);
@@ -1318,6 +1335,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 			//? Trigger secondary thread to redraw if terminal has been resized
 			if (Global::resized) {
 				Draw::calcSizes();
+				Runner::screen_buffer.resize(Term::width, Term::height);
 				Draw::update_clock(true);
 				Global::resized = false;
 				if (Menu::active) Menu::process();
