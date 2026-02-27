@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-02-27T10:30:00.000Z"
+last_updated: "2026-02-27T14:17:37Z"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 3.1 (Profiling Gap Closure) -- NOT STARTED
-Plan: 0 of 0 in current phase (needs planning)
-Status: Gap closure phase created from milestone audit
-Last activity: 2026-02-27 -- Milestone audit found Phase 1 SC2 gap
+Phase: 3.1 (Profiling Gap Closure) -- COMPLETE
+Plan: 1 of 1 in current phase
+Status: Phase complete -- profiling gap closed
+Last activity: 2026-02-27 -- CPU sampling profiler run, PROFILING.md created
 
 Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: ~6 min
-- Total execution time: ~0.8 hours
+- Total execution time: ~0.9 hours
 
 **By Phase:**
 
@@ -43,9 +43,10 @@ Progress: [##########] 100%
 | 1. Profiling & Baseline | 3 | ~30 min | ~10 min |
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
+| 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (6m), 02-02 (3m), 03-01 (4m), 03-02 (5m)
+- Last 5 plans: 02-01 (6m), 02-02 (3m), 03-01 (4m), 03-02 (5m), 03.1-01 (5m)
 - Trend: Stable ~4-5 min
 
 *Updated after each plan completion*
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 03]: alive_pids declared static to persist across collection cycles for tree view ppid orphan detection
 - [Phase 03]: FreeBSD idle process skip adapted to erase from proc_map and alive_pids instead of pop_back
 - [Phase 03]: Linux kernel thread filtering uses alive_pids.erase(pid) instead of found.pop_back()
+- [Phase 03.1]: Used macOS `sample` command for CPU profiling instead of Instruments/xctrace (simpler automation)
+- [Phase 03.1]: 500 benchmark cycles for sufficient sampling data; both flat and inclusive profiles documented
 
 ### Pending Todos
 
@@ -85,5 +88,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 03-02-PLAN.md (Hash-map PID lookup) -- Phase 3 complete (2 of 2 plans)
+Stopped at: Completed 03.1-01-PLAN.md (Profiling Gap Closure) -- Phase 3.1 complete (1 of 1 plans)
 Resume file: None

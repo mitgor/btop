@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Profiling & Benchmarking
 
-- [ ] **PROF-01**: Baseline benchmarks established for CPU usage, memory footprint, startup time, and frame render time across Linux, macOS, and FreeBSD
+- [x] **PROF-01**: Baseline benchmarks established for CPU usage, memory footprint, startup time, and frame render time across Linux, macOS, and FreeBSD
 - [x] **PROF-02**: Micro-benchmarks created for identified hot functions (Proc::collect, draw functions, Fx::uncolor, string utilities) using nanobench
 - [x] **PROF-03**: Automated performance regression detection integrated into CI pipeline
 
@@ -82,7 +82,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROF-01 | Phase 1 + Phase 3.1: Profiling Gap Closure | Pending |
+| PROF-01 | Phase 1 + Phase 3.1: Profiling Gap Closure | Complete |
 | PROF-02 | Phase 1: Profiling & Baseline | Complete |
 | PROF-03 | Phase 1: Profiling & Baseline | Complete |
 | STRN-01 | Phase 2: String & Allocation Reduction | Complete |
