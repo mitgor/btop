@@ -66,6 +66,451 @@ namespace Symbols {
 
 namespace Draw {
 
+	//? ===== ScreenBuffer implementation (differential rendering) =====
+
+	void ScreenBuffer::resize(int width, int height) {
+		w = width; h = height;
+		size_t sz = static_cast<size_t>(w) * h;
+		cells_a.resize(sz);
+		cells_b.resize(sz);
+		current = cells_a.data();
+		previous = cells_b.data();
+		// Clear both buffers
+		std::fill(cells_a.begin(), cells_a.end(), Cell{});
+		std::fill(cells_b.begin(), cells_b.end(), Cell{});
+		force_full = true;
+	}
+
+	void ScreenBuffer::swap() {
+		std::swap(current, previous);
+	}
+
+	void ScreenBuffer::clear_current() {
+		std::fill(current, current + static_cast<size_t>(w) * h, Cell{});
+	}
+
+	//? ===== Escape-string-to-cell-buffer parser =====
+
+	void render_to_buffer(ScreenBuffer& buf, const std::string& s) {
+		int cx = 0, cy = 0;
+		uint32_t fg = 0, bg = 0;
+		uint8_t attrs = 0;
+
+		size_t i = 0;
+		const size_t len = s.size();
+		const int bw = buf.width(), bh = buf.height();
+
+		while (i < len) {
+			if (s[i] == '\x1b' && i + 1 < len && s[i + 1] == '[') {
+				// Parse CSI sequence: ESC [ params final_byte
+				i += 2;
+
+				// Collect parameter bytes and intermediate bytes
+				// Parameters are digits and semicolons, final byte is 0x40-0x7E
+				static thread_local std::vector<int> params;
+				params.clear();
+				int current_param = -1;  // -1 means no param started
+
+				// Check for private mode indicator (?)
+				bool private_mode = false;
+				if (i < len && s[i] == '?') {
+					private_mode = true;
+					i++;
+				}
+
+				while (i < len) {
+					char c = s[i];
+					if (c >= '0' && c <= '9') {
+						if (current_param < 0) current_param = 0;
+						current_param = current_param * 10 + (c - '0');
+						i++;
+					}
+					else if (c == ';') {
+						params.push_back(current_param < 0 ? 0 : current_param);
+						current_param = -1;
+						i++;
+					}
+					else {
+						// Final byte
+						break;
+					}
+				}
+
+				// Push last parameter if any
+				if (current_param >= 0) {
+					params.push_back(current_param);
+				}
+
+				if (i >= len) break;
+
+				char final_byte = s[i];
+				i++;
+
+				// Skip private mode sequences (e.g., ?2026h, ?25l)
+				if (private_mode) continue;
+
+				switch (final_byte) {
+					case 'f':  // CUP (Cursor Position) - used by Mv::to
+					case 'H':  // CUP alternate
+					{
+						int row = params.size() > 0 ? params[0] : 1;
+						int col = params.size() > 1 ? params[1] : 1;
+						cy = row - 1;  // 1-based to 0-based
+						cx = col - 1;
+						break;
+					}
+					case 'A':  // CUU - Cursor Up
+					{
+						int n = params.size() > 0 && params[0] > 0 ? params[0] : 1;
+						cy -= n;
+						break;
+					}
+					case 'B':  // CUD - Cursor Down
+					{
+						int n = params.size() > 0 && params[0] > 0 ? params[0] : 1;
+						cy += n;
+						break;
+					}
+					case 'C':  // CUF - Cursor Right (Mv::r)
+					{
+						int n = params.size() > 0 && params[0] > 0 ? params[0] : 1;
+						cx += n;
+						break;
+					}
+					case 'D':  // CUB - Cursor Left
+					{
+						int n = params.size() > 0 && params[0] > 0 ? params[0] : 1;
+						cx -= n;
+						break;
+					}
+					case 'J':  // ED - Erase in Display (skip)
+						break;
+					case 'K':  // EL - Erase in Line (skip)
+						break;
+					case 's':  // Save cursor (skip)
+						break;
+					case 'u':  // Restore cursor (skip)
+						break;
+					case 'm':  // SGR - Select Graphic Rendition
+					{
+						if (params.empty()) {
+							// ESC[m = reset
+							fg = 0; bg = 0; attrs = 0;
+							break;
+						}
+						for (size_t p = 0; p < params.size(); p++) {
+							int code = params[p];
+							switch (code) {
+								case 0:  // Reset
+									fg = 0; bg = 0; attrs = 0;
+									break;
+								case 1:  // Bold
+									attrs |= (1 << 0);
+									break;
+								case 2:  // Dim
+									attrs |= (1 << 1);
+									break;
+								case 3:  // Italic
+									attrs |= (1 << 2);
+									break;
+								case 4:  // Underline
+									attrs |= (1 << 3);
+									break;
+								case 5:  // Blink
+									attrs |= (1 << 4);
+									break;
+								case 9:  // Strikethrough
+									attrs |= (1 << 5);
+									break;
+								case 22: // Unbold/undim
+									attrs &= ~((1 << 0) | (1 << 1));
+									break;
+								case 23: // Un-italic
+									attrs &= ~(1 << 2);
+									break;
+								case 24: // Un-underline
+									attrs &= ~(1 << 3);
+									break;
+								case 25: // Un-blink
+									attrs &= ~(1 << 4);
+									break;
+								case 29: // Un-strikethrough
+									attrs &= ~(1 << 5);
+									break;
+								case 38: // Foreground color
+									if (p + 1 < params.size()) {
+										if (params[p + 1] == 2 && p + 4 < params.size()) {
+											// Truecolor: 38;2;R;G;B
+											uint32_t r = static_cast<uint32_t>(params[p + 2]);
+											uint32_t g = static_cast<uint32_t>(params[p + 3]);
+											uint32_t b = static_cast<uint32_t>(params[p + 4]);
+											fg = (1u << 24) | (r << 16) | (g << 8) | b;
+											p += 4;
+										}
+										else if (params[p + 1] == 5 && p + 2 < params.size()) {
+											// 256-color: 38;5;N
+											fg = static_cast<uint32_t>(params[p + 2]) + 1;
+											p += 2;
+										}
+									}
+									break;
+								case 39: // Default foreground
+									fg = 0;
+									break;
+								case 48: // Background color
+									if (p + 1 < params.size()) {
+										if (params[p + 1] == 2 && p + 4 < params.size()) {
+											// Truecolor: 48;2;R;G;B
+											uint32_t r = static_cast<uint32_t>(params[p + 2]);
+											uint32_t g = static_cast<uint32_t>(params[p + 3]);
+											uint32_t b = static_cast<uint32_t>(params[p + 4]);
+											bg = (1u << 24) | (r << 16) | (g << 8) | b;
+											p += 4;
+										}
+										else if (params[p + 1] == 5 && p + 2 < params.size()) {
+											// 256-color: 48;5;N
+											bg = static_cast<uint32_t>(params[p + 2]) + 1;
+											p += 2;
+										}
+									}
+									break;
+								case 49: // Default background
+									bg = 0;
+									break;
+								default:
+									// Standard colors 30-37 (fg), 40-47 (bg), 90-97 (bright fg), 100-107 (bright bg)
+									if (code >= 30 && code <= 37) {
+										fg = static_cast<uint32_t>(code - 30) + 1;
+									}
+									else if (code >= 40 && code <= 47) {
+										bg = static_cast<uint32_t>(code - 40) + 1;
+									}
+									else if (code >= 90 && code <= 97) {
+										fg = static_cast<uint32_t>(code - 90 + 8) + 1;
+									}
+									else if (code >= 100 && code <= 107) {
+										bg = static_cast<uint32_t>(code - 100 + 8) + 1;
+									}
+									break;
+							}
+						}
+						break;
+					}
+					default:
+						// Unknown CSI sequence, skip
+						break;
+				}
+			}
+			else if (s[i] == '\n') {
+				cy++; cx = 0; i++;
+			}
+			else if (s[i] == '\r') {
+				cx = 0; i++;
+			}
+			else {
+				// Regular character -- determine UTF-8 length
+				uint8_t char_len = 1;
+				unsigned char uc = static_cast<unsigned char>(s[i]);
+				if ((uc & 0x80) == 0) char_len = 1;
+				else if ((uc & 0xE0) == 0xC0) char_len = 2;
+				else if ((uc & 0xF0) == 0xE0) char_len = 3;
+				else if ((uc & 0xF8) == 0xF0) char_len = 4;
+
+				// Bounds check for UTF-8 sequence
+				if (i + char_len > len) { i++; continue; }
+
+				// Write to cell buffer if in bounds
+				if (cx >= 0 && cx < bw && cy >= 0 && cy < bh) {
+					auto& cell = buf.at(cx, cy);
+					cell.set_char(s.data() + i, char_len);
+					cell.fg = fg;
+					cell.bg = bg;
+					cell.attrs = attrs;
+				}
+				cx++;
+				i += char_len;
+			}
+		}
+	}
+
+	//? ===== Emit helpers for diff/full output =====
+
+	namespace {
+		void emit_color(uint32_t color, bool is_fg, std::string& out) {
+			if (color == 0) {
+				// Default color
+				out += "\x1b[";
+				out += (is_fg ? "39" : "49");
+				out += 'm';
+			}
+			else if (color & (1u << 24)) {
+				// Truecolor
+				uint8_t r = (color >> 16) & 0xFF;
+				uint8_t g = (color >> 8) & 0xFF;
+				uint8_t b = color & 0xFF;
+				out += "\x1b[";
+				out += (is_fg ? "38;2;" : "48;2;");
+				out += std::to_string(r);
+				out += ';';
+				out += std::to_string(g);
+				out += ';';
+				out += std::to_string(b);
+				out += 'm';
+			}
+			else {
+				// 256-color (stored as index+1)
+				uint8_t idx = static_cast<uint8_t>(color - 1);
+				// Map basic colors (0-15) to standard SGR codes
+				if (idx < 8) {
+					out += "\x1b[";
+					out += std::to_string(is_fg ? 30 + idx : 40 + idx);
+					out += 'm';
+				}
+				else if (idx < 16) {
+					out += "\x1b[";
+					out += std::to_string(is_fg ? 90 + (idx - 8) : 100 + (idx - 8));
+					out += 'm';
+				}
+				else {
+					out += "\x1b[";
+					out += (is_fg ? "38;5;" : "48;5;");
+					out += std::to_string(idx);
+					out += 'm';
+				}
+			}
+		}
+
+		void emit_attrs(uint8_t new_attrs, uint8_t old_attrs, std::string& out) {
+			uint8_t diff = new_attrs ^ old_attrs;
+			if (diff & (1 << 0)) {
+				out += (new_attrs & (1 << 0)) ? "\x1b[1m" : "\x1b[22m";
+			}
+			if (diff & (1 << 1)) {
+				out += (new_attrs & (1 << 1)) ? "\x1b[2m" : "\x1b[22m";
+			}
+			if (diff & (1 << 2)) {
+				out += (new_attrs & (1 << 2)) ? "\x1b[3m" : "\x1b[23m";
+			}
+			if (diff & (1 << 3)) {
+				out += (new_attrs & (1 << 3)) ? "\x1b[4m" : "\x1b[24m";
+			}
+			if (diff & (1 << 4)) {
+				out += (new_attrs & (1 << 4)) ? "\x1b[5m" : "\x1b[25m";
+			}
+			if (diff & (1 << 5)) {
+				out += (new_attrs & (1 << 5)) ? "\x1b[9m" : "\x1b[29m";
+			}
+		}
+	}
+
+	//? ===== Differential rendering: diff changed cells =====
+
+	void diff_and_emit(const ScreenBuffer& buf, std::string& out) {
+		out.clear();
+		out.reserve(static_cast<size_t>(buf.width()) * buf.height() * 4);
+
+		int last_x = -1, last_y = -1;
+		uint32_t last_fg = UINT32_MAX, last_bg = UINT32_MAX;
+		uint8_t last_attrs = UINT8_MAX;
+
+		for (int y = 0; y < buf.height(); ++y) {
+			for (int x = 0; x < buf.width(); ++x) {
+				const auto& c = buf.at(x, y);
+				const auto& p = buf.prev_at(x, y);
+
+				if (c == p) continue;  // Skip unchanged cells
+
+				// Emit cursor move if not sequential
+				if (y != last_y || x != last_x + 1) {
+					out += "\x1b[";
+					out += std::to_string(y + 1);
+					out += ';';
+					out += std::to_string(x + 1);
+					out += 'f';
+				}
+
+				// Emit attribute changes
+				if (c.attrs != last_attrs) {
+					emit_attrs(c.attrs, last_attrs, out);
+					last_attrs = c.attrs;
+				}
+
+				// Emit fg color change
+				if (c.fg != last_fg) {
+					emit_color(c.fg, true, out);
+					last_fg = c.fg;
+				}
+
+				// Emit bg color change
+				if (c.bg != last_bg) {
+					emit_color(c.bg, false, out);
+					last_bg = c.bg;
+				}
+
+				// Emit character
+				out.append(c.ch, c.ch_len);
+
+				last_x = x;
+				last_y = y;
+			}
+		}
+	}
+
+	//? ===== Full emit: write all cells (for force_redraw/resize) =====
+
+	void full_emit(const ScreenBuffer& buf, std::string& out) {
+		out.clear();
+		out.reserve(static_cast<size_t>(buf.width()) * buf.height() * 8);
+
+		int last_x = -1, last_y = -1;
+		uint32_t last_fg = UINT32_MAX, last_bg = UINT32_MAX;
+		uint8_t last_attrs = UINT8_MAX;
+		Cell default_cell{};
+
+		for (int y = 0; y < buf.height(); ++y) {
+			for (int x = 0; x < buf.width(); ++x) {
+				const auto& c = buf.at(x, y);
+
+				// Skip default (empty) cells for full emit too -- they represent blank space
+				// that the terminal already has from clearing
+				if (c == default_cell) continue;
+
+				// Emit cursor move if not sequential
+				if (y != last_y || x != last_x + 1) {
+					out += "\x1b[";
+					out += std::to_string(y + 1);
+					out += ';';
+					out += std::to_string(x + 1);
+					out += 'f';
+				}
+
+				// Emit attribute changes
+				if (c.attrs != last_attrs) {
+					emit_attrs(c.attrs, last_attrs, out);
+					last_attrs = c.attrs;
+				}
+
+				// Emit fg color change
+				if (c.fg != last_fg) {
+					emit_color(c.fg, true, out);
+					last_fg = c.fg;
+				}
+
+				// Emit bg color change
+				if (c.bg != last_bg) {
+					emit_color(c.bg, false, out);
+					last_bg = c.bg;
+				}
+
+				// Emit character
+				out.append(c.ch, c.ch_len);
+
+				last_x = x;
+				last_y = y;
+			}
+		}
+	}
+
 	// Enum-indexed graph symbol array -- replaces unordered_map<string, vector<string>>
 	// Order must match GraphSymbolType enum: braille_up, braille_down, block_up, block_down, tty_up, tty_down
 	const std::array<vector<string>, static_cast<size_t>(GraphSymbolType::COUNT)> graph_symbols = {{

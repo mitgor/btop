@@ -20,6 +20,8 @@ tab-size = 4
 
 #include <array>
 #include <climits>
+#include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -62,6 +64,62 @@ namespace Symbols {
 }
 
 namespace Draw {
+
+	//? Cell represents a single terminal cell with character, colors, and attributes
+	struct Cell {
+		char ch[4] = {' ', 0, 0, 0};  // UTF-8 encoded character, null-padded
+		uint8_t ch_len = 1;            // Length of UTF-8 character in bytes
+
+		uint32_t fg = 0;  // Foreground: 0=default, bit 24 set=truecolor (RGB in low 24 bits), else 256-color index+1
+		uint32_t bg = 0;  // Background: same encoding
+
+		uint8_t attrs = 0;  // Bitfield: bit 0=bold, 1=dim, 2=italic, 3=underline, 4=blink, 5=strikethrough
+
+		bool operator==(const Cell& o) const {
+			return fg == o.fg && bg == o.bg && attrs == o.attrs
+				&& ch_len == o.ch_len && std::memcmp(ch, o.ch, ch_len) == 0;
+		}
+		bool operator!=(const Cell& o) const { return !(*this == o); }
+
+		void set_char(char c) { ch[0] = c; ch[1] = 0; ch_len = 1; }
+		void set_char(const char* utf8, uint8_t len) {
+			std::memcpy(ch, utf8, len);
+			if (len < 4) ch[len] = 0;
+			ch_len = len;
+		}
+	};
+
+	//? Double-buffered screen cell buffer for differential rendering
+	class ScreenBuffer {
+		std::vector<Cell> cells_a, cells_b;  // Double buffer
+		Cell* current = nullptr;   // Points to active buffer
+		Cell* previous = nullptr;  // Points to previous frame buffer
+		int w = 0, h = 0;
+		bool force_full = true;    // Force full redraw (first frame, resize)
+
+	public:
+		void resize(int width, int height);
+		void swap();  // Swap current/previous buffers
+		void set_force_full() { force_full = true; }
+		bool needs_full() const { return force_full; }
+		void clear_force_full() { force_full = false; }
+
+		Cell& at(int x, int y) { return current[y * w + x]; }
+		const Cell& at(int x, int y) const { return current[y * w + x]; }
+		const Cell& prev_at(int x, int y) const { return previous[y * w + x]; }
+		int width() const { return w; }
+		int height() const { return h; }
+		void clear_current();  // Reset all current cells to default
+	};
+
+	//? Parse an escape-sequence string and render it into the ScreenBuffer
+	void render_to_buffer(ScreenBuffer& buf, const std::string& escape_str);
+
+	//? Diff current vs previous buffer and emit minimal escape sequences
+	void diff_and_emit(const ScreenBuffer& buf, std::string& out);
+
+	//? Full emit of current buffer (for force_redraw)
+	void full_emit(const ScreenBuffer& buf, std::string& out);
 
 	// Graph symbol type enum -- indexes into graph_symbols array (replaces string-keyed unordered_map)
 	enum class GraphSymbolType : size_t {
