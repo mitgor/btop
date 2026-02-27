@@ -110,6 +110,41 @@ int main(int argc, char* argv[]) {
 		std::cerr << "Graph update benchmark skipped: " << e.what() << std::endl;
 	}
 
+	// Benchmark Graph cache: unchanged data (last_data_back hit)
+	try {
+		RingBuffer<long long> data(200);
+		for (size_t i = 0; i < 200; ++i) {
+			data.push_back(static_cast<long long>(50 + 40 * std::sin(static_cast<double>(i) * 0.1)));
+		}
+		Draw::Graph graph(100, 5, "cpu", data, "default", false, false, 100, 0);
+		// Prime the graph with one call
+		graph(data, false);
+
+		bench.run("Graph cache hit (data unchanged)", [&] {
+			auto& result = graph(data, false);
+			ankerl::nanobench::doNotOptimizeAway(result);
+		});
+	} catch (const std::exception& e) {
+		std::cerr << "Graph cache hit benchmark skipped: " << e.what() << std::endl;
+	}
+
+	// Benchmark Graph cache: data_same=true (caller-controlled skip)
+	try {
+		RingBuffer<long long> data(200);
+		for (size_t i = 0; i < 200; ++i) {
+			data.push_back(static_cast<long long>(50 + 40 * std::sin(static_cast<double>(i) * 0.1)));
+		}
+		Draw::Graph graph(100, 5, "cpu", data, "default", false, false, 100, 0);
+		graph(data, false);
+
+		bench.run("Graph data_same=true (skip)", [&] {
+			auto& result = graph(data, true);
+			ankerl::nanobench::doNotOptimizeAway(result);
+		});
+	} catch (const std::exception& e) {
+		std::cerr << "Graph data_same benchmark skipped: " << e.what() << std::endl;
+	}
+
 	// Benchmark createBox (box outline generation)
 	try {
 		bench.run("Draw::createBox (80x24)", [&] {
