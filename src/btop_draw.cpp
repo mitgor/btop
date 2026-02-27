@@ -54,6 +54,10 @@ using namespace Tools;
 using namespace std::literals; // for operator""s
 namespace rng = std::ranges;
 
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
+
 namespace Symbols {
 	const string meter = "■";
 
@@ -109,8 +113,8 @@ namespace Draw {
 		if (redraw) banner.clear();
 		if (banner.empty()) {
 			string b_color, bg, fg, oc, letter;
-			auto lowcolor = Config::getB("lowcolor");
-			auto tty_mode = Config::getB("tty_mode");
+			auto lowcolor = Config::getB(BoolKey::lowcolor);
+			auto tty_mode = Config::getB(BoolKey::tty_mode);
 			for (size_t z = 0; const auto& line : Global::Banner_src) {
 				if (const auto w = ulen(line[1]); w > width) width = w;
 				if (tty_mode) {
@@ -253,8 +257,8 @@ namespace Draw {
 		if (line_color.empty())
 			line_color = Theme::c("div_line");
 
-		auto tty_mode = Config::getB("tty_mode");
-		auto rounded = Config::getB("rounded_corners");
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto rounded = Config::getB(BoolKey::rounded_corners);
 		const string numbering = (num == 0) ? "" : Theme::c("hi_fg") + (tty_mode ? std::to_string(num) : Symbols::superscript.at(clamp(num, 0, 9)));
 		const auto& right_up = (tty_mode or not rounded ? Symbols::right_up : Symbols::round_right_up);
 		const auto& left_up = (tty_mode or not rounded ? Symbols::left_up : Symbols::round_left_up);
@@ -299,7 +303,7 @@ namespace Draw {
 	}
 
 	bool update_clock(bool force) {
-		const auto& clock_format = Config::getS("clock_format");
+		const auto& clock_format = Config::getS(StringKey::clock_format);
 		if (not Cpu::shown or clock_format.empty()) {
 			if (clock_format.empty() and not Global::clock.empty()) Global::clock.clear();
 			return false;
@@ -325,7 +329,7 @@ namespace Draw {
 		}
 
 		auto& out = Global::clock;
-		auto cpu_bottom = Config::getB("cpu_bottom");
+		auto cpu_bottom = Config::getB(BoolKey::cpu_bottom);
 		const auto& x = Cpu::x;
 		const auto y = (cpu_bottom ? Cpu::y + Cpu::height - 1 : Cpu::y);
 		const auto& width = Cpu::width;
@@ -347,7 +351,7 @@ namespace Draw {
 
 		}
 
-		clock_str = uresize(clock_str, std::max(10, width - 66 - (Term::width >= 100 and Config::getB("show_battery") and Cpu::has_battery ? 22 : 0)));
+		clock_str = uresize(clock_str, std::max(10, width - 66 - (Term::width >= 100 and Config::getB(BoolKey::show_battery) and Cpu::has_battery ? 22 : 0)));
 		out.clear();
 
 		if (clock_str.size() != clock_len) {
@@ -463,9 +467,9 @@ namespace Draw {
 				 bool invert, bool no_zero, long long max_value, long long offset)
 	: width(width), height(height), color_gradient(color_gradient),
 	  invert(invert), no_zero(no_zero), offset(offset) {
-		if (Config::getB("tty_mode") or symbol == "tty") this->symbol = "tty";
+		if (Config::getB(BoolKey::tty_mode) or symbol == "tty") this->symbol = "tty";
 		else if (symbol != "default") this->symbol = symbol;
-		else this->symbol = Config::getS("graph_symbol");
+		else this->symbol = Config::getS(StringKey::graph_symbol);
 		if (this->symbol == "tty") tty_mode = true;
 
 		if (max_value == 0 and offset > 0) max_value = 100;
@@ -542,21 +546,21 @@ namespace Cpu {
 	) {
 		if (Runner::stopping) return "";
 		if (force_redraw) redraw = true;
-		bool show_temps = (Config::getB("check_temp") and got_sensors);
-		bool show_watts = (Config::getB("show_cpu_watts") and supports_watts);
-		auto single_graph = Config::getB("cpu_single_graph");
-		bool hide_cores = show_temps and (cpu_temp_only or not Config::getB("show_coretemp"));
+		bool show_temps = (Config::getB(BoolKey::check_temp) and got_sensors);
+		bool show_watts = (Config::getB(BoolKey::show_cpu_watts) and supports_watts);
+		auto single_graph = Config::getB(BoolKey::cpu_single_graph);
+		bool hide_cores = show_temps and (cpu_temp_only or not Config::getB(BoolKey::show_coretemp));
 		const int extra_width = (hide_cores ? max(6, 6 * b_column_size) : (b_columns == 1 && !show_temps) ? 8 : 0);
 #if defined(GPU_SUPPORT)
-		const auto& show_gpu_info = Config::getS("show_gpu_info");
+		const auto& show_gpu_info = Config::getS(StringKey::show_gpu_info);
 		const bool gpu_always = show_gpu_info == "On";
 		const bool gpu_auto = show_gpu_info == "Auto";
 		const bool show_gpu = (gpus.size() > 0 and (gpu_always or (gpu_auto and Gpu::shown < Gpu::count)));
 #endif // GPU_SUPPORT
-		auto graph_up_field = Config::getS("cpu_graph_upper");
+		auto graph_up_field = Config::getS(StringKey::cpu_graph_upper);
 		if (graph_up_field == "Auto" or not v_contains(Cpu::available_fields, graph_up_field))
 			graph_up_field = "total";
-		auto graph_lo_field = Config::getS("cpu_graph_lower");
+		auto graph_lo_field = Config::getS(StringKey::cpu_graph_lower);
 		if (graph_lo_field == "Auto" or not v_contains(Cpu::available_fields, graph_lo_field)) {
 		#ifdef GPU_SUPPORT
 			graph_lo_field = show_gpu ? "gpu-totals" : graph_up_field;
@@ -564,11 +568,11 @@ namespace Cpu {
 			graph_lo_field = graph_up_field;
 		#endif
 		}
-		auto tty_mode = Config::getB("tty_mode");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_cpu"));
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_cpu));
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
-		auto& temp_scale = Config::getS("temp_scale");
-		auto cpu_bottom = Config::getB("cpu_bottom");
+		auto& temp_scale = Config::getS(StringKey::temp_scale);
+		auto cpu_bottom = Config::getB(BoolKey::cpu_bottom);
 
 		const string& title_left = Theme::c("cpu_box") + (cpu_bottom ? Symbols::title_left_down : Symbols::title_left);
 		const string& title_right = Theme::c("cpu_box") + (cpu_bottom ? Symbols::title_right_down : Symbols::title_right);
@@ -596,7 +600,7 @@ namespace Cpu {
 			out += Mv::to(button_y, x + 16) + title_left + Theme::c("hi_fg") + Fx::b + 'p' + Theme::c("title") + "reset "
 				+ (!Config::current_preset.has_value() ? "*" : to_string(Config::current_preset.value())) + Fx::ub + title_right;
 			Input::mouse_mappings["p"] = {button_y, x + 17, 1, 8};
-			const string update = to_string(Config::getI("update_ms")) + "ms";
+			const string update = to_string(Config::getI(IntKey::update_ms)) + "ms";
 			out += Mv::to(button_y, x + width - update.size() - 8) + title_left + Fx::b + Theme::c("hi_fg") + "- " + Theme::c("title") + update
 				+ Theme::c("hi_fg") + " +" + Fx::ub + title_right;
 			Input::mouse_mappings["-"] = {button_y, x + width - (int)update.size() - 7, 1, 2};
@@ -656,7 +660,7 @@ namespace Cpu {
 
             init_graphs(graphs_upper, graph_up_height, graph_up_width, graph_up_field, false);
             if (not single_graph)
-            	init_graphs(graphs_lower, graph_low_height, graph_low_width, graph_lo_field, Config::getB("cpu_invert_lower"));
+            	init_graphs(graphs_lower, graph_low_height, graph_low_width, graph_lo_field, Config::getB(BoolKey::cpu_invert_lower));
 
 			#ifdef GPU_SUPPORT
 			if (show_gpu and b_columns > 1) {
@@ -725,7 +729,7 @@ namespace Cpu {
 		}
 
 		//? Draw battery if enabled and present
-		if (Config::getB("show_battery") and has_battery) {
+		if (Config::getB(BoolKey::show_battery) and has_battery) {
 			static int old_percent{};   // defaults to = 0
 			static long old_seconds{};  // defaults to = 0
 			static float old_watts{};	// defaults to = 0
@@ -740,16 +744,16 @@ namespace Cpu {
 
 			const auto& [percent, watts, seconds, status] = current_bat;
 
-			if (redraw or percent != old_percent or (watts != old_watts and Config::getB("show_battery_watts")) or seconds != old_seconds or status != old_status) {
+			if (redraw or percent != old_percent or (watts != old_watts and Config::getB(BoolKey::show_battery_watts)) or seconds != old_seconds or status != old_status) {
 				old_percent = percent;
 				old_watts = watts;
 				old_seconds = seconds;
 				old_status = status;
 				const string str_time = (seconds > 0 ? sec_to_dhms(seconds, false, true) : "");
 				const string str_percent = to_string(percent) + '%';
-				const string str_watts = (watts != -1 and Config::getB("show_battery_watts") ? fmt::format("{:.2f}", watts) + 'W' : "");
+				const string str_watts = (watts != -1 and Config::getB(BoolKey::show_battery_watts) ? fmt::format("{:.2f}", watts) + 'W' : "");
 				const auto& bat_symbol = bat_symbols.at((bat_symbols.contains(status) ? status : "unknown"));
-				const int current_len = (Term::width >= 100 ? 11 : 0) + str_time.size() + str_percent.size() + str_watts.size() + to_string(Config::getI("update_ms")).size();
+				const int current_len = (Term::width >= 100 ? 11 : 0) + str_time.size() + str_percent.size() + str_watts.size() + to_string(Config::getI(IntKey::update_ms)).size();
 				const int current_pos = Term::width - current_len - 17;
 
 				if ((bat_pos != current_pos or bat_len != current_len) and bat_pos > 0 and not redraw)
@@ -812,24 +816,24 @@ namespace Cpu {
 			}
 
 			//? Uptime
-			if (Config::getB("show_uptime")) {
+			if (Config::getB(BoolKey::show_uptime)) {
 				string upstr = sec_to_dhms(system_uptime());
 				if (upstr.size() > 8) {
 					upstr.resize(upstr.size() - 3);
 					upstr = trans(upstr);
 				}
-				out += Mv::to(y + (single_graph or not Config::getB("cpu_invert_lower") ? 1 : height - 2), x + 2)
+				out += Mv::to(y + (single_graph or not Config::getB(BoolKey::cpu_invert_lower) ? 1 : height - 2), x + 2)
 					+ Theme::c("graph_text") + "up" + Mv::r(1) + upstr;
 			}
 
 		#ifdef __linux__
-			const bool freq_range = Config::getS("freq_mode") == "range";
+			const bool freq_range = Config::getS(StringKey::freq_mode) == "range";
 		#else
 			const bool freq_range = false;
 		#endif
 
 			//? Cpu clock and cpu meter
-			if (Config::getB("show_cpu_freq") and not cpuHz.empty())
+			if (Config::getB(BoolKey::show_cpu_freq) and not cpuHz.empty())
 				out += Mv::to(b_y, b_x + b_width - (freq_range ? 20 : 10)) + Fx::ub + Theme::c("div_line")
 					+ Symbols::h_line * ((freq_range ? 17 : 7) - cpuHz.size())
 					+ Symbols::title_left + Fx::b + Theme::c("title") + cpuHz + Fx::ub + Theme::c("div_line") + Symbols::title_right;
@@ -1029,12 +1033,12 @@ namespace Gpu {
 		auto& enc_meter = enc_meter_vec[index];
 
 		if (force_redraw) redraw[index] = true;
-        bool show_temps = gpu.supported_functions.temp_info and (Config::getB("check_temp"));
-        auto tty_mode = Config::getB("tty_mode");
-		auto& temp_scale = Config::getS("temp_scale");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_gpu"));
+        bool show_temps = gpu.supported_functions.temp_info and (Config::getB(BoolKey::check_temp));
+        auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto& temp_scale = Config::getS(StringKey::temp_scale);
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_gpu));
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
-        auto single_graph = !Config::getB("gpu_mirror_graph");
+        auto single_graph = !Config::getB(BoolKey::gpu_mirror_graph);
 		string out;
 		int height = gpu_b_height_offsets[index] + 4;
 		out.reserve(width * height * 16);  // ~16 bytes/visible char: escape codes + cursor moves
@@ -1054,7 +1058,7 @@ namespace Gpu {
                     	graph_low_height, "cpu",
                     	gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)],
                     	graph_symbol,
-                    	Config::getB("cpu_invert_lower"), true
+                    	Config::getB(BoolKey::cpu_invert_lower), true
                 	};
             	}
 				gpu_meter = Draw::Meter{b_width - (show_temps ? 25 : 12), "cpu"};
@@ -1203,15 +1207,15 @@ namespace Mem {
 	string draw(const mem_info& mem, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
 		if (force_redraw) redraw = true;
-		auto show_swap = Config::getB("show_swap");
-		auto swap_disk = Config::getB("swap_disk");
-		auto show_disks = Config::getB("show_disks");
-		auto show_io_stat = Config::getB("show_io_stat");
-		auto io_mode = Config::getB("io_mode");
-		auto io_graph_combined = Config::getB("io_graph_combined");
-		auto use_graphs = Config::getB("mem_graphs");
-		auto tty_mode = Config::getB("tty_mode");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_mem"));
+		auto show_swap = Config::getB(BoolKey::show_swap);
+		auto swap_disk = Config::getB(BoolKey::swap_disk);
+		auto show_disks = Config::getB(BoolKey::show_disks);
+		auto show_io_stat = Config::getB(BoolKey::show_io_stat);
+		auto io_mode = Config::getB(BoolKey::io_mode);
+		auto io_graph_combined = Config::getB(BoolKey::io_graph_combined);
+		auto use_graphs = Config::getB(BoolKey::mem_graphs);
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_mem));
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto totalMem = Mem::get_totalMem();
 		string out;
@@ -1252,8 +1256,8 @@ namespace Mem {
 						disks_io_h = max((int)floor((double)(height - 2 - (disk_ios * 2)) / max(1, disk_ios)), (io_graph_combined ? 1 : 2));
 						half_height = ceil((double)disks_io_h / 2);
 
-						if (not Config::getS("io_graph_speeds").empty()) {
-							auto split = ssplit(Config::getS("io_graph_speeds"));
+						if (not Config::getS(StringKey::io_graph_speeds).empty()) {
+							auto split = ssplit(Config::getS(StringKey::io_graph_speeds));
 							for (const auto& entry : split) {
 								auto vals = ssplit(entry, ':');
 								if (vals.size() == 2 and mem.disks.contains(vals.at(0)) and isint(vals.at(1)))
@@ -1467,11 +1471,11 @@ namespace Net {
 	string draw(const net_info& net, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
 		if (force_redraw) redraw = true;
-		auto net_sync = Config::getB("net_sync");
-		auto net_auto = Config::getB("net_auto");
-		auto tty_mode = Config::getB("tty_mode");
-		auto swap_upload_download = Config::getB("swap_upload_download");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_net"));
+		auto net_sync = Config::getB(BoolKey::net_sync);
+		auto net_auto = Config::getB(BoolKey::net_auto);
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto swap_upload_download = Config::getB(BoolKey::swap_upload_download);
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_net));
 		string ip_addr = (net.ipv4.empty() ? net.ipv6 : net.ipv4);
 		if (old_ip != ip_addr) {
 			old_ip = ip_addr;
@@ -1482,8 +1486,8 @@ namespace Net {
 		const string title_left = Theme::c("net_box") + Fx::ub + Symbols::title_left;
 		const string title_right = Theme::c("net_box") + Fx::ub + Symbols::title_right;
 		const int i_size = min((int)selected_iface.size(), MAX_IFNAMSIZ);
-		const long long down_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::download)] : ((long long)(Config::getI("net_download")) << 20) / 8);
-		const long long up_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::upload)] : ((long long)(Config::getI("net_upload")) << 20) / 8);
+		const long long down_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::download)] : ((long long)(Config::getI(IntKey::net_download)) << 20) / 8);
+		const long long up_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::upload)] : ((long long)(Config::getI(IntKey::net_upload)) << 20) / 8);
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
@@ -1593,38 +1597,38 @@ namespace Proc {
 	string box;
 
 	int selection(const std::string_view cmd_key) {
-		auto start = Config::getI("proc_start");
-		auto selected = Config::getI("proc_selected");
-		auto last_selected = Config::getI("proc_last_selected");
+		auto start = Config::getI(IntKey::proc_start);
+		auto selected = Config::getI(IntKey::proc_selected);
+		auto last_selected = Config::getI(IntKey::proc_last_selected);
 		bool changed = false;
-		int select_max = (Config::getB("show_detailed") ? (Config::getB("proc_banner_shown") ? Proc::select_max - 9 : Proc::select_max - 8) :
-																(Config::getB("proc_banner_shown") ? Proc::select_max - 1 : Proc::select_max));
+		int select_max = (Config::getB(BoolKey::show_detailed) ? (Config::getB(BoolKey::proc_banner_shown) ? Proc::select_max - 9 : Proc::select_max - 8) :
+																(Config::getB(BoolKey::proc_banner_shown) ? Proc::select_max - 1 : Proc::select_max));
 
 		// Return the selection from the detailed view to the followed process before moving the selection
 		// Disengage following mode when moving the selection unless paused
-		if (Config::getB("follow_process")) {
-			if (Config::getB("show_detailed") and selected == 0 and Config::getB("should_selection_return_to_followed")
-			and Config::getI("detailed_pid") == Config::getI("followed_pid")) {
-				selected = Config::getI("proc_followed");
-				Config::set("should_selection_return_to_followed", false);
+		if (Config::getB(BoolKey::follow_process)) {
+			if (Config::getB(BoolKey::show_detailed) and selected == 0 and Config::getB(BoolKey::should_selection_return_to_followed)
+			and Config::getI(IntKey::detailed_pid) == Config::getI(IntKey::followed_pid)) {
+				selected = Config::getI(IntKey::proc_followed);
+				Config::set(BoolKey::should_selection_return_to_followed, false);
 				changed = true;
 			}
-			if (not Config::getB("pause_proc_list")) {
-				Config::flip("follow_process");
-				Config::set("followed_pid", 0);
-				Config::set("proc_followed", 0);
+			if (not Config::getB(BoolKey::pause_proc_list)) {
+				Config::flip(BoolKey::follow_process);
+				Config::set(IntKey::followed_pid, 0);
+				Config::set(IntKey::proc_followed, 0);
 				select_max++;
 			}
 			redraw = true;
 		}
 
-		auto vim_keys = Config::getB("vim_keys");
+		auto vim_keys = Config::getB(BoolKey::vim_keys);
 
 		int numpids = Proc::numpids;
 		if ((cmd_key == "up" or (vim_keys and cmd_key == "k")) and selected > 0) {
 			if (start > 0 and selected == 1) start--;
 			else selected--;
-			if (Config::getI("proc_last_selected") > 0) Config::set("proc_last_selected", 0);
+			if (Config::getI(IntKey::proc_last_selected) > 0) Config::set(IntKey::proc_last_selected, 0);
 		}
 		else if (cmd_key == "mouse_scroll_up" and start > 0) {
 			start = max(0, start - 3);
@@ -1636,7 +1640,7 @@ namespace Proc {
 			if (start < numpids - select_max and selected == select_max) start++;
 			else if (selected == 0 and last_selected > 0) {
 				selected = last_selected;
-				Config::set("proc_last_selected", 0);
+				Config::set(IntKey::proc_last_selected, 0);
 			}
 			else selected++;
 		}
@@ -1661,12 +1665,12 @@ namespace Proc {
 			start = clamp((int)round((double)mouse_y * (numpids - select_max - 2) / (select_max - 2)), 0, max(0, numpids - select_max));
 		}
 
-		if (start != Config::getI("proc_start")) {
-			Config::set("proc_start", start);
+		if (start != Config::getI(IntKey::proc_start)) {
+			Config::set(IntKey::proc_start, start);
 			changed = true;
 		}
-		if (selected != Config::getI("proc_selected")) {
-			Config::set("proc_selected", selected);
+		if (selected != Config::getI(IntKey::proc_selected)) {
+			Config::set(IntKey::proc_selected, selected);
 			changed = true;
 		}
 		return (not changed ? -1 : selected);
@@ -1674,25 +1678,25 @@ namespace Proc {
 
 	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
-		auto proc_tree = Config::getB("proc_tree");
-		bool show_detailed = (Config::getB("show_detailed") and cmp_equal(Proc::detailed.last_pid, Config::getI("detailed_pid")));
-		bool proc_gradient = (Config::getB("proc_gradient") and not Config::getB("lowcolor") and Theme::gradients.contains("proc"));
-		auto proc_colors = Config::getB("proc_colors");
-		auto tty_mode = Config::getB("tty_mode");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_proc"));
+		auto proc_tree = Config::getB(BoolKey::proc_tree);
+		bool show_detailed = (Config::getB(BoolKey::show_detailed) and cmp_equal(Proc::detailed.last_pid, Config::getI(IntKey::detailed_pid)));
+		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor) and Theme::gradients.contains("proc"));
+		auto proc_colors = Config::getB(BoolKey::proc_colors);
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_proc));
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
-		auto mem_bytes = Config::getB("proc_mem_bytes");
-		auto vim_keys = Config::getB("vim_keys");
-		auto show_graphs = Config::getB("proc_cpu_graphs");
-		const auto pause_proc_list = Config::getB("pause_proc_list");
-		auto follow_process = Config::getB("follow_process"); 
-		int followed_pid = Config::getI("followed_pid");
-		int followed = Config::getI("proc_followed");
-		bool should_selection_return_to_followed = Config::getB("should_selection_return_to_followed");
+		auto mem_bytes = Config::getB(BoolKey::proc_mem_bytes);
+		auto vim_keys = Config::getB(BoolKey::vim_keys);
+		auto show_graphs = Config::getB(BoolKey::proc_cpu_graphs);
+		const auto pause_proc_list = Config::getB(BoolKey::pause_proc_list);
+		auto follow_process = Config::getB(BoolKey::follow_process); 
+		int followed_pid = Config::getI(IntKey::followed_pid);
+		int followed = Config::getI(IntKey::proc_followed);
+		bool should_selection_return_to_followed = Config::getB(BoolKey::should_selection_return_to_followed);
 		auto proc_banner_shown = pause_proc_list or follow_process;
-		Config::set("proc_banner_shown", proc_banner_shown);
-		start = Config::getI("proc_start");
-		selected = Config::getI("proc_selected");
+		Config::set(BoolKey::proc_banner_shown, proc_banner_shown);
+		start = Config::getI(IntKey::proc_start);
+		selected = Config::getI(IntKey::proc_selected);
 		const int y = show_detailed ? Proc::y + 8 : Proc::y;
 		const int height = show_detailed ? Proc::height - 8 : Proc::height;
 		int select_max = show_detailed ? (proc_banner_shown ? Proc::select_max - 9 : Proc::select_max - 8) : 
@@ -1705,9 +1709,9 @@ namespace Proc {
 
 		//? Move current selection/view to the selected process when a process should be followed
 		//? Restore view and selection to the detailed view process when detailed view is closed
-		const int restore_detailed_pid = Config::getI("restore_detailed_pid");
-		if ((follow_process and (not pause_proc_list or Config::getB("update_following"))) or restore_detailed_pid > 0) {
-			Config::set("update_following", false);
+		const int restore_detailed_pid = Config::getI(IntKey::restore_detailed_pid);
+		if ((follow_process and (not pause_proc_list or Config::getB(BoolKey::update_following))) or restore_detailed_pid > 0) {
+			Config::set(BoolKey::update_following, false);
 			int loc = 1;
 			bool can_follow = false;
 			for (auto& p : plist) {
@@ -1724,19 +1728,19 @@ namespace Proc {
 				start = max(0, loc - list_middle);
 				followed = loc < list_middle ? loc : start > numpids - select_max ? select_max - numpids + loc : list_middle;
 				if (restore_detailed_pid == 0) {
-					Config::set("proc_followed", followed);
-					Config::set("should_selection_return_to_followed", should_selection_return_to_followed = true);
+					Config::set(IntKey::proc_followed, followed);
+					Config::set(BoolKey::should_selection_return_to_followed, should_selection_return_to_followed = true);
 				}
-				selected = (followed_pid != Config::getI("detailed_pid") or restore_detailed_pid > 0) ? followed : 0;
+				selected = (followed_pid != Config::getI(IntKey::detailed_pid) or restore_detailed_pid > 0) ? followed : 0;
 			}
 			else if (restore_detailed_pid == 0) {
-				Config::set("followed_pid", followed_pid = 0);
-				Config::set("follow_process", follow_process = false);
-				Config::set("proc_banner_shown", proc_banner_shown = pause_proc_list);
-				Config::set("proc_followed", 0);
+				Config::set(IntKey::followed_pid, followed_pid = 0);
+				Config::set(BoolKey::follow_process, follow_process = false);
+				Config::set(BoolKey::proc_banner_shown, proc_banner_shown = pause_proc_list);
+				Config::set(IntKey::proc_followed, 0);
 				if (not proc_banner_shown) select_max++;
 			}
-			if (restore_detailed_pid > 0) Config::set("restore_detailed_pid", 0);
+			if (restore_detailed_pid > 0) Config::set(IntKey::restore_detailed_pid, 0);
 		}
 
 		//? Handle selection edge cases when list view is showing bottom of list
@@ -1750,7 +1754,7 @@ namespace Proc {
 			start++;
 
 		//? redraw if selection reaches or leaves the end of the list
-		if (selected != Config::getI("proc_last_selected")) {
+		if (selected != Config::getI(IntKey::proc_last_selected)) {
 			if (selected >= select_max and start >= numpids - select_max) {
 				redraw = true;
 				is_last_process_in_list = true;
@@ -1865,8 +1869,8 @@ namespace Proc {
 			}
 
 			//? Filter
-			auto filtering = Config::getB("proc_filtering"); // ? filter(20) : Config::getS("proc_filter"))
-			const auto filter_text = (filtering) ? filter(max(6, width - 66)) : uresize(Config::getS("proc_filter"), max(6, width - 66));
+			auto filtering = Config::getB(BoolKey::proc_filtering); // ? filter(20) : Config::getS(StringKey::proc_filter))
+			const auto filter_text = (filtering) ? filter(max(6, width - 66)) : uresize(Config::getS(StringKey::proc_filter), max(6, width - 66));
 			out += Mv::to(y, x+9) + title_left + (not filter_text.empty() ? Fx::b : "") + Theme::c("hi_fg") + 'f'
 				+ Theme::c("title") + (not filter_text.empty() ? ' ' + filter_text : "ilter")
 				+ (not filtering and not filter_text.empty() ? Theme::c("hi_fg") + " del" : "")
@@ -1881,7 +1885,7 @@ namespace Proc {
 			}
 
 			//? pause, per-core, reverse, tree and sorting
-			const auto& sorting = Config::getS("proc_sorting");
+			const auto& sorting = Config::getS(StringKey::proc_sorting);
 			const int sort_len = sorting.size();
 			const int sort_pos = x + width - sort_len - 8;
 
@@ -1893,17 +1897,17 @@ namespace Proc {
 			    Input::mouse_mappings["u"] = {y, sort_pos - 31, 1, 5};
 			}
 			if (width > 55 + sort_len) {
-				out += Mv::to(y, sort_pos - 25) + title_left + (Config::getB("proc_per_core") ? Fx::b : "") + Theme::c("title")
+				out += Mv::to(y, sort_pos - 25) + title_left + (Config::getB(BoolKey::proc_per_core) ? Fx::b : "") + Theme::c("title")
 					+ "per-" + Theme::c("hi_fg") + 'c' + Theme::c("title") + "ore" + Fx::ub + title_right;
 				Input::mouse_mappings["c"] = {y, sort_pos - 24, 1, 8};
 			}
 			if (width > 45 + sort_len) {
-				out += Mv::to(y, sort_pos - 15) + title_left + (Config::getB("proc_reversed") ? Fx::b : "") + Theme::c("hi_fg")
+				out += Mv::to(y, sort_pos - 15) + title_left + (Config::getB(BoolKey::proc_reversed) ? Fx::b : "") + Theme::c("hi_fg")
 					+ 'r' + Theme::c("title") + "everse" + Fx::ub + title_right;
 				Input::mouse_mappings["r"] = {y, sort_pos - 14, 1, 7};
 			}
 			if (width > 35 + sort_len) {
-				out += Mv::to(y, sort_pos - 6) + title_left + (Config::getB("proc_tree") ? Fx::b : "") + Theme::c("title") + "tre"
+				out += Mv::to(y, sort_pos - 6) + title_left + (Config::getB(BoolKey::proc_tree) ? Fx::b : "") + Theme::c("title") + "tre"
 					+ Theme::c("hi_fg") + 'e' + Fx::ub + title_right;
 				Input::mouse_mappings["e"] = {y, sort_pos - 5, 1, 4};
 			}
@@ -1914,7 +1918,7 @@ namespace Proc {
 
 			//? select, info, signal, and follow buttons
 			const string down_button = (is_last_process_in_list ? Theme::c("inactive_fg") : Theme::c("hi_fg")) + Symbols::down;
-			const bool is_up_button_highlighted = selected != 0 or (follow_process and followed_pid == Config::getI("detailed_pid") and should_selection_return_to_followed);
+			const bool is_up_button_highlighted = selected != 0 or (follow_process and followed_pid == Config::getI(IntKey::detailed_pid) and should_selection_return_to_followed);
 			const string up_button = (is_up_button_highlighted ? Theme::c("hi_fg") : Theme::c("inactive_fg")) + Symbols::up;
 			const string t_color = (selected == 0 ? Theme::c("inactive_fg") : Theme::c("title"));
 			const string hi_color = (selected == 0 ? Theme::c("inactive_fg") : Theme::c("hi_fg"));
@@ -2208,7 +2212,7 @@ namespace Proc {
 
 		//? Draw hide button if detailed view is shown
 		if (show_detailed) {
-			const bool greyed_out = selected_pid != Config::getI("detailed_pid") && selected > 0; 
+			const bool greyed_out = selected_pid != Config::getI(IntKey::detailed_pid) && selected > 0; 
 			fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}{}{}{}",
 				Mv::to(d_y, d_x + d_width - 10), 
 				Theme::c("proc_box"), Symbols::title_left, Fx::b,
@@ -2233,10 +2237,10 @@ namespace Draw {
 	void calcSizes() {
 		atomic_wait(Runner::active);
 		Config::unlock();
-		auto boxes = Config::getS("shown_boxes");
-		auto cpu_bottom = Config::getB("cpu_bottom");
-		auto mem_below_net = Config::getB("mem_below_net");
-		auto proc_left = Config::getB("proc_left");
+		auto boxes = Config::getS(StringKey::shown_boxes);
+		auto cpu_bottom = Config::getB(BoolKey::cpu_bottom);
+		auto mem_below_net = Config::getB(BoolKey::mem_below_net);
+		auto proc_left = Config::getB(BoolKey::proc_left);
 
 		Cpu::box.clear();
 
@@ -2294,11 +2298,11 @@ namespace Draw {
 		#ifdef GPU_SUPPORT
 			// inline GPU information
 			int gpus_extra_height =
-				Config::getS("show_gpu_info") == "On" ? Gpu::count
-				: Config::getS("show_gpu_info") == "Auto" ? Gpu::count - Gpu::shown
+				Config::getS(StringKey::show_gpu_info) == "On" ? Gpu::count
+				: Config::getS(StringKey::show_gpu_info) == "Auto" ? Gpu::count - Gpu::shown
 				: 0;
 		#endif
-            const bool show_temp = (Config::getB("check_temp") and got_sensors);
+            const bool show_temp = (Config::getB(BoolKey::check_temp) and got_sensors);
 			width = round((double)Term::width * width_p / 100);
 		#ifdef GPU_SUPPORT
 			if (Gpu::shown != 0 and not (Mem::shown or Net::shown or Proc::shown)) {
@@ -2347,16 +2351,16 @@ namespace Draw {
 
 			box = createBox(x, y, width, height, Theme::c("cpu_box"), true, (cpu_bottom ? "" : "cpu"), (cpu_bottom ? "cpu" : ""), 1);
 
-			auto& custom = Config::getS("custom_cpu_name");
+			auto& custom = Config::getS(StringKey::custom_cpu_name);
 			static const bool hasCpuHz = not Cpu::get_cpuHz().empty();
 		#ifdef __linux__
-			static const bool freq_range = Config::getS("freq_mode") == "range";
+			static const bool freq_range = Config::getS(StringKey::freq_mode) == "range";
 		#else
 			static const bool freq_range = false;
 		#endif
 			const string cpu_title = uresize(
 					(custom.empty() ? Cpu::cpuName : custom),
-					b_width - (Config::getB("show_cpu_freq") and hasCpuHz ? (freq_range ? 24 : 14) : 5)
+					b_width - (Config::getB(BoolKey::show_cpu_freq) and hasCpuHz ? (freq_range ? 24 : 14) : 5)
 			);
 			box += createBox(b_x, b_y, b_width, b_height, "", false, cpu_title);
 		}
@@ -2394,7 +2398,7 @@ namespace Draw {
 				b_height_vec[i] = gpu_b_height_offsets[shown_panels[i]] + 2;
 				height += (height+Cpu::height == Term::height-1);
 				height = max(height, b_height_vec[i] + 2);
-				x_vec[i] = 1; y_vec[i] = 1 + total_height + (not Config::getB("cpu_bottom"))*Cpu::shown*Cpu::height;
+				x_vec[i] = 1; y_vec[i] = 1 + total_height + (not Config::getB(BoolKey::cpu_bottom))*Cpu::shown*Cpu::height;
 				box[i] = createBox(x_vec[i], y_vec[i], width, height, Theme::c("cpu_box"), true, std::string("gpu") + (char)(shown_panels[i]+'0'), "", (shown_panels[i]+5)%10); // TODO gpu_box
 				b_width = clamp(width/2, min_width, 65);
 				total_height += height;
@@ -2415,9 +2419,9 @@ namespace Draw {
 		//* Calculate and draw mem box outlines
 		if (Mem::shown) {
 			using namespace Mem;
-			auto show_disks = Config::getB("show_disks");
-			auto swap_disk = Config::getB("swap_disk");
-			auto mem_graphs = Config::getB("mem_graphs");
+			auto show_disks = Config::getB(BoolKey::show_disks);
+			auto swap_disk = Config::getB(BoolKey::swap_disk);
+			auto mem_graphs = Config::getB(BoolKey::mem_graphs);
 
 			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
 		#ifdef GPU_SUPPORT
@@ -2507,7 +2511,7 @@ namespace Draw {
 			u_graph_height = height - 2 - d_graph_height;
 
 			box = createBox(x, y, width, height, Theme::c("net_box"), true, "net", "", 3);
-			auto swap_up_down = Config::getB("swap_upload_download");
+			auto swap_up_down = Config::getB(BoolKey::swap_upload_download);
 			if (swap_up_down)
 				box += createBox(b_x, b_y, b_width, b_height, "", false, "upload", "download");
 			else

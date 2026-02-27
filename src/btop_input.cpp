@@ -38,6 +38,10 @@ using namespace Tools;
 using namespace std::literals; // for operator""s
 namespace rng = std::ranges;
 
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
+
 namespace Input {
 
 	//* Map for translating key codes to readable values
@@ -155,7 +159,7 @@ namespace Input {
 				else
 					key.clear();
 
-				if (Config::getB("proc_filtering")) {
+				if (Config::getB(BoolKey::proc_filtering)) {
 					if (mouse_event == "mouse_click") return mouse_event;
 					else return "";
 				}
@@ -214,8 +218,8 @@ namespace Input {
 	void process(const std::string_view key) {
 		if (key.empty()) return;
 		try {
-			auto filtering = Config::getB("proc_filtering");
-			auto vim_keys = Config::getB("vim_keys");
+			auto filtering = Config::getB(BoolKey::proc_filtering);
+			auto vim_keys = Config::getB(BoolKey::vim_keys);
 			auto help_key = (vim_keys ? "H" : "h");
 			auto kill_key = (vim_keys ? "K" : "k");
 			//? Global input actions
@@ -259,11 +263,11 @@ namespace Input {
 					Runner::run("all", false, true);
 					return;
 				}
-				else if (is_in(key, "p", "P") and Config::getS("disable_presets") != "All") {
-					if (Config::getS("disable_presets") == "Default" and Config::preset_list.size() <= 1) return;
+				else if (is_in(key, "p", "P") and Config::getS(StringKey::disable_presets) != "All") {
+					if (Config::getS(StringKey::disable_presets) == "Default" and Config::preset_list.size() <= 1) return;
 					const auto old_preset = Config::current_preset;
-					const int first_preset = (Config::getS("disable_presets") == "Default") ? 1 : 0;
-					if (Config::getS("disable_presets") == "Custom") Config::current_preset = 0;
+					const int first_preset = (Config::getS(StringKey::disable_presets) == "Default") ? 1 : 0;
+					if (Config::getS(StringKey::disable_presets) == "Custom") Config::current_preset = 0;
 					else if (Config::current_preset.has_value()) {
 						if (key == "p") {
 							if(++(*Config::current_preset) >= static_cast<int>(Config::preset_list.size())) Config::current_preset = first_preset;
@@ -300,8 +304,8 @@ namespace Input {
 				bool redraw = true;
 				if (filtering) {
 					if (key == "enter" or key == "down") {
-						Config::set("proc_filter", Proc::filter.text);
-						Config::set("proc_filtering", false);
+						Config::set(StringKey::proc_filter, Proc::filter.text);
+						Config::set(BoolKey::proc_filtering, false);
 						old_filter.clear();
 						if(key == "down"){
 							Config::unlock();
@@ -311,93 +315,93 @@ namespace Input {
 						}
 					}
 					else if (key == "escape" or key == "mouse_click") {
-						Config::set("proc_filter", old_filter);
-						Config::set("proc_filtering", false);
+						Config::set(StringKey::proc_filter, old_filter);
+						Config::set(BoolKey::proc_filtering, false);
 						old_filter.clear();
 					}
 					else if (Proc::filter.command(key)) {
-						if (Config::getS("proc_filter") != Proc::filter.text)
-							Config::set("proc_filter", Proc::filter.text);
+						if (Config::getS(StringKey::proc_filter) != Proc::filter.text)
+							Config::set(StringKey::proc_filter, Proc::filter.text);
 					}
 					else
 						return;
 				}
 				else if (key == "left" or (vim_keys and key == "h")) {
-					int cur_i = v_index(Proc::sort_vector, Config::getS("proc_sorting"));
+					int cur_i = v_index(Proc::sort_vector, Config::getS(StringKey::proc_sorting));
 					if (--cur_i < 0)
 						cur_i = Proc::sort_vector.size() - 1;
-					Config::set("proc_sorting", Proc::sort_vector.at(cur_i));
-					Config::set("update_following", true);
+					Config::set(StringKey::proc_sorting, Proc::sort_vector.at(cur_i));
+					Config::set(BoolKey::update_following, true);
 				}
 				else if (key == "right" or (vim_keys and key == "l")) {
-					int cur_i = v_index(Proc::sort_vector, Config::getS("proc_sorting"));
+					int cur_i = v_index(Proc::sort_vector, Config::getS(StringKey::proc_sorting));
 					if (std::cmp_greater(++cur_i, Proc::sort_vector.size() - 1))
 						cur_i = 0;
-					Config::set("proc_sorting", Proc::sort_vector.at(cur_i));
-					Config::set("update_following", true);
+					Config::set(StringKey::proc_sorting, Proc::sort_vector.at(cur_i));
+					Config::set(BoolKey::update_following, true);
 				}
 				else if (is_in(key, "f", "/")) {
-					Config::flip("proc_filtering");
-					Proc::filter = Draw::TextEdit{Config::getS("proc_filter")};
+					Config::flip(BoolKey::proc_filtering);
+					Proc::filter = Draw::TextEdit{Config::getS(StringKey::proc_filter)};
 					old_filter = Proc::filter.text;
 				}
 				else if (key == "e") {
-					Config::flip("proc_tree");
+					Config::flip(BoolKey::proc_tree);
 					no_update = false;
-					Config::set("update_following", true);
+					Config::set(BoolKey::update_following, true);
 				}
 				else if (is_in(key, "u")) {
-					Config::flip("pause_proc_list");
+					Config::flip(BoolKey::pause_proc_list);
 				}
 				else if (is_in(key, "F")) {
-					if (Config::getI("proc_selected") != 0 and Config::getI("followed_pid") != Config::getI("selected_pid")) {
-						Config::set("follow_process", true);
-						Config::set("followed_pid", Config::getI("selected_pid"));
-						Config::set("update_following", true);
+					if (Config::getI(IntKey::proc_selected) != 0 and Config::getI(IntKey::followed_pid) != Config::getI(IntKey::selected_pid)) {
+						Config::set(BoolKey::follow_process, true);
+						Config::set(IntKey::followed_pid, Config::getI(IntKey::selected_pid));
+						Config::set(BoolKey::update_following, true);
 					}
-					else if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Config::getI("followed_pid") != Config::getI("detailed_pid")) {
-						Config::set("follow_process", true);
-						Config::set("followed_pid", Config::getI("detailed_pid"));
-						Config::set("update_following", true);
+					else if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Config::getI(IntKey::followed_pid) != Config::getI(IntKey::detailed_pid)) {
+						Config::set(BoolKey::follow_process, true);
+						Config::set(IntKey::followed_pid, Config::getI(IntKey::detailed_pid));
+						Config::set(BoolKey::update_following, true);
 					}
-					else if (Config::getB("follow_process")) {
-						Config::flip("follow_process");
-						if (Config::getB("should_selection_return_to_followed"))
-							Config::set("proc_selected", Config::getI("proc_followed"));
-						else if (Config::getB("show_detailed") and Config::getI("followed_pid") == Config::getI("detailed_pid"))
-							Config::set("restore_detailed_pid", Config::getI("detailed_pid"));
-						Config::set("followed_pid", 0);
-						Config::set("proc_followed", 0);
+					else if (Config::getB(BoolKey::follow_process)) {
+						Config::flip(BoolKey::follow_process);
+						if (Config::getB(BoolKey::should_selection_return_to_followed))
+							Config::set(IntKey::proc_selected, Config::getI(IntKey::proc_followed));
+						else if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::followed_pid) == Config::getI(IntKey::detailed_pid))
+							Config::set(IntKey::restore_detailed_pid, Config::getI(IntKey::detailed_pid));
+						Config::set(IntKey::followed_pid, 0);
+						Config::set(IntKey::proc_followed, 0);
 					}
 				}
 				else if (key == "r") {
-					Config::flip("proc_reversed");
-					Config::set("update_following", true);
+					Config::flip(BoolKey::proc_reversed);
+					Config::set(BoolKey::update_following, true);
 				}
 				else if (key == "c")
-					Config::flip("proc_per_core");
+					Config::flip(BoolKey::proc_per_core);
 
 				else if (key == "%")
-					Config::flip("proc_mem_bytes");
+					Config::flip(BoolKey::proc_mem_bytes);
 
-				else if (key == "delete" and not Config::getS("proc_filter").empty())
-					Config::set("proc_filter", ""s);
+				else if (key == "delete" and not Config::getS(StringKey::proc_filter).empty())
+					Config::set(StringKey::proc_filter, ""s);
 
 				else if (key.starts_with("mouse_")) {
 					redraw = false;
 					const auto& [col, line] = mouse_pos;
-					const int y = (Config::getB("show_detailed") ? Proc::y + 8 : Proc::y);
-					const int height = (Config::getB("show_detailed") ? Proc::height - 8 : Proc::height);
+					const int y = (Config::getB(BoolKey::show_detailed) ? Proc::y + 8 : Proc::y);
+					const int height = (Config::getB(BoolKey::show_detailed) ? Proc::height - 8 : Proc::height);
 					const auto in_proc_box = col >= Proc::x + 1 and col < Proc::x + Proc::width and line >= y + 1 and line < y + height - 1;
 					if (key == "mouse_click") {
 						if (in_proc_box) {
 							if (col < Proc::x + Proc::width - 2) {
-								const auto& current_selection = Config::getI("proc_selected");
+								const auto& current_selection = Config::getI(IntKey::proc_selected);
 								if (current_selection == line - y - 1) {
 									redraw = true;
-									if (Config::getB("proc_tree")) {
+									if (Config::getB(BoolKey::proc_tree)) {
 										const int x_pos = col - Proc::x;
-										const int offset = Config::getI("selected_depth") * 3;
+										const int offset = Config::getI(IntKey::selected_depth) * 3;
 										if (x_pos > offset and x_pos < 4 + offset) {
 											process("space");
 											return;
@@ -406,19 +410,19 @@ namespace Input {
 									process("enter");
 									return;
 								}
-								else if (Config::getB("proc_banner_shown") and line == y + height - 2)
+								else if (Config::getB(BoolKey::proc_banner_shown) and line == y + height - 2)
 									return;
 								else if (current_selection == 0 or line - y - 1 == 0)
 									redraw = true;
 
-								if (Config::getB("follow_process") and not Config::getB("pause_proc_list")) {
-									Config::flip("follow_process");
-									Config::set("followed_pid", 0);
-									Config::set("proc_followed", 0);
+								if (Config::getB(BoolKey::follow_process) and not Config::getB(BoolKey::pause_proc_list)) {
+									Config::flip(BoolKey::follow_process);
+									Config::set(IntKey::followed_pid, 0);
+									Config::set(IntKey::proc_followed, 0);
 									redraw = true;
 								}
 
-								Config::set("proc_selected", line - y - 1);
+								Config::set(IntKey::proc_selected, line - y - 1);
 							}
 							else if (line == y + 1) {
 								if (Proc::selection("page_up") == -1) return;
@@ -432,12 +436,12 @@ namespace Input {
 							else if (Proc::selection("mousey" + to_string(line - y - 2)) == -1)
 								return;
 						}
-						else if (Config::getI("proc_selected") > 0){
-							Config::set("proc_selected", 0);
-							if (Config::getB("follow_process") and not Config::getB("pause_proc_list")) {
-								Config::flip("follow_process");
-								Config::set("followed_pid", 0);
-								Config::set("proc_followed", 0);
+						else if (Config::getI(IntKey::proc_selected) > 0){
+							Config::set(IntKey::proc_selected, 0);
+							if (Config::getB(BoolKey::follow_process) and not Config::getB(BoolKey::pause_proc_list)) {
+								Config::flip(BoolKey::follow_process);
+								Config::set(IntKey::followed_pid, 0);
+								Config::set(IntKey::proc_followed, 0);
 							}
 							redraw = true;
 						}
@@ -452,68 +456,68 @@ namespace Input {
 						keep_going = true;
 				}
 				else if (is_in(key, "enter", "info_enter")) {
-					if (Config::getI("proc_selected") == 0 and not Config::getB("show_detailed")) {
+					if (Config::getI(IntKey::proc_selected) == 0 and not Config::getB(BoolKey::show_detailed)) {
 						return;
 					}
-					else if (Config::getI("proc_selected") > 0 and Config::getI("detailed_pid") != Config::getI("selected_pid")) {
-						Config::set("detailed_pid", Config::getI("selected_pid"));
-						Config::set("proc_last_selected", Config::getI("proc_selected"));
-						Config::set("proc_selected", 0);
-						if (Config::getB("proc_follow_detailed")) {
-							Config::set("follow_process", true);
-							Config::set("followed_pid", Config::getI("selected_pid"));
+					else if (Config::getI(IntKey::proc_selected) > 0 and Config::getI(IntKey::detailed_pid) != Config::getI(IntKey::selected_pid)) {
+						Config::set(IntKey::detailed_pid, Config::getI(IntKey::selected_pid));
+						Config::set(IntKey::proc_last_selected, Config::getI(IntKey::proc_selected));
+						Config::set(IntKey::proc_selected, 0);
+						if (Config::getB(BoolKey::proc_follow_detailed)) {
+							Config::set(BoolKey::follow_process, true);
+							Config::set(IntKey::followed_pid, Config::getI(IntKey::selected_pid));
 						}
-						Config::set("show_detailed", true);
+						Config::set(BoolKey::show_detailed, true);
 					}
-					else if (Config::getB("show_detailed")) {
-						if (Config::getB("proc_follow_detailed")) {
-							Config::set("restore_detailed_pid", Config::getI("detailed_pid"));
-							if (Config::getB("follow_process") and Config::getI("followed_pid") == Config::getI("detailed_pid")) {
-								Config::flip("follow_process");
-								Config::set("followed_pid", 0);
-								Config::set("proc_followed", 0);
+					else if (Config::getB(BoolKey::show_detailed)) {
+						if (Config::getB(BoolKey::proc_follow_detailed)) {
+							Config::set(IntKey::restore_detailed_pid, Config::getI(IntKey::detailed_pid));
+							if (Config::getB(BoolKey::follow_process) and Config::getI(IntKey::followed_pid) == Config::getI(IntKey::detailed_pid)) {
+								Config::flip(BoolKey::follow_process);
+								Config::set(IntKey::followed_pid, 0);
+								Config::set(IntKey::proc_followed, 0);
 							}
 						}
-						else if (Config::getI("proc_last_selected") > 0) Config::set("proc_selected", Config::getI("proc_last_selected"));
-						Config::set("proc_last_selected", 0);
-						Config::set("detailed_pid", 0);
-						Config::set("show_detailed", false);
+						else if (Config::getI(IntKey::proc_last_selected) > 0) Config::set(IntKey::proc_selected, Config::getI(IntKey::proc_last_selected));
+						Config::set(IntKey::proc_last_selected, 0);
+						Config::set(IntKey::detailed_pid, 0);
+						Config::set(BoolKey::show_detailed, false);
 					}
-					Config::set("update_following", true);
+					Config::set(BoolKey::update_following, true);
 				}
-				else if (is_in(key, "+", "-", "space", "C") and Config::getB("proc_tree")) {
-					const bool is_following_detailed = Config::getB("follow_process") and Config::getI("followed_pid") == Config::getI("detailed_pid");
-					if (Config::getI("proc_selected") > 0 or is_following_detailed) {
+				else if (is_in(key, "+", "-", "space", "C") and Config::getB(BoolKey::proc_tree)) {
+					const bool is_following_detailed = Config::getB(BoolKey::follow_process) and Config::getI(IntKey::followed_pid) == Config::getI(IntKey::detailed_pid);
+					if (Config::getI(IntKey::proc_selected) > 0 or is_following_detailed) {
 						atomic_wait(Runner::active);
-						auto& pid = is_following_detailed and Config::getI("proc_selected") == 0 ? Config::getI("followed_pid") : Config::getI("selected_pid");
+						auto& pid = is_following_detailed and Config::getI(IntKey::proc_selected) == 0 ? Config::getI(IntKey::followed_pid) : Config::getI(IntKey::selected_pid);
 						if (key == "+" or key == "space") Proc::expand = pid;
 						if (key == "-" or key == "space") Proc::collapse = pid;
 						if (key == "C")	Proc::toggle_children = pid;
 						no_update = false;
 					}
 				}
-				else if (is_in(key, "t", kill_key) and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
+				else if (is_in(key, "t", kill_key) and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
 					atomic_wait(Runner::active);
-					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::detailed.status == "Dead") return;
+					if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
 					Menu::show(Menu::Menus::SignalSend, (key == "t" ? SIGTERM : SIGKILL));
 					return;
 				}
-				else if (key == "s" and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
+				else if (key == "s" and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
 					atomic_wait(Runner::active);
-					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::detailed.status == "Dead") return;
+					if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
 					Menu::show(Menu::Menus::SignalChoose);
 					return;
 				}
-				else if (key == "N" and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
+				else if (key == "N" and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
 					atomic_wait(Runner::active);
-				    if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::detailed.status == "Dead") return;
+				    if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
 				    Menu::show(Menu::Menus::Renice);
 				    return;
 			    }
 				else if (is_in(key, "up", "down", "page_up", "page_down", "home", "end") or (vim_keys and is_in(key, "j", "k", "g", "G"))) {
 					proc_mouse_scroll:
 					redraw = false;
-					auto old_selected = Config::getI("proc_selected");
+					auto old_selected = Config::getI(IntKey::proc_selected);
 					auto new_selected = Proc::selection(key);
 					if (new_selected == -1)
 						return;
@@ -535,19 +539,19 @@ namespace Input {
 				bool redraw = true;
 				static uint64_t last_press = 0;
 
-				if (key == "+" and Config::getI("update_ms") <= 86399900) {
-					int add = (Config::getI("update_ms") <= 86399000 and last_press >= time_ms() - 200
+				if (key == "+" and Config::getI(IntKey::update_ms) <= 86399900) {
+					int add = (Config::getI(IntKey::update_ms) <= 86399000 and last_press >= time_ms() - 200
 						and rng::all_of(Input::history, [](const auto& str){ return str == "+"; })
 						? 1000 : 100);
-					Config::set("update_ms", Config::getI("update_ms") + add);
+					Config::set(IntKey::update_ms, Config::getI(IntKey::update_ms) + add);
 					last_press = time_ms();
 					redraw = true;
 				}
-				else if (key == "-" and Config::getI("update_ms") >= 200) {
-					int sub = (Config::getI("update_ms") >= 2000 and last_press >= time_ms() - 200
+				else if (key == "-" and Config::getI(IntKey::update_ms) >= 200) {
+					int sub = (Config::getI(IntKey::update_ms) >= 2000 and last_press >= time_ms() - 200
 						and rng::all_of(Input::history, [](const auto& str){ return str == "-"; })
 						? 1000 : 100);
-					Config::set("update_ms", Config::getI("update_ms") - sub);
+					Config::set(IntKey::update_ms, Config::getI(IntKey::update_ms) - sub);
 					last_press = time_ms();
 					redraw = true;
 				}
@@ -566,10 +570,10 @@ namespace Input {
 				bool redraw = true;
 
 				if (key == "i") {
-					Config::flip("io_mode");
+					Config::flip(BoolKey::io_mode);
 				}
 				else if (key == "d") {
-					Config::flip("show_disks");
+					Config::flip(BoolKey::show_disks);
 					no_update = false;
 					Draw::calcSizes();
 				}
@@ -602,11 +606,11 @@ namespace Input {
 					}
 				}
 				else if (key == "y") {
-					Config::flip("net_sync");
+					Config::flip(BoolKey::net_sync);
 					Net::rescale = true;
 				}
 				else if (key == "a") {
-					Config::flip("net_auto");
+					Config::flip(BoolKey::net_auto);
 					Net::rescale = true;
 				}
 				else if (key == "z") {
