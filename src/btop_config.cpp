@@ -667,19 +667,19 @@ namespace Config {
 	// Enum-based set/flip implementations
 	//----------------------------------------------------------
 
-	inline void set(BoolKey key, bool value) {
+	void set(BoolKey key, bool value) {
 		const auto name = bool_key_names[std::to_underlying(key)];
 		if (_locked(name)) boolsTmp[std::to_underlying(key)] = value;
 		else bools[std::to_underlying(key)] = value;
 	}
 
-	inline void set(IntKey key, int value) {
+	void set(IntKey key, int value) {
 		const auto name = int_key_names[std::to_underlying(key)];
 		if (_locked(name)) intsTmp[std::to_underlying(key)] = value;
 		else ints[std::to_underlying(key)] = value;
 	}
 
-	inline void set(StringKey key, const string& value) {
+	void set(StringKey key, const string& value) {
 		const auto name = string_key_names[std::to_underlying(key)];
 		if (_locked(name)) stringsTmp[std::to_underlying(key)] = value;
 		else strings[std::to_underlying(key)] = value;

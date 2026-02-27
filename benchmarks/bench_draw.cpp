@@ -16,7 +16,6 @@
 
 #include <cmath>
 #include <cstring>
-#include <deque>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -27,11 +26,11 @@
 
 #include "btop_config.hpp"
 #include "btop_draw.hpp"
+#include "btop_shared.hpp"
 #include "btop_theme.hpp"
 #include "btop_tools.hpp"
 
 using std::string;
-using std::deque;
 
 int main(int argc, char* argv[]) {
 	bool json_output = false;
@@ -81,9 +80,9 @@ int main(int argc, char* argv[]) {
 
 	// Benchmark Graph construction with synthetic data
 	try {
-		deque<long long> data(200, 0);
-		for (size_t i = 0; i < data.size(); ++i) {
-			data[i] = static_cast<long long>(50 + 40 * std::sin(static_cast<double>(i) * 0.1));
+		RingBuffer<long long> data(200);
+		for (size_t i = 0; i < 200; ++i) {
+			data.push_back(static_cast<long long>(50 + 40 * std::sin(static_cast<double>(i) * 0.1)));
 		}
 
 		bench.run("Graph construction (100w x 5h)", [&] {
@@ -96,15 +95,14 @@ int main(int argc, char* argv[]) {
 
 	// Benchmark Graph update (operator() with new data)
 	try {
-		deque<long long> data(200, 0);
-		for (size_t i = 0; i < data.size(); ++i) {
-			data[i] = static_cast<long long>(50 + 40 * std::sin(static_cast<double>(i) * 0.1));
+		RingBuffer<long long> data(200);
+		for (size_t i = 0; i < 200; ++i) {
+			data.push_back(static_cast<long long>(50 + 40 * std::sin(static_cast<double>(i) * 0.1)));
 		}
 		Draw::Graph graph(100, 5, "cpu", data, "default", false, false, 100, 0);
 
 		bench.run("Graph::operator() (update)", [&] {
 			data.push_back(data.front());
-			data.pop_front();
 			auto& result = graph(data, false);
 			ankerl::nanobench::doNotOptimizeAway(result);
 		});

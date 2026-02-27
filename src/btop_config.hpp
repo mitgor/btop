@@ -422,9 +422,9 @@ namespace Config {
 	// Enum-based setters (primary API -- compile-time safe)
 	//----------------------------------------------------------
 
-	inline void set(BoolKey key, bool value);
-	inline void set(IntKey key, int value);
-	inline void set(StringKey key, const string& value);
+	void set(BoolKey key, bool value);
+	void set(IntKey key, int value);
+	void set(StringKey key, const string& value);
 
 	//----------------------------------------------------------
 	// String-based setters (for menu/runtime key resolution)
