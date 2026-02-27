@@ -77,10 +77,10 @@ Plans:
   1. A CPU sampling profiling session (perf record on Linux or Instruments on macOS) has been run against btop with realistic workload
   2. A PROFILING.md document exists with ranked hot functions showing CPU % attribution from the profiling data
   3. The profiling results are consistent with nanobench timing data (same functions identified as hot)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 03.1-01: TBD
+- [ ] 03.1-01-PLAN.md -- Run macOS CPU sampling profiler and document ranked hot function list (Wave 1)
 
 ### Phase 4: Data Structure Modernization
 **Goal**: Core data structures use contiguous memory with O(1) index access, eliminating per-lookup string hashing and per-append allocation
@@ -135,7 +135,7 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 1. Profiling & Baseline | 3/3 | Complete | 2026-02-27 |
 | 2. String & Allocation Reduction | 2/2 | Complete | 2026-02-27 |
 | 3. I/O & Data Collection | 2/2 | Complete | 2026-02-27 |
-| 3.1 Profiling Gap Closure | 0/0 | Not started | - |
+| 3.1 Profiling Gap Closure | 0/1 | Not started | - |
 | 4. Data Structure Modernization | 0/0 | Not started | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
