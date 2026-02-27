@@ -1,0 +1,31 @@
+name: PGO Build Validation
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pgo-validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-19 llvm-19 ninja-build
+
+      - name: Run PGO build
+        env:
+          CXX: clang++-19
+        run: ./scripts/pgo-build.sh Release
+
+      - name: Verify PGO binary
+        run: |
+          test -f build-pgo-use/btop
+          ./build-pgo-use/btop --benchmark 5
+          echo "PGO binary validated successfully"
