@@ -42,6 +42,7 @@ jobs:
             echo "::warning::Proc benchmark crashed or failed to run"
             echo '{"results":[]}' > bench_proc.json
           fi
+          ./build/benchmarks/btop_bench_ds --json > bench_ds.json
 
       - name: Run macro-benchmark
         run: |
@@ -50,7 +51,7 @@ jobs:
       - name: Convert results
         run: |
           python3 benchmarks/convert_nanobench_json.py \
-            bench_strings.json bench_draw.json bench_proc.json bench_macro.json \
+            bench_strings.json bench_draw.json bench_proc.json bench_ds.json bench_macro.json \
             > benchmark_results.json
 
       - name: Validate benchmark results
@@ -112,6 +113,7 @@ jobs:
         run: |
           ./build/benchmarks/btop_bench_strings --json > bench_strings.json
           ./build/benchmarks/btop_bench_draw --json > bench_draw.json
+          ./build/benchmarks/btop_bench_ds --json > bench_ds.json
 
       - name: Run macro-benchmark
         run: |
@@ -120,7 +122,7 @@ jobs:
       - name: Convert results
         run: |
           python3 benchmarks/convert_nanobench_json.py \
-            bench_strings.json bench_draw.json bench_macro.json \
+            bench_strings.json bench_draw.json bench_ds.json bench_macro.json \
             > benchmark_results.json
 
       # macOS results stored separately, not auto-pushed (Linux is primary baseline)

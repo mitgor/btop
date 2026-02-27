@@ -68,7 +68,12 @@ def main():
             print(f"Warning: Failed to read {path}: {e}", file=sys.stderr)
             continue
 
-        if "results" in data:
+        if isinstance(data, list):
+            # bench_data_structures outputs array of nanobench objects
+            for item in data:
+                if isinstance(item, dict) and "results" in item:
+                    all_entries.extend(convert_nanobench(item))
+        elif "results" in data:
             all_entries.extend(convert_nanobench(data))
         elif "benchmark" in data:
             all_entries.extend(convert_btop_benchmark(data))
