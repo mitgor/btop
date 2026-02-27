@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
 - [x] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
 - [x] **Phase 7: Benchmark Integration Fixes** - Fix stale sub-benchmarks and CI reliability to close integration/flow gaps from audit
+- [x] **Phase 8: CI Coverage & Documentation Cleanup** - Close remaining CI coverage gaps and update stale documentation
 
 ## Phase Details
 
@@ -155,12 +156,12 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 08-01-PLAN.md -- Add btop_bench_ds to CI + PGO validation + ROADMAP cleanup (Wave 1)
+- [x] 08-01-PLAN.md -- Add btop_bench_ds to CI + PGO validation + ROADMAP cleanup (Wave 1)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed sequentially for clean attribution of performance gains.
 
 | Phase | Plans Complete | Status | Completed |
@@ -173,4 +174,4 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 5. Rendering Pipeline | 3/3 | Complete | 2026-02-27 |
 | 6. Compiler & Verification | 2/2 | Complete | 2026-02-27 |
 | 7. Benchmark Integration Fixes | 1/1 | Complete | 2026-02-27 |
-| 8. CI Coverage & Documentation Cleanup | 0/1 | Not started | - |
+| 8. CI Coverage & Documentation Cleanup | 1/1 | Complete | 2026-02-27 |
