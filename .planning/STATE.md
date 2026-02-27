@@ -8,7 +8,7 @@ progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 14
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 5: Rendering Pipeline -- Plan 2 of 3 complete
+**Current focus:** Phase 5: Rendering Pipeline -- Plan 3 of 3 complete (PHASE COMPLETE)
 
 ## Current Position
 
 Phase: 5 (Rendering Pipeline)
-Plan: 2 of 3 in current phase -- COMPLETE
-Status: Graph last_data_back caching optimization implemented with unit tests and benchmarks
-Last activity: 2026-02-27 -- btop_draw.hpp/cpp graph cache + test_graph_cache.cpp + bench_draw.cpp
+Plan: 3 of 3 in current phase -- COMPLETE
+Status: Differential terminal output via double-buffered cell buffer integrated into Runner thread
+Last activity: 2026-02-27 -- btop_draw.hpp/cpp ScreenBuffer + btop.cpp runner integration + test_screen_buffer.cpp
 
-Progress: [##########] 100% (prior phases) + Phase 5: 2/3 plans
+Progress: [##########] 100% (prior phases) + Phase 5: 3/3 plans COMPLETE
 
 ## Performance Metrics
 
@@ -47,15 +47,16 @@ Progress: [##########] 100% (prior phases) + Phase 5: 2/3 plans
 | 4. Data Structure Modernization | 5/5 | ~70 min | ~14 min |
 | 7. Benchmark Integration Fixes | 1/1 | ~3 min | ~3 min |
 
-| 5. Rendering Pipeline | 2/3 | 14 min | ~7 min |
+| 5. Rendering Pipeline | 3/3 | 19 min | ~6 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-05 (3m), 07-01 (3m), 05-01 (7m), 05-02 (7m)
-- Trend: 05-02 graph cache optimization (2 tasks, 5 files)
+- Last 5 plans: 07-01 (3m), 05-01 (7m), 05-02 (7m), 05-03 (5m)
+- Trend: 05-03 differential rendering ScreenBuffer (2 tasks, 5 files)
 
 *Updated after each plan completion*
 | Phase 05 P01 | 7min | 2 tasks | 5 files |
 | Phase 05 P02 | 7min | 2 tasks | 5 files |
+| Phase 05 P03 | 5min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,10 @@ Recent decisions affecting current work:
 - [Phase 05]: Used concurrent reader thread in large write test to avoid pipe buffer deadlock on macOS
 - [Phase 05]: Used last_data_back single-value cache instead of per-column caching -- 80% benefit with 20% complexity
 - [Phase 05]: Pre-allocate with width*height*8 reserve estimate covering escape codes + UTF-8 + cursor moves
+- [Phase 05]: Incremental strategy (a): escape-string parser for differential rendering rather than direct cell writes
+- [Phase 05]: Overlay/clock bypass screen buffer as ephemeral partial updates -- next full frame re-syncs
+- [Phase 05]: Cell color encoding: 0=default, bit24=truecolor(RGB in low 24), else 256-color index+1
+- [Phase 05]: full_emit skips default (empty) cells since terminal already has blank space from clearing
 
 ### Pending Todos
 
@@ -117,5 +122,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 05-02-PLAN.md (Graph cache optimization) -- Phase 5: 2/3 plans complete
+Stopped at: Completed 05-03-PLAN.md (Differential terminal output) -- Phase 5: 3/3 plans COMPLETE
 Resume file: None
