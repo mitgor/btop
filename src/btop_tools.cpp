@@ -47,7 +47,6 @@ using std::to_string;
 
 using namespace std::literals; // to use operator""s
 
-namespace fs = std::filesystem;
 
 //? ------------------------------------------------- NAMESPACES ------------------------------------------------------
 
