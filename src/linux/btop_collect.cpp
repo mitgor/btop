@@ -2933,8 +2933,6 @@ namespace Proc {
 		}
 		if (tree_mode_change) is_tree_mode = tree;
 		ifstream pread;
-		string long_string;
-		string short_str;
 
 		static vector<size_t> found;
 
@@ -3003,8 +3001,6 @@ namespace Proc {
 				if (Runner::stopping)
 					return current_procs;
 
-				if (pread.is_open()) pread.close();
-
 				const string pid_str = d.path().filename();
 				if (not isdigit(pid_str[0])) continue;
 
@@ -3032,43 +3028,53 @@ namespace Proc {
 
 				auto& new_proc = *find_old;
 
+				//? Stack buffers for POSIX /proc reads (zero heap allocation)
+				char buf[4096];
+				char path_buf[64];
+				const int prefix_len = snprintf(path_buf, sizeof(path_buf), "/proc/%zu/", pid);
+				ssize_t n;
+
 				//? Get program name, command and username
 				if (no_cache) {
-					pread.open(d.path() / "comm");
-					if (not pread.good()) continue;
-					getline(pread, new_proc.name);
-					pread.close();
+					memcpy(path_buf + prefix_len, "comm", 5);
+					n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
+					if (n <= 0) continue;
+					//? Remove trailing newline if present
+					if (n > 0 && buf[n - 1] == '\n') buf[n - 1] = '\0';
+					new_proc.name = buf;
 					//? Check for whitespace characters in name and set offset to get correct fields from stat file
 					new_proc.name_offset = rng::count(new_proc.name, ' ');
 
-					pread.open(d.path() / "cmdline");
-					if (not pread.good()) continue;
-					long_string.clear();
-					while(getline(pread, long_string, '\0')) {
-						new_proc.cmd += long_string + ' ';
+					memcpy(path_buf + prefix_len, "cmdline", 8);
+					n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
+					if (n <= 0) continue;
+					//? cmdline uses null bytes as separators -- convert to spaces
+					new_proc.cmd.clear();
+					for (ssize_t i = 0; i < n; ++i) {
+						if (buf[i] == '\0') {
+							if (i < n - 1) new_proc.cmd += ' ';
+						} else {
+							new_proc.cmd += buf[i];
+						}
 						if (new_proc.cmd.size() > 1000) {
 							new_proc.cmd.resize(1000);
 							break;
 						}
 					}
-					pread.close();
-					if (not new_proc.cmd.empty()) new_proc.cmd.pop_back();
 
-					pread.open(d.path() / "status");
-					if (not pread.good()) continue;
+					memcpy(path_buf + prefix_len, "status", 7);
+					n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
+					if (n <= 0) continue;
 					string uid;
-					string line;
-					while (pread.good()) {
-						getline(pread, line, ':');
-						if (line == "Uid") {
-							pread.ignore();
-							getline(pread, uid, '\t');
-							break;
-						} else {
-							pread.ignore(SSmax, '\n');
-						}
+					std::string_view status_view(buf, n);
+					//? Parse Uid field
+					auto uid_pos = status_view.find("\nUid:");
+					if (uid_pos != std::string_view::npos) {
+						uid_pos += 5; // skip "\nUid:"
+						while (uid_pos < status_view.size() && (status_view[uid_pos] == '\t' || status_view[uid_pos] == ' ')) ++uid_pos;
+						auto uid_end = status_view.find_first_of("\t \n", uid_pos);
+						if (uid_end != std::string_view::npos) uid = string(status_view.substr(uid_pos, uid_end - uid_pos));
 					}
-					pread.close();
 					if (uid_user.contains(uid)) {
 						new_proc.user = uid_user.at(uid);
 					}
@@ -3092,81 +3098,115 @@ namespace Proc {
 				}
 
 				//? Parse /proc/[pid]/stat
-				pread.open(d.path() / "stat");
-				if (not pread.good()) continue;
+				memcpy(path_buf + prefix_len, "stat", 5);
+				n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
+				if (n <= 0) continue;
 
-				const auto& offset = new_proc.name_offset;
-				short_str.clear();
-				int x = 0, next_x = 3;
+				std::string_view stat_view(buf, n);
+
+				//? Find last ')' to skip comm field (which may contain spaces or parens)
+				auto comm_end = stat_view.rfind(')');
+				if (comm_end == std::string_view::npos || comm_end + 2 >= stat_view.size()) continue;
+
+				//? Fields after ')' are space-separated: state(1) ppid(2) pgrp(3) ...
+				//? utime(12) stime(13) ... nice(17) num_threads(18) ... starttime(20) ... rss(22)
+				std::string_view fields = stat_view.substr(comm_end + 2); // skip ") "
 				uint64_t cpu_t = 0;
-				try {
-					for (;;) {
-						while (pread.good() and ++x < next_x + offset) pread.ignore(SSmax, ' ');
-						if (not pread.good()) break;
-						else getline(pread, short_str, ' ');
+				int field_num = 0;
+				bool stat_ok = false;
+				size_t pos = 0;
 
-						switch (x-offset) {
-							case 3: //? Process state
-								new_proc.state = short_str.at(0);
-								if (new_proc.ppid != 0) next_x = 14;
-								continue;
-							case 4: //? Parent pid
-								new_proc.ppid = stoull(short_str);
-								next_x = 14;
-								continue;
-							case 14: //? Process utime
-								cpu_t = stoull(short_str);
-								continue;
-							case 15: //? Process stime
-								cpu_t += stoull(short_str);
-								next_x = 19;
-								continue;
-							case 19: //? Nice value
-								new_proc.p_nice = stoll(short_str);
-								continue;
-							case 20: //? Number of threads
-								new_proc.threads = stoull(short_str);
-								if (new_proc.cpu_s == 0) {
-									next_x = 22;
-									new_proc.cpu_t = cpu_t;
-								}
-								else
-									next_x = 24;
-								continue;
-							case 22: //? Get cpu seconds if missing
-								new_proc.cpu_s = stoull(short_str);
-								next_x = 24;
-								continue;
-							case 24: //? RSS memory (can be inaccurate, but parsing smaps increases total cpu usage by ~20x)
-								if (cmp_greater(short_str.size(), totalMem_len))
-									new_proc.mem = totalMem;
-								else
-									new_proc.mem = stoull(short_str) * Shared::pageSize;
+				while (pos < fields.size()) {
+					++field_num;
+					auto space = fields.find(' ', pos);
+					auto field = fields.substr(pos, (space != std::string_view::npos ? space : fields.size()) - pos);
+					pos = (space != std::string_view::npos ? space + 1 : fields.size());
+
+					switch (field_num) {
+						case 1: //? Process state
+							if (not field.empty()) new_proc.state = field[0];
+							if (new_proc.ppid != 0) continue;
+							break;
+						case 2: { //? Parent pid
+							uint64_t ppid_val = 0;
+							std::from_chars(field.data(), field.data() + field.size(), ppid_val);
+							new_proc.ppid = ppid_val;
+							break;
 						}
-						break;
+						case 12: { //? Process utime
+							uint64_t utime = 0;
+							std::from_chars(field.data(), field.data() + field.size(), utime);
+							cpu_t = utime;
+							break;
+						}
+						case 13: { //? Process stime
+							uint64_t stime = 0;
+							std::from_chars(field.data(), field.data() + field.size(), stime);
+							cpu_t += stime;
+							break;
+						}
+						case 17: { //? Nice value
+							long long nice_val = 0;
+							std::from_chars(field.data(), field.data() + field.size(), nice_val);
+							new_proc.p_nice = nice_val;
+							break;
+						}
+						case 18: { //? Number of threads
+							uint64_t thr_val = 0;
+							std::from_chars(field.data(), field.data() + field.size(), thr_val);
+							new_proc.threads = thr_val;
+							if (new_proc.cpu_s == 0) {
+								new_proc.cpu_t = cpu_t;
+							}
+							break;
+						}
+						case 20: { //? Get cpu seconds if missing
+							if (new_proc.cpu_s == 0) {
+								uint64_t starttime = 0;
+								std::from_chars(field.data(), field.data() + field.size(), starttime);
+								new_proc.cpu_s = starttime;
+							}
+							break;
+						}
+						case 22: { //? RSS memory (can be inaccurate, but parsing smaps increases total cpu usage by ~20x)
+							if (field.size() > static_cast<size_t>(totalMem_len))
+								new_proc.mem = totalMem;
+							else {
+								uint64_t rss_val = 0;
+								std::from_chars(field.data(), field.data() + field.size(), rss_val);
+								new_proc.mem = rss_val * Shared::pageSize;
+							}
+							stat_ok = true;
+							break;
+						}
+						default:
+							break;
 					}
-
+					if (stat_ok) break;
 				}
-				catch (const std::invalid_argument&) { continue; }
-				catch (const std::out_of_range&) { continue; }
-
-				pread.close();
 
 				if (should_filter_kernel and new_proc.ppid == KTHREADD) {
 					kernels_procs.emplace(new_proc.pid);
 					found.pop_back();
 				}
 
-				if (x-offset < 24) continue;
+				if (not stat_ok) continue;
 
 				//? Get RSS memory from /proc/[pid]/statm if value from /proc/[pid]/stat looks wrong
 				if (new_proc.mem >= totalMem) {
-					pread.open(d.path() / "statm");
-					if (not pread.good()) continue;
-					pread.ignore(SSmax, ' ');
-					pread >> new_proc.mem;
-					new_proc.mem *= Shared::pageSize;
-					pread.close();
+					memcpy(path_buf + prefix_len, "statm", 6);
+					n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
+					if (n <= 0) continue;
+					std::string_view statm_view(buf, n);
+					auto space_pos = statm_view.find(' ');
+					if (space_pos != std::string_view::npos) {
+						auto rss_start = space_pos + 1;
+						auto rss_end = statm_view.find(' ', rss_start);
+						if (rss_end == std::string_view::npos) rss_end = statm_view.size();
+						uint64_t rss_pages = 0;
+						std::from_chars(statm_view.data() + rss_start, statm_view.data() + rss_end, rss_pages);
+						new_proc.mem = rss_pages * Shared::pageSize;
+					}
 				}
 
 				//? Process cpu usage since last update
