@@ -47,14 +47,15 @@ Progress: [##########] 100% (prior phases) + Phase 5: 2/3 plans
 | 4. Data Structure Modernization | 5/5 | ~70 min | ~14 min |
 | 7. Benchmark Integration Fixes | 1/1 | ~3 min | ~3 min |
 
-| 5. Rendering Pipeline | 1/3 | 7 min | ~7 min |
+| 5. Rendering Pipeline | 2/3 | 14 min | ~7 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-04 (5m), 04-05 (3m), 07-01 (3m), 05-01 (7m)
-- Trend: 05-01 rendering pipeline first plan (2 tasks, 5 files)
+- Last 5 plans: 04-05 (3m), 07-01 (3m), 05-01 (7m), 05-02 (7m)
+- Trend: 05-02 graph cache optimization (2 tasks, 5 files)
 
 *Updated after each plan completion*
 | Phase 05 P01 | 7min | 2 tasks | 5 files |
+| Phase 05 P02 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Moved unistd.h include out of __linux__ guard for cross-platform STDOUT_FILENO access
 - [Phase 05]: Used thread_local string for overlay buffer in main runner to avoid per-frame heap allocation
 - [Phase 05]: Used concurrent reader thread in large write test to avoid pipe buffer deadlock on macOS
+- [Phase 05]: Used last_data_back single-value cache instead of per-column caching -- 80% benefit with 20% complexity
+- [Phase 05]: Pre-allocate with width*height*8 reserve estimate covering escape codes + UTF-8 + cursor moves
 
 ### Pending Todos
 
@@ -114,5 +117,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 05-01-PLAN.md (POSIX write_stdout) -- Phase 5: 1/3 plans complete
+Stopped at: Completed 05-02-PLAN.md (Graph cache optimization) -- Phase 5: 2/3 plans complete
 Resume file: None
