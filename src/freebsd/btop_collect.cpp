@@ -268,17 +268,15 @@ namespace Cpu {
 					found++;
 				}
 				if (cmp_less(i + 1, current_cpu.temp.size())) {
+					if (current_cpu.temp.at(i + 1).capacity() != 20) current_cpu.temp.at(i + 1).resize(20);
 					current_cpu.temp.at(i + 1).push_back(temp);
-					if (current_cpu.temp.at(i + 1).size() > 20)
-						current_cpu.temp.at(i + 1).pop_front();
 				}
 			}
 		}
 
 		if (not got_package) p_temp /= found;
+		if (current_cpu.temp.at(0).capacity() != 20) current_cpu.temp.at(0).resize(20);
 		current_cpu.temp.at(0).push_back(p_temp);
-		if (current_cpu.temp.at(0).size() > 20)
-			current_cpu.temp.at(0).pop_front();
 
 	}
 
@@ -415,10 +413,9 @@ namespace Cpu {
 				core_old_totals.at(i) = totals;
 				core_old_idles.at(i) = idles;
 
-				cpu.core_percent.at(i).push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
-
-				//? Reduce size if there are more values than needed for graph
+				//? Resize before push to ensure capacity is set
 				if (cpu.core_percent.at(i).capacity() != 40) cpu.core_percent.at(i).resize(40);
+				cpu.core_percent.at(i).push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
 
 			} catch (const std::exception &e) {
 				Logger::error("Cpu::collect() : {}", e.what());
