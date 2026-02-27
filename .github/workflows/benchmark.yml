@@ -38,7 +38,10 @@ jobs:
         run: |
           ./build/benchmarks/btop_bench_strings --json > bench_strings.json
           ./build/benchmarks/btop_bench_draw --json > bench_draw.json
-          ./build/benchmarks/btop_bench_proc --json > bench_proc.json || true
+          if ! ./build/benchmarks/btop_bench_proc --json > bench_proc.json; then
+            echo "::warning::Proc benchmark crashed or failed to run"
+            echo '{"results":[]}' > bench_proc.json
+          fi
 
       - name: Run macro-benchmark
         run: |
@@ -49,6 +52,19 @@ jobs:
           python3 benchmarks/convert_nanobench_json.py \
             bench_strings.json bench_draw.json bench_proc.json bench_macro.json \
             > benchmark_results.json
+
+      - name: Validate benchmark results
+        run: |
+          python3 -c "
+          import json, sys
+          with open('benchmark_results.json') as f:
+              data = json.load(f)
+          proc_results = [e for e in data if 'proc' in e.get('name', '').lower() or 'Proc' in e.get('name', '')]
+          if not proc_results:
+              print('::warning::No proc benchmark results in final output -- check bench_proc.json')
+          else:
+              print(f'Proc benchmark: {len(proc_results)} result(s) collected')
+          "
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
