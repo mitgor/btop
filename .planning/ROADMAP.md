@@ -108,11 +108,12 @@ Plans:
   1. Differential terminal output is implemented -- only cells that changed between frames emit escape sequences, and strace confirms 30%+ reduction in bytes written per frame during steady-state operation
   2. All terminal output for a frame is flushed in a single write() call (or writev scatter-gather) instead of multiple small writes
   3. Graph rendering caches braille/tty characters for unchanged data points -- perf confirms graph draw time is reduced when only the newest data point changes
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md -- write_stdout() POSIX helper + replace all cout output sites (Wave 1)
+- [ ] 05-02-PLAN.md -- Graph column caching: skip computation when data.back() unchanged (Wave 1)
+- [ ] 05-03-PLAN.md -- Cell buffer + escape-string parser + differential terminal output (Wave 2)
 
 ### Phase 6: Compiler & Verification
 **Goal**: Compiler-level optimizations are applied to the fully-optimized codebase, and the entire optimization effort is verified correct
