@@ -39,6 +39,24 @@ else()
   option(BTOP_LTO "Enable LTO" OFF)
 endif()
 
+# Profile-Guided Optimization
+option(BTOP_PGO_GENERATE "Build with PGO instrumentation (generates profile data)" OFF)
+set(BTOP_PGO_USE "" CACHE FILEPATH "Path to PGO profile data for optimized build")
+
+if(BTOP_PGO_GENERATE AND BTOP_PGO_USE)
+  message(FATAL_ERROR "Cannot set both BTOP_PGO_GENERATE and BTOP_PGO_USE")
+endif()
+
+# Sanitizer support
+set(BTOP_SANITIZER "" CACHE STRING "Enable sanitizer (address, thread, undefined, or combinations like address,undefined)")
+
+if(BTOP_PGO_GENERATE AND BTOP_SANITIZER)
+  message(FATAL_ERROR "Cannot combine PGO instrumentation with sanitizers")
+endif()
+if(BTOP_PGO_USE AND BTOP_SANITIZER)
+  message(FATAL_ERROR "Cannot combine PGO optimization with sanitizers")
+endif()
+
 option(BTOP_BENCHMARKS "Build performance benchmarks" OFF)
 
 if(BTOP_STATIC AND NOT APPLE)
@@ -66,6 +84,43 @@ if(BTOP_LTO)
   check_ipo_supported()
   set_target_properties(btop PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
   set_target_properties(libbtop PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
+
+# Apply PGO flags to both targets
+if(BTOP_PGO_GENERATE)
+  message(STATUS "PGO: Instrumentation build (profile generation)")
+  target_compile_options(libbtop PUBLIC -fprofile-generate)
+  target_link_options(libbtop PUBLIC -fprofile-generate)
+  target_compile_options(btop PUBLIC -fprofile-generate)
+  target_link_options(btop PUBLIC -fprofile-generate)
+endif()
+
+if(BTOP_PGO_USE)
+  if(NOT EXISTS "${BTOP_PGO_USE}")
+    message(FATAL_ERROR "PGO profile not found: ${BTOP_PGO_USE}")
+  endif()
+  message(STATUS "PGO: Optimized build using profile: ${BTOP_PGO_USE}")
+  target_compile_options(libbtop PUBLIC -fprofile-use=${BTOP_PGO_USE})
+  target_link_options(libbtop PUBLIC -fprofile-use=${BTOP_PGO_USE})
+  target_compile_options(btop PUBLIC -fprofile-use=${BTOP_PGO_USE})
+  target_link_options(btop PUBLIC -fprofile-use=${BTOP_PGO_USE})
+endif()
+
+# Apply sanitizer flags
+if(BTOP_SANITIZER)
+  message(STATUS "Sanitizer enabled: ${BTOP_SANITIZER}")
+  target_compile_options(libbtop PUBLIC
+    -fsanitize=${BTOP_SANITIZER}
+    -fno-omit-frame-pointer
+    -g
+  )
+  target_link_options(libbtop PUBLIC -fsanitize=${BTOP_SANITIZER})
+  target_compile_options(btop PUBLIC
+    -fsanitize=${BTOP_SANITIZER}
+    -fno-omit-frame-pointer
+    -g
+  )
+  target_link_options(btop PUBLIC -fsanitize=${BTOP_SANITIZER})
 endif()
 
 if(APPLE)
