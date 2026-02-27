@@ -29,6 +29,10 @@ tab-size = 4
 
 namespace fs = std::filesystem;
 namespace rng = std::ranges;
+
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
 using namespace Tools;
 
 namespace Cpu {
@@ -244,7 +248,7 @@ bool set_priority(pid_t pid, int priority) {
 				filter_found++;
 				p.filtered = true;
 			}
-			else if (Config::getB("proc_aggregate") and p.state != 'X') {
+			else if (Config::getB(BoolKey::proc_aggregate) and p.state != 'X') {
 				cur_proc.cpu_p += p.cpu_p;
 				cur_proc.cpu_c += p.cpu_c;
 				cur_proc.mem += p.mem;

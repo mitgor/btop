@@ -72,6 +72,10 @@ using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_le
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
 namespace fs = std::filesystem;
 namespace rng = std::ranges;
+
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
 using namespace Tools;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
@@ -226,7 +230,7 @@ namespace Cpu {
 
 	bool get_sensors() {
 		got_sensors = false;
-		if (Config::getB("show_coretemp") and Config::getB("check_temp")) {
+		if (Config::getB(BoolKey::show_coretemp) and Config::getB(BoolKey::check_temp)) {
 			int32_t temp;
 			size_t size = sizeof(temp);
 			if (sysctlbyname("dev.cpu.0.temperature", &temp, &size, nullptr, 0) < 0) {
@@ -313,7 +317,7 @@ namespace Cpu {
 		}
 
 		//? Apply user set custom mapping if any
-		const auto &custom_map = Config::getS("cpu_core_map");
+		const auto &custom_map = Config::getS(StringKey::cpu_core_map);
 		if (not custom_map.empty()) {
 			try {
 				for (const auto &split : ssplit(custom_map)) {
@@ -448,17 +452,17 @@ namespace Cpu {
 		if (width > 0 and total_buf.capacity() != static_cast<size_t>(width * 2)) total_buf.resize(width * 2);
 		total_buf.push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
 
-		if (Config::getB("show_cpu_freq")) {
+		if (Config::getB(BoolKey::show_cpu_freq)) {
 			auto hz = get_cpuHz();
 			if (hz != "") {
 				cpuHz = hz;
 			}
 		}
 
-		if (Config::getB("check_temp") and got_sensors)
+		if (Config::getB(BoolKey::check_temp) and got_sensors)
 			update_sensors();
 
-		if (Config::getB("show_battery") and has_battery)
+		if (Config::getB(BoolKey::show_battery) and has_battery)
 			current_bat = get_battery();
 
 		return cpu;
@@ -596,9 +600,9 @@ namespace Mem {
 		if (Runner::stopping or (no_update and not current_mem.percent[std::to_underlying(MemField::used)].empty()))
 			return current_mem;
 
-		auto show_swap = Config::getB("show_swap");
-		auto show_disks = Config::getB("show_disks");
-		auto swap_disk = Config::getB("swap_disk");
+		auto show_swap = Config::getB(BoolKey::show_swap);
+		auto show_disks = Config::getB(BoolKey::show_disks);
+		auto swap_disk = Config::getB(BoolKey::swap_disk);
 		auto &mem = current_mem;
 		static bool snapped = (getenv("BTOP_SNAPPED") != nullptr);
 
@@ -664,9 +668,9 @@ namespace Mem {
 		if (show_disks) {
 			std::unordered_map<string, string> mapping;  // keep mapping from device -> mountpoint, since IOKit doesn't give us the mountpoint
 			double uptime = system_uptime();
-			auto &disks_filter = Config::getS("disks_filter");
+			auto &disks_filter = Config::getS(StringKey::disks_filter);
 			bool filter_exclude = false;
-			// auto only_physical = Config::getB("only_physical");
+			// auto only_physical = Config::getB(BoolKey::only_physical);
 			auto &disks = mem.disks;
 			vector<string> filter;
 			if (not disks_filter.empty()) {
@@ -795,9 +799,9 @@ namespace Net {
 
 	auto collect(bool no_update) -> net_info & {
 		auto &net = current_net;
-		auto &config_iface = Config::getS("net_iface");
-		auto net_sync = Config::getB("net_sync");
-		auto net_auto = Config::getB("net_auto");
+		auto &config_iface = Config::getS(StringKey::net_iface);
+		auto net_sync = Config::getB(BoolKey::net_sync);
+		auto net_auto = Config::getB(BoolKey::net_auto);
 		auto new_timestamp = time_ms();
 
 		if (not no_update and errors < 3) {
@@ -1036,7 +1040,7 @@ namespace Proc {
 		if (pid != detailed.last_pid) {
 			detailed = {};
 			detailed.last_pid = pid;
-			detailed.skip_smaps = not Config::getB("proc_info_smaps");
+			detailed.skip_smaps = not Config::getB(BoolKey::proc_info_smaps);
 		}
 
 		//? Copy proc_info for process from proc vector
@@ -1044,7 +1048,7 @@ namespace Proc {
 		detailed.entry = *p_info;
 
 		//? Update cpu percent deque for process cpu graph
-		if (not Config::getB("proc_per_core")) detailed.entry.cpu_p *= Shared::coreCount;
+		if (not Config::getB(BoolKey::proc_per_core)) detailed.entry.cpu_p *= Shared::coreCount;
 		detailed.cpu_percent.push_back(clamp((long long)round(detailed.entry.cpu_p), 0ll, 100ll));
 		if (detailed.cpu_percent.capacity() != static_cast<size_t>(width)) detailed.cpu_percent.resize(width);
 
@@ -1085,14 +1089,14 @@ namespace Proc {
 
 	//* Collects and sorts process information from /proc
 	auto collect(bool no_update) -> vector<proc_info> & {
-		const auto &sorting = Config::getS("proc_sorting");
-		auto reverse = Config::getB("proc_reversed");
-		const auto &filter = Config::getS("proc_filter");
-		auto per_core = Config::getB("proc_per_core");
-		auto tree = Config::getB("proc_tree");
-		auto show_detailed = Config::getB("show_detailed");
-		const auto pause_proc_list = Config::getB("pause_proc_list");
-		const size_t detailed_pid = Config::getI("detailed_pid");
+		const auto &sorting = Config::getS(StringKey::proc_sorting);
+		auto reverse = Config::getB(BoolKey::proc_reversed);
+		const auto &filter = Config::getS(StringKey::proc_filter);
+		auto per_core = Config::getB(BoolKey::proc_per_core);
+		auto tree = Config::getB(BoolKey::proc_tree);
+		auto show_detailed = Config::getB(BoolKey::show_detailed);
+		const auto pause_proc_list = Config::getB(BoolKey::pause_proc_list);
+		const size_t detailed_pid = Config::getI(IntKey::detailed_pid);
 		bool should_filter = current_filter != filter;
 		if (should_filter) current_filter = filter;
 		bool sorted_change = (sorting != current_sort or reverse != current_rev or should_filter);
@@ -1215,7 +1219,7 @@ namespace Proc {
 			}
 			//? Set correct state of dead processes if paused
 			else {
-				const bool keep_dead_proc_usage = Config::getB("keep_dead_proc_usage");
+				const bool keep_dead_proc_usage = Config::getB(BoolKey::keep_dead_proc_usage);
 				for (auto& [pid, r] : proc_map) {
 					if (not alive_pids.contains(pid)) {
 						if (r.state != 'X') {
@@ -1292,7 +1296,7 @@ namespace Proc {
 							}
 						}
 					}
-					if (Config::ints.at("proc_selected") > 0) locate_selection = true;
+					if (Config::getI(IntKey::proc_selected) > 0) locate_selection = true;
 				}
 				toggle_children = -1;
 			}
@@ -1309,7 +1313,7 @@ namespace Proc {
 					else if (expand > -1) {
 						collapser->collapsed = false;
 					}
-					if (Config::ints.at("proc_selected") > 0) locate_selection = true;
+					if (Config::getI(IntKey::proc_selected) > 0) locate_selection = true;
 				}
 				collapse = expand = -1;
 			}
@@ -1347,9 +1351,9 @@ namespace Proc {
 			//? Move current selection/view to the selected process when collapsing/expanding in the tree
 			if (locate_selection) {
 				int loc = rng::find(current_procs, Proc::selected_pid, &proc_info::pid)->tree_index;
-				if (Config::ints.at("proc_start") >= loc or Config::ints.at("proc_start") <= loc - Proc::select_max)
-					Config::ints.at("proc_start") = max(0, loc - 1);
-				Config::ints.at("proc_selected") = loc - Config::ints.at("proc_start") + 1;
+				if (Config::getI(IntKey::proc_start) >= loc or Config::getI(IntKey::proc_start) <= loc - Proc::select_max)
+					Config::set(IntKey::proc_start, max(0, loc - 1));
+				Config::set(IntKey::proc_selected, loc - Config::getI(IntKey::proc_start) + 1);
 			}
 		}
 

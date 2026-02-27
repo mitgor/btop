@@ -47,6 +47,10 @@ using std::to_string;
 
 using namespace std::literals; // to use operator""s
 
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
+
 
 //? ------------------------------------------------- NAMESPACES ------------------------------------------------------
 
@@ -164,7 +168,7 @@ namespace Term {
 				linebuffered(false);
 				refresh();
 
-				const auto is_mouse_enabled = !Config::getB("disable_mouse");
+				const auto is_mouse_enabled = !Config::getB(BoolKey::disable_mouse);
 				cout << alt_screen << hide_cursor << (is_mouse_enabled ? mouse_on : mouse_off) << flush;
 				Global::resized = false;
 			}
@@ -408,11 +412,11 @@ namespace Tools {
 		string out;
 		const size_t mult = (bit) ? 8 : 1;
 
-		bool mega = Config::getB("base_10_sizes");
+		bool mega = Config::getB(BoolKey::base_10_sizes);
 
 		// Bitrates
 	    if(bit && per_second) {
-			const auto& base_10_bitrate = Config::getS("base_10_bitrate");
+			const auto& base_10_bitrate = Config::getS(StringKey::base_10_bitrate);
 			if(base_10_bitrate == "True") {
 				mega = true;
 			} else if(base_10_bitrate == "False") {

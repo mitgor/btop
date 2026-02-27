@@ -46,6 +46,10 @@ using std::views::iota;
 
 using namespace Tools;
 
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
+
 namespace fs = std::filesystem;
 
 namespace Menu {
@@ -891,8 +895,8 @@ namespace Menu {
 	msgBox::msgBox() {}
 	msgBox::msgBox(int width, int boxtype, const vector<string>& content, const std::string_view title)
 	: width(width), boxtype(boxtype) {
-		auto tty_mode = Config::getB("tty_mode");
-		auto rounded = Config::getB("rounded_corners");
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto rounded = Config::getB(BoolKey::rounded_corners);
 		const auto& right_up = (tty_mode or not rounded ? Symbols::right_up : Symbols::round_right_up);
 		const auto& left_up = (tty_mode or not rounded ? Symbols::left_up : Symbols::round_left_up);
 		const auto& right_down = (tty_mode or not rounded ? Symbols::right_down : Symbols::round_right_down);
@@ -981,7 +985,7 @@ namespace Menu {
 	};
 
 	static int signalChoose(const string& key) {
-		auto s_pid = (Config::getB("show_detailed") and Config::getI("selected_pid") == 0 ? Config::getI("detailed_pid") : Config::getI("selected_pid"));
+		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		static int x{};
 		static int y{};
 		static int selected_signal = -1;
@@ -995,7 +999,7 @@ namespace Menu {
 			y = Term::height/2 - 9;
 			bg = Draw::createBox(x + 2, y, 78, 19, Theme::c("hi_fg"), true, "signals");
 			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Send signal to PID " + to_string(s_pid) + " ("
-				+ uresize((s_pid == Config::getI("detailed_pid") ? Proc::detailed.entry.name : Config::getS("selected_name")), 30) + ")", 76);
+				+ uresize((s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name)), 30) + ")", 76);
 		}
 		else if (is_in(key, "escape", "q")) {
 			return Closed;
@@ -1111,11 +1115,11 @@ namespace Menu {
 	}
 
 	static int signalSend(const string& key) {
-		auto s_pid = (Config::getB("show_detailed") and Config::getI("selected_pid") == 0 ? Config::getI("detailed_pid") : Config::getI("selected_pid"));
+		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		if (s_pid == 0) return Closed;
 		if (redraw) {
 			atomic_wait(Runner::active);
-			auto& p_name = (s_pid == Config::getI("detailed_pid") ? Proc::detailed.entry.name : Config::getS("selected_name"));
+			auto& p_name = (s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name));
 			vector<string> cont_vec = {
 				Fx::b + Theme::c("main_fg") + "Send signal: " + Fx::ub + Theme::c("hi_fg") + to_string(signalToSend)
 				+ (signalToSend > 0 and signalToSend <= 32 ? Theme::c("main_fg") + " (" + P_Signals.at(signalToSend) + ')' : ""),
@@ -1188,7 +1192,7 @@ namespace Menu {
 		static int selected{};
 		static vector<string> colors_selected;
 		static vector<string> colors_normal;
-		auto tty_mode = Config::getB("tty_mode");
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
 		if (bg.empty()) selected = 0;
 		int retval = Changed;
 
@@ -1302,8 +1306,8 @@ static int optionsMenu(const string& key) {
 			{"graph_symbol_gpu", std::cref(Config::valid_graph_symbols_def)},
 		#endif
 		};
-		auto tty_mode = Config::getB("tty_mode");
-		auto vim_keys = Config::getB("vim_keys");
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto vim_keys = Config::getB(BoolKey::vim_keys);
 		if (max_items == 0) {
 			for (const auto& cat : categories) {
 				if ((int)cat.size() > max_items) max_items = cat.size();
@@ -1465,7 +1469,7 @@ static int optionsMenu(const string& key) {
 				// Special handling for options that need additional action.
 				if (option == "truecolor") {
 					theme_refresh = true;
-					Config::flip("lowcolor");
+					Config::flip(BoolKey::lowcolor);
 				}
 			#if !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
 				else if (option == "force_tty" and not Term::current_tty.starts_with("/dev/tty")) {
@@ -1473,7 +1477,7 @@ static int optionsMenu(const string& key) {
 				else if (option == "force_tty") {
 			#endif
 					theme_refresh = true;
-					Config::set("tty_mode", Config::getB("force_tty"));
+					Config::set(BoolKey::tty_mode, Config::getB(BoolKey::force_tty));
 				}
 				else if (is_in(option, "rounded_corners", "theme_background"))
 					theme_refresh = true;
@@ -1483,14 +1487,14 @@ static int optionsMenu(const string& key) {
 				else if (option == "base_10_sizes") {
 					recollect = true;
 				}
-				else if (option == "save_config_on_exit" and not Config::getB("save_config_on_exit")) {
+				else if (option == "save_config_on_exit" and not Config::getB(BoolKey::save_config_on_exit)) {
 					const bool old_write_new = Config::write_new;
 					Config::write_new = true;
 					Config::write();
 					Config::write_new = old_write_new;
 				}
 				else if (option == "disable_mouse") {
-					const auto is_mouse_enabled = !Config::getB("disable_mouse");
+					const auto is_mouse_enabled = !Config::getB(BoolKey::disable_mouse);
 					std::cout << (is_mouse_enabled ? Term::mouse_on : Term::mouse_off) << std::flush;
 				}
 			}
@@ -1541,9 +1545,9 @@ static int optionsMenu(const string& key) {
 				selPred.reset();
 				last_sel = (selected_cat << 8) + selected;
 				const auto& selOption = categories[selected_cat][item_height * page + selected][0];
-				if (Config::ints.contains(selOption))
+				if (Config::is_int_key(selOption))
 					selPred.set(isInt);
-				else if (Config::bools.contains(selOption))
+				else if (Config::is_bool_key(selOption))
 					selPred.set(isBool);
 				else
 					selPred.set(isString);
@@ -1596,12 +1600,12 @@ static int optionsMenu(const string& key) {
 			auto cy = y+9;
 			for (int c = 0, i = max(0, item_height * page); c++ < item_height and i < (int)categories[selected_cat].size(); i++) {
 				const auto& option = categories[selected_cat][i][0];
-				const auto& value = (option == "color_theme" ? fs::path(Config::getS("color_theme")).stem().string() : Config::getAsString(option));
+				const auto& value = (option == "color_theme" ? fs::path(Config::getS(StringKey::color_theme)).stem().string() : Config::getAsString(option));
 
 				out += Mv::to(cy++, x + 1) + (c-1 == selected ? Theme::c("selected_bg") + Theme::c("selected_fg") : Theme::c("title"))
 					+ Fx::b + cjust(capitalize(s_replace(option, "_", " "))
 						+ (c-1 == selected and selPred.test(isBrowsable)
-							? ' ' + to_string(v_index(optionsList.at(option).get(), (option == "color_theme" ? Config::getS("color_theme") : value)) + 1) + '/' + to_string(optionsList.at(option).get().size())
+							? ' ' + to_string(v_index(optionsList.at(option).get(), (option == "color_theme" ? Config::getS(StringKey::color_theme) : value)) + 1) + '/' + to_string(optionsList.at(option).get().size())
 							: ""), 29);
 				out	+= Mv::to(cy++, x + 1) + (c-1 == selected ? "" : Theme::c("main_fg")) + Fx::ub + "  "
 					+ (c-1 == selected and editing ? cjust(editor(24), 34, true) : cjust(value, 25, true)) + "  ";
@@ -1711,7 +1715,7 @@ static int optionsMenu(const string& key) {
 	}
 
 	static int reniceMenu(const string& key) {
-		auto s_pid = (Config::getB("show_detailed") and Config::getI("selected_pid") == 0 ? Config::getI("detailed_pid") : Config::getI("selected_pid"));
+		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		static int x{};
 		static int y{};
 		static int selected_nice = 0;
@@ -1729,7 +1733,7 @@ static int optionsMenu(const string& key) {
 			y = Term::height/2 - 6;
 			bg = Draw::createBox(x + 2, y, 50, 13, Theme::c("hi_fg"), true, "renice");
 			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Renice PID " + to_string(s_pid) + " ("
-				+ uresize((s_pid == Config::getI("detailed_pid") ? Proc::detailed.entry.name : Config::getS("selected_name")), 15) + ")", 48);
+				+ uresize((s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name)), 15) + ")", 48);
 		}
 		else if (is_in(key, "escape", "q")) {
 			return Closed;

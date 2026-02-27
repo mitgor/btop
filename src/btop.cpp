@@ -82,6 +82,10 @@ using std::vector;
 namespace fs = std::filesystem;
 
 using namespace Tools;
+
+using Config::BoolKey;
+using Config::IntKey;
+using Config::StringKey;
 using namespace std::chrono_literals;
 using namespace std::literals;
 
@@ -152,7 +156,7 @@ void term_resize(bool force) {
 	Term::refresh();
 	Config::unlock();
 
-	auto boxes = Config::getS("shown_boxes");
+	auto boxes = Config::getS(StringKey::shown_boxes);
 	auto min_size = Term::get_min_size(boxes);
 	auto minWidth = min_size.at(0), minHeight = min_size.at(1);
 
@@ -194,7 +198,7 @@ void term_resize(bool force) {
 						const auto& box = all_boxes.at(intKey);
 						Config::current_preset.reset();
 						Config::toggle_box(box);
-						boxes = Config::getS("shown_boxes");
+						boxes = Config::getS(StringKey::shown_boxes);
 					}
 				}
 			}
@@ -237,7 +241,7 @@ void clean_quit(int sig) {
 #endif
 
 
-	if (Config::getB("save_config_on_exit")) {
+	if (Config::getB(BoolKey::save_config_on_exit)) {
 		Config::write();
 	}
 
@@ -332,7 +336,7 @@ void init_config(bool low_color, std::optional<std::string>& filter) {
 	atomic_lock lck(Global::init_conf);
 	vector<string> load_warnings;
 	Config::load(Config::conf_file, load_warnings);
-	Config::set("lowcolor", (low_color ? true : not Config::getB("truecolor")));
+	Config::set(BoolKey::lowcolor, (low_color ? true : not Config::getB(BoolKey::truecolor)));
 
 	static bool first_init = true;
 
@@ -340,14 +344,14 @@ void init_config(bool low_color, std::optional<std::string>& filter) {
 		Logger::set_log_level(Logger::Level::DEBUG);
 		Logger::debug("Running in DEBUG mode!");
 	}
-	else Logger::set_log_level(Config::getS("log_level"));
+	else Logger::set_log_level(Config::getS(StringKey::log_level));
 
 	if (filter.has_value()) {
-		Config::set("proc_filter", filter.value());
+		Config::set(StringKey::proc_filter, filter.value());
 	}
 
 	static string log_level;
-	if (const string current_level = Config::getS("log_level"); log_level != current_level) {
+	if (const string current_level = Config::getS(StringKey::log_level); log_level != current_level) {
 		log_level = current_level;
 		Logger::info("Logger set to {}", (Global::debug ? "DEBUG" : log_level));
 	}
@@ -516,10 +520,10 @@ namespace Runner {
 #if defined(GPU_SUPPORT)
 				//? GPU data collection
 				const bool gpu_in_cpu_panel = Gpu::gpu_names.size() > 0 and (
-					Config::getS("cpu_graph_lower").starts_with("gpu-")
-					or (Config::getS("cpu_graph_lower") == "Auto")
-					or Config::getS("cpu_graph_upper").starts_with("gpu-")
-					or (Gpu::shown == 0 and Config::getS("show_gpu_info") != "Off")
+					Config::getS(StringKey::cpu_graph_lower).starts_with("gpu-")
+					or (Config::getS(StringKey::cpu_graph_lower) == "Auto")
+					or Config::getS(StringKey::cpu_graph_upper).starts_with("gpu-")
+					or (Gpu::shown == 0 and Config::getS(StringKey::show_gpu_info) != "Off")
 				);
 
 				vector<unsigned int> gpu_panels = {};
@@ -724,7 +728,7 @@ namespace Runner {
 			}
 
 			//? If overlay isn't empty, print output without color and then print overlay on top
-			const bool term_sync = Config::getB("terminal_sync");
+			const bool term_sync = Config::getB(BoolKey::terminal_sync);
 			cout << (term_sync ? Term::sync_start : "") << (conf.overlay.empty()
 					? output
 					: (output.empty() ? "" : Fx::ub + Theme::c("inactive_fg") + Fx::uncolor(output)) + conf.overlay)
@@ -759,11 +763,11 @@ namespace Runner {
 		if (stopping or Global::resized) return;
 
 		if (box == "overlay") {
-			const bool term_sync = Config::getB("terminal_sync");
+			const bool term_sync = Config::getB(BoolKey::terminal_sync);
 			cout << (term_sync ? Term::sync_start : "") << Global::overlay << (term_sync ? Term::sync_end : "") << flush;
 		}
 		else if (box == "clock") {
-			const bool term_sync = Config::getB("terminal_sync");
+			const bool term_sync = Config::getB(BoolKey::terminal_sync);
 			cout << (term_sync ? Term::sync_start : "") << Global::clock << (term_sync ? Term::sync_end : "") << flush;
 		}
 		else {
@@ -773,7 +777,7 @@ namespace Runner {
 			current_conf = {
 				(box == "all" ? Config::current_boxes : vector{box}),
 				no_update, force_redraw,
-				(not Config::getB("tty_mode") and Config::getB("background_update")),
+				(not Config::getB(BoolKey::tty_mode) and Config::getB(BoolKey::background_update)),
 				Global::overlay,
 				Global::clock
 			};
@@ -821,22 +825,22 @@ namespace Runner {
 
 static auto configure_tty_mode(std::optional<bool> force_tty) {
 	if (force_tty.has_value()) {
-		Config::set("tty_mode", force_tty.value());
+		Config::set(BoolKey::tty_mode, force_tty.value());
 		Logger::debug("TTY mode set via command line");
 	}
-	else if (Config::getB("force_tty")) {
-		Config::set("tty_mode", true);
+	else if (Config::getB(BoolKey::force_tty)) {
+		Config::set(BoolKey::tty_mode, true);
 		Logger::debug("TTY mode set via config");
 	}
 
 #if !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
 	else if (Term::current_tty.starts_with("/dev/tty")) {
-		Config::set("tty_mode", true);
+		Config::set(BoolKey::tty_mode, true);
 		Logger::debug("Auto detect real TTY");
 	}
 #endif
 
-	Logger::debug("TTY mode enabled: {}", Config::getB("tty_mode"));
+	Logger::debug("TTY mode enabled: {}", Config::getB(BoolKey::tty_mode));
 }
 
 
@@ -1037,7 +1041,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 
 		// Set up boxes and theme for draw functions
 		Config::set_boxes("cpu mem net proc");
-		Config::set("shown_boxes", "cpu mem net proc"s);
+		Config::set(StringKey::shown_boxes, "cpu mem net proc"s);
 		Theme::updateThemes();
 		Theme::setTheme();
 		Draw::calcSizes();
@@ -1172,9 +1176,9 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 		clean_quit(1);
 	}
 
-	if (not Config::set_boxes(Config::getS("shown_boxes"))) {
+	if (not Config::set_boxes(Config::getS(StringKey::shown_boxes))) {
 		Config::set_boxes("cpu mem net proc");
-		Config::set("shown_boxes", "cpu mem net proc"s);
+		Config::set(StringKey::shown_boxes, "cpu mem net proc"s);
 	}
 
 	//? Update list of available themes and generate the selected theme
@@ -1210,14 +1214,14 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 	}
 
 	//? Calculate sizes of all boxes
-	Config::presetsValid(Config::getS("presets"));
+	Config::presetsValid(Config::getS(StringKey::presets));
 	if (cli.preset.has_value()) {
 		Config::current_preset = min(static_cast<std::int32_t>(cli.preset.value()), static_cast<std::int32_t>(Config::preset_list.size() - 1));
 		Config::apply_preset(Config::preset_list.at(Config::current_preset.value()));
 	}
 
 	{
-		const auto [x, y] = Term::get_min_size(Config::getS("shown_boxes"));
+		const auto [x, y] = Term::get_min_size(Config::getS(StringKey::shown_boxes));
 		if (Term::height < y or Term::width < x) {
 			pthread_sigmask(SIG_SETMASK, &Input::signal_mask, &mask);
 			term_resize(true);
@@ -1230,16 +1234,16 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 	Draw::calcSizes();
 
 	//? Print out box outlines
-	const bool term_sync = Config::getB("terminal_sync");
+	const bool term_sync = Config::getB(BoolKey::terminal_sync);
 	cout << (term_sync ? Term::sync_start : "") << Cpu::box << Mem::box << Net::box << Proc::box << (term_sync ? Term::sync_end : "") << flush;
 
 
 	//? ------------------------------------------------ MAIN LOOP ----------------------------------------------------
 
 	if (cli.updates.has_value()) {
-		Config::set("update_ms", static_cast<int>(cli.updates.value()));
+		Config::set(IntKey::update_ms, static_cast<int>(cli.updates.value()));
 	}
-	uint64_t update_ms = Config::getI("update_ms");
+	uint64_t update_ms = Config::getI(IntKey::update_ms);
 	auto future_time = time_ms();
 
 	try {
@@ -1288,7 +1292,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 			//? Start secondary collect & draw thread at the interval set by <update_ms> config value
 			if (time_ms() >= future_time and not Global::resized) {
 				Runner::run("all");
-				update_ms = Config::getI("update_ms");
+				update_ms = Config::getI(IntKey::update_ms);
 				future_time = time_ms() + update_ms;
 			}
 
@@ -1296,8 +1300,8 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 			for (auto current_time = time_ms(); current_time < future_time; current_time = time_ms()) {
 
 				//? Check for external clock changes and for changes to the update timer
-				if (std::cmp_not_equal(update_ms, Config::getI("update_ms"))) {
-					update_ms = Config::getI("update_ms");
+				if (std::cmp_not_equal(update_ms, Config::getI(IntKey::update_ms))) {
+					update_ms = Config::getI(IntKey::update_ms);
 					future_time = time_ms() + update_ms;
 				}
 				else if (future_time - current_time > update_ms) {
