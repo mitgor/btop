@@ -15,6 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Profiling & Baseline** - Establish reproducible benchmarks and identify actual bottlenecks before any code changes
 - [x] **Phase 2: String & Allocation Reduction** - Eliminate per-frame string allocation overhead in utilities and draw path
 - [x] **Phase 3: I/O & Data Collection** - Replace expensive ifstream/filesystem operations with POSIX I/O in collectors
+- [ ] **Phase 3.1: Profiling Gap Closure** - INSERTED — Run CPU sampling profiling session and document hot function ranking
 - [ ] **Phase 4: Data Structure Modernization** - Replace hash maps and deques with enum-indexed arrays and ring buffers
 - [ ] **Phase 5: Rendering Pipeline** - Implement differential terminal output and batch writes for minimal redraw
 - [ ] **Phase 6: Compiler & Verification** - Apply PGO, evaluate mimalloc, and verify correctness with full sanitizer sweep
@@ -66,6 +67,20 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md -- POSIX read_proc_file() helper + readfile() double-stat fix + Linux ifstream replacement (Wave 1)
 - [x] 03-02-PLAN.md -- Hash-map PID lookup for Linux, macOS, and FreeBSD collectors (Wave 2)
+
+### Phase 3.1: Profiling Gap Closure
+**Goal**: A ranked list of hot functions with CPU % contribution exists from an actual perf or Instruments profiling session, closing the Phase 1 SC2 gap
+**Depends on**: Phase 1
+**Requirements**: PROF-01
+**Gap Closure**: Closes Phase 1 SC2 gap from v1.0 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. A CPU sampling profiling session (perf record on Linux or Instruments on macOS) has been run against btop with realistic workload
+  2. A PROFILING.md document exists with ranked hot functions showing CPU % attribution from the profiling data
+  3. The profiling results are consistent with nanobench timing data (same functions identified as hot)
+**Plans**: TBD
+
+Plans:
+- [ ] 03.1-01: TBD
 
 ### Phase 4: Data Structure Modernization
 **Goal**: Core data structures use contiguous memory with O(1) index access, eliminating per-lookup string hashing and per-append allocation
@@ -120,6 +135,7 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 1. Profiling & Baseline | 3/3 | Complete | 2026-02-27 |
 | 2. String & Allocation Reduction | 2/2 | Complete | 2026-02-27 |
 | 3. I/O & Data Collection | 2/2 | Complete | 2026-02-27 |
+| 3.1 Profiling Gap Closure | 0/0 | Not started | - |
 | 4. Data Structure Modernization | 0/0 | Not started | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
