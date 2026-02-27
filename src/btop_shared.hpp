@@ -599,7 +599,7 @@ namespace Net {
 	extern string selected_iface;
 	extern vector<string> interfaces;
 	extern bool rescale;
-	extern std::unordered_map<string, uint64_t> graph_max;
+	extern std::array<uint64_t, 2> graph_max;
 
 	struct net_stat {
 		uint64_t speed{};

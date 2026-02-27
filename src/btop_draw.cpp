@@ -1482,8 +1482,8 @@ namespace Net {
 		const string title_left = Theme::c("net_box") + Fx::ub + Symbols::title_left;
 		const string title_right = Theme::c("net_box") + Fx::ub + Symbols::title_right;
 		const int i_size = min((int)selected_iface.size(), MAX_IFNAMSIZ);
-		const long long down_max = (net_auto ? safeVal(graph_max, "download"s) : ((long long)(Config::getI("net_download")) << 20) / 8);
-		const long long up_max = (net_auto ? safeVal(graph_max, "upload"s) : ((long long)(Config::getI("net_upload")) << 20) / 8);
+		const long long down_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::download)] : ((long long)(Config::getI("net_download")) << 20) / 8);
+		const long long up_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::upload)] : ((long long)(Config::getI("net_upload")) << 20) / 8);
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {

@@ -327,8 +327,9 @@ namespace Shared {
 
 		Cpu::collect();
 		if (Runner::coreNum_reset) Runner::coreNum_reset = false;
-		for (auto& [field, vec] : Cpu::current_cpu.cpu_percent) {
-			if (not vec.empty() and not v_contains(Cpu::available_fields, field)) Cpu::available_fields.push_back(field);
+		for (size_t i = 0; i < static_cast<size_t>(CpuField::COUNT); ++i) {
+			if (not Cpu::current_cpu.cpu_percent[i].empty() and not v_contains(Cpu::available_fields, string(cpu_field_names[i])))
+				Cpu::available_fields.push_back(string(cpu_field_names[i]));
 		}
 		Cpu::cpuName = Cpu::get_cpuName();
 		Cpu::got_sensors = Cpu::get_sensors();
@@ -355,10 +356,10 @@ namespace Shared {
 		}
 
 		if (not Gpu::gpu_names.empty()) {
-			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
-				Cpu::available_fields.push_back(key);
-			for (auto const& [key, _] : Gpu::shared_gpu_percent)
-				Cpu::available_fields.push_back(key);
+			for (const auto& name : gpu_field_names)
+				Cpu::available_fields.push_back(string(name));
+			for (const auto& name : shared_gpu_field_names)
+				Cpu::available_fields.push_back(string(name));
 
 			using namespace Gpu;
 			count = gpus.size();
@@ -389,6 +390,12 @@ namespace Cpu {
 	const array time_names {
 		"user"s, "nice"s, "system"s, "idle"s, "iowait"s,
 		"irq"s, "softirq"s, "steal"s, "guest"s, "guest_nice"s
+	};
+
+	constexpr std::array<CpuField, 10> linux_time_fields = {
+		CpuField::user, CpuField::nice, CpuField::system, CpuField::idle,
+		CpuField::iowait, CpuField::irq, CpuField::softirq, CpuField::steal,
+		CpuField::guest, CpuField::guest_nice
 	};
 
 	std::unordered_map<string, long long> cpu_old = {
@@ -578,7 +585,7 @@ namespace Cpu {
 		found_sensors.at(cpu_sensor).temp = stol(readfile(found_sensors.at(cpu_sensor).path, "0")) / 1000;
 		current_cpu.temp.at(0).push_back(found_sensors.at(cpu_sensor).temp);
 		current_cpu.temp_max = found_sensors.at(cpu_sensor).crit;
-		if (current_cpu.temp.at(0).size() > 20) current_cpu.temp.at(0).pop_front();
+		if (current_cpu.temp.at(0).capacity() != 20) current_cpu.temp.at(0).resize(20);
 
 		if (Config::getB("show_coretemp") and not cpu_temp_only) {
 			for (vector<string_view> done; const auto& sensor : core_sensors) {
@@ -589,7 +596,7 @@ namespace Cpu {
 			for (const auto& [core, temp] : core_mapping) {
 				if (cmp_less(core + 1, current_cpu.temp.size()) and cmp_less(temp, core_sensors.size())) {
 					current_cpu.temp.at(core + 1).push_back(found_sensors.at(core_sensors.at(temp)).temp);
-					if (current_cpu.temp.at(core + 1).size() > 20) current_cpu.temp.at(core + 1).pop_front();
+					if (current_cpu.temp.at(core + 1).capacity() != 20) current_cpu.temp.at(core + 1).resize(20);
 				}
 			}
 		}
@@ -1048,7 +1055,7 @@ namespace Cpu {
     }
 
 	auto collect(bool no_update) -> cpu_info& {
-		if (Runner::stopping or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
+		if (Runner::stopping or (no_update and not current_cpu.cpu_percent[std::to_underlying(CpuField::total)].empty())) return current_cpu;
 		auto& cpu = current_cpu;
 
 		if (Config::getB("show_cpu_freq"))
@@ -1096,7 +1103,7 @@ namespace Cpu {
 								cpu.core_percent.emplace_back();
 							}
 							cpu.core_percent[i-1].push_back(0);
-							if (cpu.core_percent.at(i-1).size() > 40) cpu.core_percent.at(i-1).pop_front();
+							if (cpu.core_percent.at(i-1).capacity() != 40) cpu.core_percent.at(i-1).resize(40);
 							i++;
 						}
 					}
@@ -1125,18 +1132,18 @@ namespace Cpu {
 						cpu_old.at("idles") = idles;
 
 						//? Total usage of cpu
-						cpu.cpu_percent.at("total").push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
+						cpu.cpu_percent[std::to_underlying(CpuField::total)].push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
 
 						//? Reduce size if there are more values than needed for graph
-						while (cmp_greater(cpu.cpu_percent.at("total").size(), width * 2)) cpu.cpu_percent.at("total").pop_front();
+						if (cpu.cpu_percent[std::to_underlying(CpuField::total)].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(CpuField::total)].resize(width * 2);
 
 						//? Populate cpu.cpu_percent with all fields from stat
 						for (int ii = 0; const auto& val : times) {
-							cpu.cpu_percent.at(time_names.at(ii)).push_back(clamp((long long)round((double)(val - cpu_old.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
+							cpu.cpu_percent[std::to_underlying(linux_time_fields[ii])].push_back(clamp((long long)round((double)(val - cpu_old.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
 							cpu_old.at(time_names.at(ii)) = val;
 
 							//? Reduce size if there are more values than needed for graph
-							while (cmp_greater(cpu.cpu_percent.at(time_names.at(ii)).size(), width * 2)) cpu.cpu_percent.at(time_names.at(ii)).pop_front();
+							if (cpu.cpu_percent[std::to_underlying(linux_time_fields[ii])].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(linux_time_fields[ii])].resize(width * 2);
 
 							if (++ii == 10) break;
 						}
@@ -1160,7 +1167,7 @@ namespace Cpu {
 				}
 
 				//? Reduce size if there are more values than needed for graph
-				if (cpu.core_percent.at(i-1).size() > 40) cpu.core_percent.at(i-1).pop_front();
+				if (cpu.core_percent.at(i-1).capacity() != 40) cpu.core_percent.at(i-1).resize(40);
 			}
 
 			//? Notify main thread to redraw screen if we found more cores than previously detected
@@ -1369,7 +1376,7 @@ namespace Gpu {
 						if constexpr(is_init) gpus_slice[i].supported_functions.gpu_utilization = false;
 						if constexpr(is_init) gpus_slice[i].supported_functions.mem_utilization = false;
     				} else {
-						gpus_slice[i].gpu_percent.at("gpu-totals").push_back((long long)utilization.gpu);
+						gpus_slice[i].gpu_percent[std::to_underlying(GpuField::gpu_totals)].push_back((long long)utilization.gpu);
 						gpus_slice[i].mem_utilization_percent.push_back((long long)utilization.memory);
     				}
 				}
@@ -1406,7 +1413,7 @@ namespace Gpu {
     					gpus_slice[i].pwr_usage = (long long)power;
 						if (gpus_slice[i].pwr_usage > gpus_slice[i].pwr_max_usage)
 								gpus_slice[i].pwr_max_usage = gpus_slice[i].pwr_usage;
-    					gpus_slice[i].gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice[i].pwr_usage * 100.0 / (double)gpus_slice[i].pwr_max_usage), 0ll, 100ll));
+    					gpus_slice[i].gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].push_back(clamp((long long)round((double)gpus_slice[i].pwr_usage * 100.0 / (double)gpus_slice[i].pwr_max_usage), 0ll, 100ll));
     				}
     			}
 
@@ -1447,7 +1454,7 @@ namespace Gpu {
 						//gpu.mem_free = memory.free;
 
 						auto used_percent = (long long)round((double)memory.used * 100.0 / (double)memory.total);
-						gpus_slice[i].gpu_percent.at("gpu-vram-totals").push_back(used_percent);
+						gpus_slice[i].gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].push_back(used_percent);
 					}
 				}
 
@@ -1661,7 +1668,7 @@ namespace Gpu {
     				if (result != RSMI_STATUS_SUCCESS) {
 						Logger::warning("ROCm SMI: Failed to get GPU utilization");
 						if constexpr(is_init) gpus_slice[i].supported_functions.gpu_utilization = false;
-    				} else gpus_slice[i].gpu_percent.at("gpu-totals").push_back((long long)utilization);
+    				} else gpus_slice[i].gpu_percent[std::to_underlying(GpuField::gpu_totals)].push_back((long long)utilization);
 				}
 
 				//? Memory utilization
@@ -1744,7 +1751,7 @@ namespace Gpu {
 							gpus_slice[i].pwr_usage = (long long)power / 1000;
 							if (gpus_slice[i].pwr_usage > gpus_slice[i].pwr_max_usage)
 								gpus_slice[i].pwr_max_usage = gpus_slice[i].pwr_usage;
-							gpus_slice[i].gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice[i].pwr_usage * 100.0 / (double)gpus_slice[i].pwr_max_usage), 0ll, 100ll));
+							gpus_slice[i].gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].push_back(clamp((long long)round((double)gpus_slice[i].pwr_usage * 100.0 / (double)gpus_slice[i].pwr_max_usage), 0ll, 100ll));
 						}
 
 					if constexpr(is_init) gpus_slice[i].supported_functions.pwr_state = false;
@@ -1781,7 +1788,7 @@ namespace Gpu {
 					} else {
 						gpus_slice[i].mem_used = used;
 						if (gpus_slice[i].supported_functions.mem_total)
-							gpus_slice[i].gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)used * 100.0 / (double)gpus_slice[i].mem_total));
+							gpus_slice[i].gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].push_back((long long)round((double)used * 100.0 / (double)gpus_slice[i].mem_total));
 					}
 				}
 
@@ -1905,14 +1912,14 @@ namespace Gpu {
 					max_util = util;
 				}
 			}
-			gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
+			gpus_slice->gpu_percent[std::to_underlying(GpuField::gpu_totals)].push_back((long long)round(max_util));
 
 			double pwr = pmu_calc(&engines->r_gpu.val, 1, t, engines->r_gpu.scale); // in Watts
 			gpus_slice->pwr_usage = (long long)round(pwr * 1000);
 			if (gpus_slice->pwr_usage > gpus_slice->pwr_max_usage)
 				gpus_slice->pwr_max_usage = gpus_slice->pwr_usage;
 
-			gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice->pwr_usage * 100.0 / (double)gpus_slice->pwr_max_usage), 0ll, 100ll));
+			gpus_slice->gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].push_back(clamp((long long)round((double)gpus_slice->pwr_usage * 100.0 / (double)gpus_slice->pwr_max_usage), 0ll, 100ll));
 
 			double freq = pmu_calc(&engines->freq_act.val, 1, t, 1); // in MHz
 			gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
@@ -1939,7 +1946,7 @@ namespace Gpu {
 		long long pwr_total = 0;
 		for (auto& gpu : gpus) {
 			if (gpu.supported_functions.gpu_utilization)
-				avg += gpu.gpu_percent.at("gpu-totals").back();
+				avg += gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].back();
 			if (gpu.supported_functions.mem_used)
 				mem_usage_total += gpu.mem_used;
 			if (gpu.supported_functions.mem_total)
@@ -1950,27 +1957,27 @@ namespace Gpu {
 			//* Trim vectors if there are more values than needed for graphs
 			if (width != 0) {
 				//? GPU & memory utilization
-				while (cmp_greater(gpu.gpu_percent.at("gpu-totals").size(), width * 2)) gpu.gpu_percent.at("gpu-totals").pop_front();
-				while (cmp_greater(gpu.mem_utilization_percent.size(), width)) gpu.mem_utilization_percent.pop_front();
+				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].capacity() != static_cast<size_t>(width * 2)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].resize(width * 2);
+				if (gpu.mem_utilization_percent.capacity() != static_cast<size_t>(width)) gpu.mem_utilization_percent.resize(width);
 				//? Power usage
-				while (cmp_greater(gpu.gpu_percent.at("gpu-pwr-totals").size(), width)) gpu.gpu_percent.at("gpu-pwr-totals").pop_front();
+				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].capacity() != static_cast<size_t>(width)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].resize(width);
 				//? Temperature
-				while (cmp_greater(gpu.temp.size(), 18)) gpu.temp.pop_front();
+				if (gpu.temp.capacity() != static_cast<size_t>(18)) gpu.temp.resize(18);
 				//? Memory usage
-				while (cmp_greater(gpu.gpu_percent.at("gpu-vram-totals").size(), width/2)) gpu.gpu_percent.at("gpu-vram-totals").pop_front();
+				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].capacity() != static_cast<size_t>(width/2)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].resize(width/2);
 			}
 		}
 
-		shared_gpu_percent.at("gpu-average").push_back(avg / gpus.size());
+		shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].push_back(avg / gpus.size());
 		if (mem_total != 0)
-			shared_gpu_percent.at("gpu-vram-total").push_back(mem_usage_total / mem_total);
+			shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].push_back(mem_usage_total / mem_total);
 		if (gpu_pwr_total_max != 0)
-			shared_gpu_percent.at("gpu-pwr-total").push_back(pwr_total / gpu_pwr_total_max);
+			shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].push_back(pwr_total / gpu_pwr_total_max);
 
 		if (width != 0) {
-			while (cmp_greater(shared_gpu_percent.at("gpu-average").size(), width * 2)) shared_gpu_percent.at("gpu-average").pop_front();
-			while (cmp_greater(shared_gpu_percent.at("gpu-pwr-total").size(), width * 2)) shared_gpu_percent.at("gpu-pwr-total").pop_front();
-			while (cmp_greater(shared_gpu_percent.at("gpu-vram-total").size(), width * 2)) shared_gpu_percent.at("gpu-vram-total").pop_front();
+			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].capacity() != static_cast<size_t>(width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].resize(width * 2);
+			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].capacity() != static_cast<size_t>(width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].resize(width * 2);
+			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].capacity() != static_cast<size_t>(width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].resize(width * 2);
 		}
 
 		count = gpus.size();
@@ -2040,7 +2047,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info& {
-		if (Runner::stopping or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
+		if (Runner::stopping or (no_update and not current_mem.percent[std::to_underlying(MemField::used)].empty())) return current_mem;
 		auto show_swap = Config::getB("show_swap");
 		auto swap_disk = Config::getB("swap_disk");
 		auto show_disks = Config::getB("show_disks");
@@ -2048,7 +2055,7 @@ namespace Mem {
 		auto totalMem = get_totalMem();
 		auto& mem = current_mem;
 
-		mem.stats.at("swap_total") = 0;
+		mem.stats[std::to_underlying(MemField::swap_total)] = 0;
 
 		//? Read ZFS ARC info from /proc/spl/kstat/zfs/arcstats
 		uint64_t arc_size = 0, arc_min_size = 0;
@@ -2074,40 +2081,40 @@ namespace Mem {
 			bool got_avail = false;
 			for (string label; meminfo.peek() != 'D' and meminfo >> label;) {
 				if (label == "MemFree:") {
-					meminfo >> mem.stats.at("free");
-					mem.stats.at("free") <<= 10;
+					meminfo >> mem.stats[std::to_underlying(MemField::free)];
+					mem.stats[std::to_underlying(MemField::free)] <<= 10;
 				}
 				else if (label == "MemAvailable:") {
-					meminfo >> mem.stats.at("available");
-					mem.stats.at("available") <<= 10;
+					meminfo >> mem.stats[std::to_underlying(MemField::available)];
+					mem.stats[std::to_underlying(MemField::available)] <<= 10;
 					got_avail = true;
 				}
 				else if (label == "Cached:") {
-					meminfo >> mem.stats.at("cached");
-					mem.stats.at("cached") <<= 10;
+					meminfo >> mem.stats[std::to_underlying(MemField::cached)];
+					mem.stats[std::to_underlying(MemField::cached)] <<= 10;
 					if (not show_swap and not swap_disk) break;
 				}
 				else if (label == "SwapTotal:") {
-					meminfo >> mem.stats.at("swap_total");
-					mem.stats.at("swap_total") <<= 10;
+					meminfo >> mem.stats[std::to_underlying(MemField::swap_total)];
+					mem.stats[std::to_underlying(MemField::swap_total)] <<= 10;
 				}
 				else if (label == "SwapFree:") {
-					meminfo >> mem.stats.at("swap_free");
-					mem.stats.at("swap_free") <<= 10;
+					meminfo >> mem.stats[std::to_underlying(MemField::swap_free)];
+					mem.stats[std::to_underlying(MemField::swap_free)] <<= 10;
 					break;
 				}
 				meminfo.ignore(SSmax, '\n');
 			}
-			if (not got_avail) mem.stats.at("available") = mem.stats.at("free") + mem.stats.at("cached");
+			if (not got_avail) mem.stats[std::to_underlying(MemField::available)] = mem.stats[std::to_underlying(MemField::free)] + mem.stats[std::to_underlying(MemField::cached)];
 			if (zfs_arc_cached) {
-				mem.stats.at("cached") += arc_size;
+				mem.stats[std::to_underlying(MemField::cached)] += arc_size;
 				// The ARC will not shrink below arc_min_size, so that memory is not available
 				if (arc_size > arc_min_size)
-					mem.stats.at("available") += arc_size - arc_min_size;
+					mem.stats[std::to_underlying(MemField::available)] += arc_size - arc_min_size;
 			}
-			mem.stats.at("used") = totalMem - (mem.stats.at("available") <= totalMem ? mem.stats.at("available") : mem.stats.at("free"));
+			mem.stats[std::to_underlying(MemField::used)] = totalMem - (mem.stats[std::to_underlying(MemField::available)] <= totalMem ? mem.stats[std::to_underlying(MemField::available)] : mem.stats[std::to_underlying(MemField::free)]);
 
-			if (mem.stats.at("swap_total") > 0) mem.stats.at("swap_used") = mem.stats.at("swap_total") - mem.stats.at("swap_free");
+			if (mem.stats[std::to_underlying(MemField::swap_total)] > 0) mem.stats[std::to_underlying(MemField::swap_used)] = mem.stats[std::to_underlying(MemField::swap_total)] - mem.stats[std::to_underlying(MemField::swap_free)];
 		}
 		else
 			throw std::runtime_error("Failed to read /proc/meminfo");
@@ -2116,14 +2123,14 @@ namespace Mem {
 
 		//? Calculate percentages
 		for (const auto& name : mem_names) {
-			mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / totalMem));
-			while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
+			mem.percent[mem_field_from_name(name).value()].push_back(round((double)mem.stats[mem_field_from_name(name).value()] * 100 / totalMem));
+			if (mem.percent[mem_field_from_name(name).value()].capacity() != static_cast<size_t>(width * 2)) mem.percent[mem_field_from_name(name).value()].resize(width * 2);
 		}
 
-		if (show_swap and mem.stats.at("swap_total") > 0) {
+		if (show_swap and mem.stats[std::to_underlying(MemField::swap_total)] > 0) {
 			for (const auto& name : swap_names) {
-				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("swap_total")));
-				while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
+				mem.percent[mem_field_from_name(name).value()].push_back(round((double)mem.stats[mem_field_from_name(name).value()] * 100 / mem.stats[std::to_underlying(MemField::swap_total)]));
+				if (mem.percent[mem_field_from_name(name).value()].capacity() != static_cast<size_t>(width * 2)) mem.percent[mem_field_from_name(name).value()].resize(width * 2);
 			}
 			has_swap = true;
 		}
@@ -2345,11 +2352,11 @@ namespace Mem {
 				if (swap_disk and has_swap) {
 					mem.disks_order.push_back("swap");
 					if (not disks.contains("swap")) disks["swap"] = {"", "swap", "swap"};
-					disks.at("swap").total = mem.stats.at("swap_total");
-					disks.at("swap").used = mem.stats.at("swap_used");
-					disks.at("swap").free = mem.stats.at("swap_free");
-					disks.at("swap").used_percent = mem.percent.at("swap_used").back();
-					disks.at("swap").free_percent = mem.percent.at("swap_free").back();
+					disks.at("swap").total = mem.stats[std::to_underlying(MemField::swap_total)];
+					disks.at("swap").used = mem.stats[std::to_underlying(MemField::swap_used)];
+					disks.at("swap").free = mem.stats[std::to_underlying(MemField::swap_free)];
+					disks.at("swap").used_percent = mem.percent[std::to_underlying(MemField::swap_used)].back();
+					disks.at("swap").free_percent = mem.percent[std::to_underlying(MemField::swap_free)].back();
 				}
 				for (const auto& name : last_found)
 					#ifdef SNAPPED
@@ -2386,7 +2393,7 @@ namespace Mem {
 							else
 								disk.io_write.push_back(max((int64_t)0, (sectors_write - disk.old_io.at(1))));
 							disk.old_io.at(1) = sectors_write;
-							while (cmp_greater(disk.io_write.size(), width * 2)) disk.io_write.pop_front();
+							if (disk.io_write.capacity() != static_cast<size_t>(width * 2)) disk.io_write.resize(width * 2);
 
 							// skip characters until '4' is reached, indicating data type 4, next value will be out target
 							diskread.ignore(numeric_limits<streamsize>::max(), '4');
@@ -2401,14 +2408,14 @@ namespace Mem {
 							else
 								disk.io_read.push_back(max((int64_t)0, (sectors_read - disk.old_io.at(0))));
 							disk.old_io.at(0) = sectors_read;
-							while (cmp_greater(disk.io_read.size(), width * 2)) disk.io_read.pop_front();
+							if (disk.io_read.capacity() != static_cast<size_t>(width * 2)) disk.io_read.resize(width * 2);
 
 							if (disk.io_activity.empty())
 								disk.io_activity.push_back(0);
 							else
 								disk.io_activity.push_back(max((int64_t)0, (io_ticks - disk.old_io.at(2))));
 							disk.old_io.at(2) = io_ticks;
-							while (cmp_greater(disk.io_activity.size(), width * 2)) disk.io_activity.pop_front();
+							if (disk.io_activity.capacity() != static_cast<size_t>(width * 2)) disk.io_activity.resize(width * 2);
 						} else {
 							for (int i = 0; i < 2; i++) { diskread >> std::ws; diskread.ignore(SSmax, ' '); }
 							diskread >> sectors_read;
@@ -2417,7 +2424,7 @@ namespace Mem {
 							else
 								disk.io_read.push_back(max((int64_t)0, (sectors_read - disk.old_io.at(0)) * 512));
 							disk.old_io.at(0) = sectors_read;
-							while (cmp_greater(disk.io_read.size(), width * 2)) disk.io_read.pop_front();
+							if (disk.io_read.capacity() != static_cast<size_t>(width * 2)) disk.io_read.resize(width * 2);
 
 							for (int i = 0; i < 3; i++) { diskread >> std::ws; diskread.ignore(SSmax, ' '); }
 							diskread >> sectors_write;
@@ -2426,7 +2433,7 @@ namespace Mem {
 							else
 								disk.io_write.push_back(max((int64_t)0, (sectors_write - disk.old_io.at(1)) * 512));
 							disk.old_io.at(1) = sectors_write;
-							while (cmp_greater(disk.io_write.size(), width * 2)) disk.io_write.pop_front();
+							if (disk.io_write.capacity() != static_cast<size_t>(width * 2)) disk.io_write.resize(width * 2);
 
 							for (int i = 0; i < 2; i++) { diskread >> std::ws; diskread.ignore(SSmax, ' '); }
 							diskread >> io_ticks;
@@ -2435,7 +2442,7 @@ namespace Mem {
 							else
 								disk.io_activity.push_back(clamp((long)round((double)(io_ticks - disk.old_io.at(2)) / (uptime - old_uptime) / 10), 0l, 100l));
 							disk.old_io.at(2) = io_ticks;
-							while (cmp_greater(disk.io_activity.size(), width * 2)) disk.io_activity.pop_front();
+							if (disk.io_activity.capacity() != static_cast<size_t>(width * 2)) disk.io_activity.resize(width * 2);
 						}
 					} else {
 						Logger::debug("Error in Mem::collect() : when opening {}", disk.stat);
@@ -2565,21 +2572,21 @@ namespace Mem {
 		else
 			disk.io_write.push_back(max((int64_t)0, (bytes_write_total - disk.old_io.at(1))));
 		disk.old_io.at(1) = bytes_write_total;
-		while (cmp_greater(disk.io_write.size(), width * 2)) disk.io_write.pop_front();
+		if (disk.io_write.capacity() != static_cast<size_t>(width * 2)) disk.io_write.resize(width * 2);
 
 		if (disk.io_read.empty())
 			disk.io_read.push_back(0);
 		else
 			disk.io_read.push_back(max((int64_t)0, (bytes_read_total - disk.old_io.at(0))));
 		disk.old_io.at(0) = bytes_read_total;
-		while (cmp_greater(disk.io_read.size(), width * 2)) disk.io_read.pop_front();
+		if (disk.io_read.capacity() != static_cast<size_t>(width * 2)) disk.io_read.resize(width * 2);
 
 		if (disk.io_activity.empty())
 			disk.io_activity.push_back(0);
 		else
 			disk.io_activity.push_back(max((int64_t)0, (io_ticks_total - disk.old_io.at(2))));
 		disk.old_io.at(2) = io_ticks_total;
-		while (cmp_greater(disk.io_activity.size(), width * 2)) disk.io_activity.pop_front();
+		if (disk.io_activity.capacity() != static_cast<size_t>(width * 2)) disk.io_activity.resize(width * 2);
 
 		return true;
 	}
@@ -2592,8 +2599,8 @@ namespace Net {
 	vector<string> interfaces;
 	string selected_iface;
 	int errors{};
-	std::unordered_map<string, uint64_t> graph_max = { {"download", {}}, {"upload", {}} };
-	std::unordered_map<string, array<int, 2>> max_count = { {"download", {}}, {"upload", {}} };
+	std::array<uint64_t, 2> graph_max{};
+	std::array<array<int, 2>, 2> max_count{};
 	bool rescale{true};
 	uint64_t timestamp{};
 
@@ -2670,10 +2677,12 @@ namespace Net {
 				if (netif.ipv4.empty() and netif.ipv6.empty())
 					netif.ipv4 = readfile("/sys/class/net/" + iface + "/address");
 
-				for (const string dir : {"download", "upload"}) {
-					const fs::path sys_file = "/sys/class/net/" + iface + "/statistics/" + (dir == "download" ? "rx_bytes" : "tx_bytes");
-					auto& saved_stat = netif.stat.at(dir);
-					auto& bandwidth = netif.bandwidth.at(dir);
+				for (const auto dir_idx : {NetDir::download, NetDir::upload}) {
+					auto didx = std::to_underlying(dir_idx);
+					auto other_didx = std::to_underlying(dir_idx == NetDir::download ? NetDir::upload : NetDir::download);
+					const fs::path sys_file = "/sys/class/net/" + iface + "/statistics/" + (dir_idx == NetDir::download ? "rx_bytes" : "tx_bytes");
+					auto& saved_stat = netif.stat[didx];
+					auto& bandwidth = netif.bandwidth[didx];
 
 					uint64_t val{};
 					try { val = stoull(readfile(sys_file, "0")); }
@@ -2697,18 +2706,18 @@ namespace Net {
 
 					//? Add values to graph
 					bandwidth.push_back(saved_stat.speed);
-					while (cmp_greater(bandwidth.size(), width * 2)) bandwidth.pop_front();
+					if (bandwidth.capacity() != static_cast<size_t>(width * 2)) bandwidth.resize(width * 2);
 
 					//? Set counters for auto scaling
 					if (net_auto and selected_iface == iface) {
-						if (net_sync and saved_stat.speed < netif.stat.at(dir == "download" ? "upload" : "download").speed) continue;
-						if (saved_stat.speed > graph_max[dir]) {
-							++max_count[dir][0];
-							if (max_count[dir][1] > 0) --max_count[dir][1];
+						if (net_sync and saved_stat.speed < netif.stat[other_didx].speed) continue;
+						if (saved_stat.speed > graph_max[didx]) {
+							++max_count[didx][0];
+							if (max_count[didx][1] > 0) --max_count[didx][1];
 						}
-						else if (graph_max[dir] > 10 << 10 and saved_stat.speed < graph_max[dir] / 10) {
-							++max_count[dir][1];
-							if (max_count[dir][0] > 0) --max_count[dir][0];
+						else if (graph_max[didx] > 10 << 10 and saved_stat.speed < graph_max[didx] / 10) {
+							++max_count[didx][1];
+							if (max_count[didx][0] > 0) --max_count[didx][0];
 						}
 
 					}
@@ -2734,7 +2743,7 @@ namespace Net {
 
 		//? Find an interface to display if selected isn't set or valid
 		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
-			max_count["download"][0] = max_count["download"][1] = max_count["upload"][0] = max_count["upload"][1] = 0;
+			max_count[0][0] = max_count[0][1] = max_count[1][0] = max_count[1][1] = 0;
 			redraw = true;
 			if (net_auto) rescale = true;
 			if (not config_iface.empty() and v_contains(interfaces, config_iface)) selected_iface = config_iface;
@@ -2742,8 +2751,8 @@ namespace Net {
 				//? Sort interfaces by total upload + download bytes
 				auto sorted_interfaces = interfaces;
 				rng::sort(sorted_interfaces, [&](const auto& a, const auto& b){
-					return 	cmp_greater(net.at(a).stat["download"].total + net.at(a).stat["upload"].total,
-										net.at(b).stat["download"].total + net.at(b).stat["upload"].total);
+					return 	cmp_greater(net.at(a).stat[std::to_underlying(NetDir::download)].total + net.at(a).stat[std::to_underlying(NetDir::upload)].total,
+										net.at(b).stat[std::to_underlying(NetDir::download)].total + net.at(b).stat[std::to_underlying(NetDir::upload)].total);
 				});
 				selected_iface.clear();
 				//? Try to set to a connected interface
@@ -2763,14 +2772,17 @@ namespace Net {
 		//? Calculate max scale for graphs if needed
 		if (net_auto) {
 			bool sync = false;
-			for (const auto& dir: {"download", "upload"}) {
+			for (const auto dir_idx : {NetDir::download, NetDir::upload}) {
+				auto didx = std::to_underlying(dir_idx);
+				auto other_idx = std::to_underlying(dir_idx == NetDir::download ? NetDir::upload : NetDir::download);
 				for (const auto& sel : {0, 1}) {
-					if (rescale or max_count[dir][sel] >= 5) {
-						const long long avg_speed = (net[selected_iface].bandwidth[dir].size() > 5
-							? std::accumulate(net.at(selected_iface).bandwidth.at(dir).rbegin(), net.at(selected_iface).bandwidth.at(dir).rbegin() + 5, 0ll) / 5
-							: net[selected_iface].stat[dir].speed);
-						graph_max[dir] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
-						max_count[dir][0] = max_count[dir][1] = 0;
+					if (rescale or max_count[didx][sel] >= 5) {
+						auto& bw = net[selected_iface].bandwidth[didx];
+						const long long avg_speed = (bw.size() > 5
+							? std::accumulate(bw.end() - 5, bw.end(), 0ll) / 5
+							: net[selected_iface].stat[didx].speed);
+						graph_max[didx] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
+						max_count[didx][0] = max_count[didx][1] = 0;
 						redraw = true;
 						if (net_sync) sync = true;
 						break;
@@ -2778,9 +2790,8 @@ namespace Net {
 				}
 				//? Sync download/upload graphs if enabled
 				if (sync) {
-					const auto other = (string(dir) == "upload" ? "download" : "upload");
-					graph_max[other] = graph_max[dir];
-					max_count[other][0] = max_count[other][1] = 0;
+					graph_max[other_idx] = graph_max[didx];
+					max_count[other_idx][0] = max_count[other_idx][1] = 0;
 					break;
 				}
 			}
@@ -2831,7 +2842,7 @@ namespace Proc {
 		//? Update cpu percent deque for process cpu graph
 		if (not Config::getB("proc_per_core")) detailed.entry.cpu_p *= Shared::coreCount;
 		detailed.cpu_percent.push_back(clamp((long long)round(detailed.entry.cpu_p), 0ll, 100ll));
-		while (cmp_greater(detailed.cpu_percent.size(), width)) detailed.cpu_percent.pop_front();
+		if (detailed.cpu_percent.capacity() != static_cast<size_t>(width)) detailed.cpu_percent.resize(width);
 
 		//? Process runtime
 		if (detailed.entry.state != 'X') detailed.elapsed = sec_to_dhms(uptime - (detailed.entry.cpu_s / Shared::clkTck));
@@ -2884,7 +2895,7 @@ namespace Proc {
 			redraw = true;
 		}
 
-		while (cmp_greater(detailed.mem_bytes.size(), width)) detailed.mem_bytes.pop_front();
+		if (detailed.mem_bytes.capacity() != static_cast<size_t>(width)) detailed.mem_bytes.resize(width);
 
 		//? Get bytes read and written from proc/[pid]/io
 		if (fs::exists(pid_path / "io")) {
