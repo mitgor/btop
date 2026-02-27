@@ -46,11 +46,11 @@ Plans:
   2. String utility functions (uresize, luresize, ljust, rjust, cjust) accept const ref or string_view parameters -- no copies on call
   3. Draw functions use fmt::format_to with back_inserter instead of fmt::format, eliminating intermediate string allocations in the render path
   4. Draw functions call string::reserve() with size estimates that account for escape code overhead, and heaptrack shows reduced reallocation count per frame
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md -- Replace Fx::uncolor() regex with hand-written parser + const-ref string utility params (Wave 1)
+- [ ] 02-02-PLAN.md -- Convert fmt::format to fmt::format_to in draw pipeline + escape-aware reserve estimates (Wave 2)
 
 ### Phase 3: I/O & Data Collection
 **Goal**: System data collection uses minimal syscalls and zero heap-allocating file I/O, with O(1) PID lookup replacing linear scan
