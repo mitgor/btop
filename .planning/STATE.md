@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-02-27T15:46:40Z"
+last_updated: "2026-02-27T23:14:00Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 4 (Data Structure Modernization)
-Plan: 1 of 3 in current phase -- COMPLETE
-Status: Plan 04-01 complete -- foundational types created
-Last activity: 2026-02-27 -- RingBuffer template, field enums, graph_symbols/graphs migration
+Plan: 2 of 3 in current phase -- COMPLETE
+Status: Plan 04-02 complete -- all struct definitions and collectors migrated to enum-indexed RingBuffers
+Last activity: 2026-02-27 -- struct migration, 5 platform collectors updated, pop_front eliminated
 
-Progress: [########--] 82%
+Progress: [#########-] 91%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: ~6 min
-- Total execution time: ~1.0 hours
+- Total plans completed: 10
+- Average duration: ~10 min
+- Total execution time: ~1.7 hours
 
 **By Phase:**
 
@@ -44,11 +44,11 @@ Progress: [########--] 82%
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 | 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
-| 4. Data Structure Modernization | 1/3 | 6 min | 6 min |
+| 4. Data Structure Modernization | 2/3 | ~51 min | ~26 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (3m), 03-01 (4m), 03-02 (5m), 03.1-01 (5m), 04-01 (6m)
-- Trend: Stable ~5-6 min
+- Last 5 plans: 03-01 (4m), 03-02 (5m), 03.1-01 (5m), 04-01 (6m), 04-02 (~45m)
+- Trend: 04-02 longer due to 10-file migration across 5 platform collectors
 
 *Updated after each plan completion*
 
@@ -80,6 +80,10 @@ Recent decisions affecting current work:
 - [Phase 04]: GraphSymbolType enum and helpers placed in Draw namespace (btop_draw.hpp) for test accessibility
 - [Phase 04]: graph_bg_symbol() helper eliminates repeated default-resolution + index-6 lookup in 4 draw functions
 - [Phase 04]: shared_gpu_percent migration deferred to Plan 02 -- requires simultaneous access-site updates
+- [Phase 04]: Kept cpu_old as local string-keyed map (scratch storage, not hot-path data structure)
+- [Phase 04]: Used capacity-based resize() instead of pop_front trimming for ring buffer size management
+- [Phase 04]: Migrated Net::graph_max/max_count from string-keyed maps to std::array for consistency
+- [Phase 04]: Used bsd_time_fields (4 entries) vs linux_time_fields (10 entries) for platform CPU field counts
 
 ### Pending Todos
 
@@ -92,5 +96,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-01-PLAN.md (Foundational Types) -- Phase 4 plan 1 of 3 complete
+Stopped at: Completed 04-02-PLAN.md (Struct Migration & Collector Update) -- Phase 4 plan 2 of 3 complete
 Resume file: None
