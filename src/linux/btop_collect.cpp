@@ -2794,6 +2794,7 @@ namespace Net {
 namespace Proc {
 
 	vector<proc_info> current_procs;
+	static std::unordered_map<size_t, proc_info> proc_map;
 	std::unordered_map<string, string> uid_user;
 	string current_sort;
 	string current_filter;
@@ -2934,7 +2935,7 @@ namespace Proc {
 		if (tree_mode_change) is_tree_mode = tree;
 		ifstream pread;
 
-		static vector<size_t> found;
+		static std::unordered_set<size_t> alive_pids;
 
 		const double uptime = system_uptime();
 
@@ -2950,7 +2951,8 @@ namespace Proc {
 		//* ---------------------------------------------Collection start----------------------------------------------
 		else {
 			should_filter = true;
-			found.clear();
+			alive_pids.clear();
+			proc_map.reserve(current_procs.size() + 64);
 
 			//? First make sure kernel proc cache is cleared.
 			if (should_filter_kernel and ++proc_clear_count >= 256) {
@@ -3010,23 +3012,21 @@ namespace Proc {
 					continue;
 				}
 
-				found.push_back(pid);
+				alive_pids.insert(pid);
 
-				//? Check if pid already exists in current_procs
-				auto find_old = rng::find(current_procs, pid, &proc_info::pid);
-				bool no_cache{};
+				//? Check if pid already exists in proc_map (O(1) hash lookup)
+				auto [it, inserted] = proc_map.try_emplace(pid, proc_info{pid});
+				bool no_cache = inserted;
 				//? Only add new processes if not paused
-				if (find_old == current_procs.end()) {
-					if (not pause_proc_list) {
-						current_procs.push_back({pid});
-						find_old = current_procs.end() - 1;
-						no_cache = true;
+				if (inserted) {
+					if (pause_proc_list) {
+						proc_map.erase(it);
+						continue;
 					}
-					else continue;
 				}
 				else if (dead_procs.contains(pid)) continue;
 
-				auto& new_proc = *find_old;
+				auto& new_proc = it->second;
 
 				//? Stack buffers for POSIX /proc reads (zero heap allocation)
 				char buf[4096];
@@ -3187,7 +3187,7 @@ namespace Proc {
 
 				if (should_filter_kernel and new_proc.ppid == KTHREADD) {
 					kernels_procs.emplace(new_proc.pid);
-					found.pop_back();
+					alive_pids.erase(pid);
 				}
 
 				if (not stat_ok) continue;
@@ -3223,20 +3223,19 @@ namespace Proc {
 				}
 			}
 
-			//? Clear dead processes from current_procs and remove kernel processes if enabled and not paused
+			//? Clear dead processes from proc_map if not paused
 			if (not pause_proc_list) {
-				auto eraser = rng::remove_if(current_procs, [&](const auto& element){ return not v_contains(found, element.pid); });
-				current_procs.erase(eraser.begin(), eraser.end());
+				std::erase_if(proc_map, [&](const auto& pair) { return not alive_pids.contains(pair.first); });
 				if (!dead_procs.empty()) dead_procs.clear();
 			}
 			//? Set correct state of dead processes if paused
 			else {
 				const bool keep_dead_proc_usage = Config::getB("keep_dead_proc_usage");
-				for (auto& r : current_procs) {
-					if (rng::find(found, r.pid) == found.end()) {
+				for (auto& [pid, r] : proc_map) {
+					if (not alive_pids.contains(pid)) {
 						if (r.state != 'X') r.death_time = round(uptime) - (r.cpu_s / Shared::clkTck);
 						r.state = 'X';
-						dead_procs.emplace(r.pid);
+						dead_procs.emplace(pid);
 						//? Reset cpu usage for dead processes if paused and option is set
 						if (!keep_dead_proc_usage) {
 							r.cpu_p = 0.0;
@@ -3244,6 +3243,13 @@ namespace Proc {
 						}
 					}
 				}
+			}
+
+			//? Build sorted vector view from map
+			current_procs.clear();
+			current_procs.reserve(proc_map.size());
+			for (auto& [pid, info] : proc_map) {
+				current_procs.push_back(info);
 			}
 
 			//? Update the details info box for process if active
@@ -3324,7 +3330,7 @@ namespace Proc {
 
 			if (!pause_proc_list) {
 				for (auto& p : current_procs) {
-					if (not v_contains(found, p.ppid)) p.ppid = 0;
+					if (not alive_pids.contains(p.ppid)) p.ppid = 0;
 				}
 			}
 
