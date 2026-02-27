@@ -94,7 +94,7 @@ Plans:
 **Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 04-01-PLAN.md -- RingBuffer template + enum definitions + unit tests + graph_symbols/Graph::graphs migration (Wave 1)
+- [x] 04-01-PLAN.md -- RingBuffer template + enum definitions + unit tests + graph_symbols/Graph::graphs migration (Wave 1)
 - [ ] 04-02-PLAN.md -- Migrate collector structs + all 5 platform collectors + draw code to enum-indexed RingBuffer arrays (Wave 2)
 - [ ] 04-03-PLAN.md -- Config enum migration: bools/ints/strings to enum-indexed arrays + 364 call site updates (Wave 3)
 

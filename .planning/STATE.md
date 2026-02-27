@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-02-27T14:23:46.377Z"
+status: in-progress
+last_updated: "2026-02-27T15:46:40Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 9
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 3.1: Profiling Gap Closure
+**Current focus:** Phase 4: Data Structure Modernization
 
 ## Current Position
 
-Phase: 3.1 (Profiling Gap Closure) -- COMPLETE
-Plan: 1 of 1 in current phase
-Status: Phase complete -- profiling gap closed
-Last activity: 2026-02-27 -- CPU sampling profiler run, PROFILING.md created
+Phase: 4 (Data Structure Modernization)
+Plan: 1 of 3 in current phase -- COMPLETE
+Status: Plan 04-01 complete -- foundational types created
+Last activity: 2026-02-27 -- RingBuffer template, field enums, graph_symbols/graphs migration
 
-Progress: [##########] 100%
+Progress: [########--] 82%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: ~6 min
-- Total execution time: ~0.9 hours
+- Total execution time: ~1.0 hours
 
 **By Phase:**
 
@@ -44,10 +44,11 @@ Progress: [##########] 100%
 | 2. String Allocation Reduction | 2 | 9 min | ~5 min |
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 | 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
+| 4. Data Structure Modernization | 1/3 | 6 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (6m), 02-02 (3m), 03-01 (4m), 03-02 (5m), 03.1-01 (5m)
-- Trend: Stable ~4-5 min
+- Last 5 plans: 02-02 (3m), 03-01 (4m), 03-02 (5m), 03.1-01 (5m), 04-01 (6m)
+- Trend: Stable ~5-6 min
 
 *Updated after each plan completion*
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Linux kernel thread filtering uses alive_pids.erase(pid) instead of found.pop_back()
 - [Phase 03.1]: Used macOS `sample` command for CPU profiling instead of Instruments/xctrace (simpler automation)
 - [Phase 03.1]: 500 benchmark cycles for sufficient sampling data; both flat and inclusive profiles documented
+- [Phase 04]: GraphSymbolType enum and helpers placed in Draw namespace (btop_draw.hpp) for test accessibility
+- [Phase 04]: graph_bg_symbol() helper eliminates repeated default-resolution + index-6 lookup in 4 draw functions
+- [Phase 04]: shared_gpu_percent migration deferred to Plan 02 -- requires simultaneous access-site updates
 
 ### Pending Todos
 
@@ -88,5 +92,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 03.1-01-PLAN.md (Profiling Gap Closure) -- Phase 3.1 complete (1 of 1 plans)
+Stopped at: Completed 04-01-PLAN.md (Foundational Types) -- Phase 4 plan 1 of 3 complete
 Resume file: None

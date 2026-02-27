@@ -29,9 +29,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Data Structure Optimization
 
-- [ ] **DATA-01**: unordered_map<string, ...> with fixed keys replaced by enum-indexed flat arrays (cpu_percent, Config::bools, etc.)
-- [ ] **DATA-02**: deque<long long> for time-series data replaced with fixed-size ring buffers
-- [ ] **DATA-03**: map/unordered_map instances replaced with sorted vectors where key sets are small and fixed
+- [x] **DATA-01**: unordered_map<string, ...> with fixed keys replaced by enum-indexed flat arrays (cpu_percent, Config::bools, etc.)
+- [x] **DATA-02**: deque<long long> for time-series data replaced with fixed-size ring buffers
+- [x] **DATA-03**: map/unordered_map instances replaced with sorted vectors where key sets are small and fixed
 
 ### Rendering Optimization
 
@@ -93,9 +93,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | IODC-02 | Phase 3: I/O & Data Collection | Complete |
 | IODC-03 | Phase 3: I/O & Data Collection | Complete |
 | IODC-04 | Phase 3: I/O & Data Collection | Complete |
-| DATA-01 | Phase 4: Data Structure Modernization | Pending |
-| DATA-02 | Phase 4: Data Structure Modernization | Pending |
-| DATA-03 | Phase 4: Data Structure Modernization | Pending |
+| DATA-01 | Phase 4: Data Structure Modernization | Complete |
+| DATA-02 | Phase 4: Data Structure Modernization | Complete |
+| DATA-03 | Phase 4: Data Structure Modernization | Complete |
 | REND-01 | Phase 5: Rendering Pipeline | Pending |
 | REND-02 | Phase 5: Rendering Pipeline | Pending |
 | REND-03 | Phase 5: Rendering Pipeline | Pending |
