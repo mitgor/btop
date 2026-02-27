@@ -112,14 +112,14 @@ in_section && /[0-9]+/ {
     if (count+0 != count) next  # skip if last field is not numeric
 
     # Function name is everything before the last field
-    func = ""
+    fname = ""
     for (i = 1; i < NF; i++) {
-        if (i > 1) func = func " "
-        func = func $i
+        if (i > 1) fname = fname " "
+        fname = fname $i
     }
-    if (func == "") next
+    if (fname == "") next
 
-    names[idx] = func
+    names[idx] = fname
     counts[idx] = count + 0
     total += count + 0
     idx++
