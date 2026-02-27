@@ -137,10 +137,10 @@ Plans:
   1. bench_proc_collect.cpp sub-benchmarks use Tools::read_proc_file() instead of std::ifstream, measuring the Phase 3 optimized I/O path
   2. CI benchmark workflow removes || true from proc benchmark invocation or adds explicit failure reporting so zero-data runs are detected
   3. Proc::collect full benchmark handles Shared::init() failure gracefully with a clear skip message instead of silent try/catch swallow
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md -- Update proc sub-benchmarks to read_proc_file() + fix CI silent failure + structured skip reporting (Wave 1)
 
 ## Progress
 
@@ -157,4 +157,4 @@ Note: Phases 2 and 3 depend only on Phase 1 (not on each other) but are executed
 | 4. Data Structure Modernization | 3/5 | Gap Closure | - |
 | 5. Rendering Pipeline | 0/0 | Not started | - |
 | 6. Compiler & Verification | 0/0 | Not started | - |
-| 7. Benchmark Integration Fixes | 0/0 | Not started | - |
+| 7. Benchmark Integration Fixes | 0/1 | Not started | - |
