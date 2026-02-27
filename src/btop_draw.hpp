@@ -19,15 +19,15 @@ tab-size = 4
 #pragma once
 
 #include <array>
-#include <deque>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "btop_shared.hpp"
+
 using std::array;
-using std::deque;
 using std::string;
 using std::vector;
 
@@ -140,19 +140,19 @@ namespace Draw {
 		std::array<vector<string>, 2> graphs{};
 
 		//* Create two representations of the graph to switch between to represent two values for each braille character
-		void _create(const deque<long long>& data, int data_offset);
+		void _create(const RingBuffer<long long>& data, int data_offset);
 
 	public:
 		Graph();
 		Graph(int width, int height,
 			const string& color_gradient,
-			const deque<long long>& data,
+			const RingBuffer<long long>& data,
 			const string& symbol="default",
 			bool invert=false, bool no_zero=false,
 			long long max_value=0, long long offset=0);
 
 		//* Add last value from back of <data> and return string representation of graph
-		string& operator()(const deque<long long>& data, bool data_same=false);
+		string& operator()(const RingBuffer<long long>& data, bool data_same=false);
 
 		//* Return string representation of graph
 		string& operator()();

@@ -336,6 +336,31 @@ inline constexpr std::array<std::string_view, static_cast<size_t>(SharedGpuField
 	"gpu-average", "gpu-vram-total", "gpu-pwr-total"
 };
 
+//? Runtime string-to-enum helpers for config field resolution
+inline std::optional<size_t> cpu_field_from_name(const string& name) {
+	for (size_t i = 0; i < cpu_field_names.size(); ++i)
+		if (cpu_field_names[i] == name) return i;
+	return std::nullopt;
+}
+
+inline std::optional<size_t> gpu_field_from_name(const string& name) {
+	for (size_t i = 0; i < gpu_field_names.size(); ++i)
+		if (gpu_field_names[i] == name) return i;
+	return std::nullopt;
+}
+
+inline std::optional<size_t> shared_gpu_field_from_name(const string& name) {
+	for (size_t i = 0; i < shared_gpu_field_names.size(); ++i)
+		if (shared_gpu_field_names[i] == name) return i;
+	return std::nullopt;
+}
+
+inline std::optional<size_t> mem_field_from_name(const string& name) {
+	for (size_t i = 0; i < mem_field_names.size(); ++i)
+		if (mem_field_names[i] == name) return i;
+	return std::nullopt;
+}
+
 void term_resize(bool force=false);
 void banner_gen();
 
@@ -403,7 +428,7 @@ namespace Gpu {
 	extern vector<int> gpu_b_height_offsets;
 	extern long long gpu_pwr_total_max;
 
-	extern std::unordered_map<string, deque<long long>> shared_gpu_percent; // averages, power/vram total
+	extern std::array<RingBuffer<long long>, static_cast<size_t>(SharedGpuField::COUNT)> shared_gpu_percent;
 
 	const array mem_names { "used"s, "free"s };
 
@@ -431,23 +456,19 @@ namespace Gpu {
 
 	//* Per-device container for GPU info
 	struct gpu_info {
-		std::unordered_map<string, deque<long long>> gpu_percent = {
-			{"gpu-totals", {}},
-			{"gpu-vram-totals", {}},
-			{"gpu-pwr-totals", {}},
-		};
+		std::array<RingBuffer<long long>, static_cast<size_t>(GpuField::COUNT)> gpu_percent{};
 		unsigned int gpu_clock_speed; // MHz
 
 		long long pwr_usage; // mW
 		long long pwr_max_usage = 255000;
 		long long pwr_state;
 
-		deque<long long> temp = {0};
+		RingBuffer<long long> temp{};
 		long long temp_max = 110;
 
 		long long mem_total = 0;
 		long long mem_used = 0;
-		deque<long long> mem_utilization_percent = {0}; // TODO: properly handle GPUs that can't report some stats
+		RingBuffer<long long> mem_utilization_percent{}; // TODO: properly handle GPUs that can't report some stats
 		long long mem_clock_speed = 0; // MHz
 
 		long long pcie_tx = 0; // KB/s
@@ -494,21 +515,9 @@ namespace Cpu {
 	extern std::optional<std::string> container_engine;
 
 	struct cpu_info {
-		std::unordered_map<string, deque<long long>> cpu_percent = {
-			{"total", {}},
-			{"user", {}},
-			{"nice", {}},
-			{"system", {}},
-			{"idle", {}},
-			{"iowait", {}},
-			{"irq", {}},
-			{"softirq", {}},
-			{"steal", {}},
-			{"guest", {}},
-			{"guest_nice", {}}
-		};
-		vector<deque<long long>> core_percent;
-		vector<deque<long long>> temp;
+		std::array<RingBuffer<long long>, static_cast<size_t>(CpuField::COUNT)> cpu_percent{};
+		vector<RingBuffer<long long>> core_percent;
+		vector<RingBuffer<long long>> temp;
 		long long temp_max = 0;
 		array<double, 3> load_avg;
 		float usage_watts = 0;
@@ -560,18 +569,14 @@ namespace Mem {
 		int free_percent{};
 
 		array<int64_t, 3> old_io = {0, 0, 0};
-		deque<long long> io_read = {};
-		deque<long long> io_write = {};
-		deque<long long> io_activity = {};
+		RingBuffer<long long> io_read{};
+		RingBuffer<long long> io_write{};
+		RingBuffer<long long> io_activity{};
 	};
 
 	struct mem_info {
-		std::unordered_map<string, uint64_t> stats =
-			{{"used", 0}, {"available", 0}, {"cached", 0}, {"free", 0},
-			{"swap_total", 0}, {"swap_used", 0}, {"swap_free", 0}};
-		std::unordered_map<string, deque<long long>> percent =
-			{{"used", {}}, {"available", {}}, {"cached", {}}, {"free", {}},
-			{"swap_total", {}}, {"swap_used", {}}, {"swap_free", {}}};
+		std::array<uint64_t, static_cast<size_t>(MemField::COUNT)> stats{};
+		std::array<RingBuffer<long long>, static_cast<size_t>(MemField::COUNT)> percent{};
 		std::unordered_map<string, disk_info> disks;
 		vector<string> disks_order;
 	};
@@ -606,8 +611,8 @@ namespace Net {
 	};
 
 	struct net_info {
-		std::unordered_map<string, deque<long long>> bandwidth = { {"download", {}}, {"upload", {}} };
-		std::unordered_map<string, net_stat> stat = { {"download", {}}, {"upload", {}} };
+		std::array<RingBuffer<long long>, static_cast<size_t>(NetDir::COUNT)> bandwidth{};
+		std::array<net_stat, static_cast<size_t>(NetDir::COUNT)> stat{};
 		string ipv4{};      // defaults to ""
 		string ipv6{};      // defaults to ""
 		bool connected{};
@@ -709,8 +714,8 @@ namespace Proc {
 		proc_info entry;
 		string elapsed, parent, status, io_read, io_write, memory;
 		long long first_mem = -1;
-		deque<long long> cpu_percent;
-		deque<long long> mem_bytes;
+		RingBuffer<long long> cpu_percent{};
+		RingBuffer<long long> mem_bytes{};
 	};
 
 	//? Contains all info for proc detailed box

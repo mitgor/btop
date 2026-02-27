@@ -612,13 +612,13 @@ namespace Input {
 				else if (key == "z") {
 					atomic_wait(Runner::active);
 					auto& ndev = Net::current_net.at(Net::selected_iface);
-					if (ndev.stat.at("download").offset + ndev.stat.at("upload").offset > 0) {
-						ndev.stat.at("download").offset = 0;
-						ndev.stat.at("upload").offset = 0;
+					if (ndev.stat[std::to_underlying(NetDir::download)].offset + ndev.stat[std::to_underlying(NetDir::upload)].offset > 0) {
+						ndev.stat[std::to_underlying(NetDir::download)].offset = 0;
+						ndev.stat[std::to_underlying(NetDir::upload)].offset = 0;
 					}
 					else {
-						ndev.stat.at("download").offset = ndev.stat.at("download").last + ndev.stat.at("download").rollover;
-						ndev.stat.at("upload").offset = ndev.stat.at("upload").last + ndev.stat.at("upload").rollover;
+						ndev.stat[std::to_underlying(NetDir::download)].offset = ndev.stat[std::to_underlying(NetDir::download)].last + ndev.stat[std::to_underlying(NetDir::download)].rollover;
+						ndev.stat[std::to_underlying(NetDir::upload)].offset = ndev.stat[std::to_underlying(NetDir::upload)].last + ndev.stat[std::to_underlying(NetDir::upload)].rollover;
 					}
 					no_update = false;
 				}

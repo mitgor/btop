@@ -83,11 +83,7 @@ namespace Cpu {
 namespace Gpu {
 	vector<string> gpu_names;
 	vector<int> gpu_b_height_offsets;
-	std::unordered_map<string, deque<long long>> shared_gpu_percent = {
-		{"gpu-average", {}},
-		{"gpu-vram-total", {}},
-		{"gpu-pwr-total", {}},
-	};
+	std::array<RingBuffer<long long>, static_cast<size_t>(SharedGpuField::COUNT)> shared_gpu_percent{};
 	long long gpu_pwr_total_max = 0;
 }
 #endif
