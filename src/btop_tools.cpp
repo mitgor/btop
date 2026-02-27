@@ -184,30 +184,29 @@ namespace Term {
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
 
-// ! Disabled due to issue when compiling with musl, reverted back to using regex
-// namespace Fx {
-// 	string uncolor(const string& s) {
-// 		string out = s;
-// 		for (size_t offset = 0, start_pos = 0, end_pos = 0;;) {
-// 			start_pos = (offset == 0) ? out.find('\x1b') : offset;
-// 			if (start_pos == string::npos)
-// 				break;
-// 			offset = start_pos + 1;
-// 			end_pos = out.find('m', offset);
-// 			if (end_pos == string::npos)
-// 				break;
-// 			else if (auto next_pos = out.find('\x1b', offset); not isdigit(out[end_pos - 1]) or end_pos > next_pos) {
-// 			 	offset = next_pos;
-// 				continue;
-// 			}
-
-// 			out.erase(start_pos, (end_pos - start_pos)+1);
-// 			offset = 0;
-// 		}
-// 		out.shrink_to_fit();
-// 		return out;
-// 	}
-// }
+namespace Fx {
+	string uncolor(const string& s) {
+		string out;
+		out.reserve(s.size());
+		for (size_t i = 0; i < s.size(); ) {
+			if (s[i] == '\033' && i + 1 < s.size() && s[i + 1] == '[') {
+				// Potential SGR sequence: ESC [ <digits-and-semicolons> m
+				size_t j = i + 2;
+				while (j < s.size() && ((s[j] >= '0' && s[j] <= '9') || s[j] == ';')) {
+					j++;
+				}
+				if (j < s.size() && s[j] == 'm') {
+					// Valid SGR sequence -- skip entirely
+					i = j + 1;
+					continue;
+				}
+				// Not terminated by 'm' -- not a color sequence, copy ESC and continue
+			}
+			out += s[i++];
+		}
+		return out;
+	}
+}
 
 namespace Tools {
 
