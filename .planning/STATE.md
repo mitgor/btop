@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-02-27T17:13:03.022Z"
+status: active
+last_updated: "2026-02-27T21:00:00.000Z"
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 13
-  completed_plans: 13
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 14
+  completed_plans: 14
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** Phase 4: Data Structure Modernization
+**Current focus:** Phase 7: Benchmark Integration Fixes -- COMPLETE
 
 ## Current Position
 
-Phase: 4 (Data Structure Modernization) -- COMPLETE
-Plan: 5 of 5 in current phase -- COMPLETE
-Status: Phase 4 complete -- all 5 plans executed, measurement evidence documented
-Last activity: 2026-02-27 -- nanobench comparison benchmarks, 04-MEASUREMENT.md
+Phase: 7 (Benchmark Integration Fixes) -- COMPLETE
+Plan: 1 of 1 in current phase -- COMPLETE
+Status: Phase 7 complete -- proc sub-benchmarks migrated to read_proc_file(), CI failure reporting fixed
+Last activity: 2026-02-27 -- bench_proc_collect.cpp + benchmark.yml updates
 
 Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: ~9 min
-- Total execution time: ~1.85 hours
+- Total execution time: ~1.9 hours
 
 **By Phase:**
 
@@ -45,13 +45,14 @@ Progress: [##########] 100%
 | 3. I/O & Data Collection | 2 | 9 min | ~5 min |
 | 3.1 Profiling Gap Closure | 1 | 5 min | 5 min |
 | 4. Data Structure Modernization | 5/5 | ~70 min | ~14 min |
+| 7. Benchmark Integration Fixes | 1/1 | ~3 min | ~3 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (6m), 04-02 (~45m), 04-03 (11m), 04-04 (5m), 04-05 (3m)
-- Trend: 04-05 fast measurement plan (2 tasks, 3 files)
+- Last 5 plans: 04-03 (11m), 04-04 (5m), 04-05 (3m), 07-01 (3m)
+- Trend: 07-01 quick integration fix (2 tasks, 2 files)
 
 *Updated after each plan completion*
-| Phase 04 P05 | 3min | 2 tasks | 3 files |
+| Phase 07 P01 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Recent decisions affecting current work:
 - [Phase 04]: RingBuffer single-op throughput comparable to deque; key benefit is zero heap allocations in steady state
 - [Phase 04]: SC1/SC2 formally descoped for macOS (Cachegrind/heaptrack Linux-only); architectural rationale + Linux CI instructions provided
 - [Phase 04]: Benchmark kept self-contained without btop runtime init, using local data structures replicating old patterns
+- [Phase 07]: Used if-else init pattern instead of try-catch-bench to separate init failure from benchmark execution
+- [Phase 07]: Emit SKIP to stdout (not just stderr) for CI log visibility
+- [Phase 07]: Write empty JSON results on proc crash to avoid downstream JSONDecodeError
 
 ### Pending Todos
 
@@ -105,5 +109,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-05-PLAN.md (Measurement Evidence) -- Phase 4 COMPLETE (5/5 plans)
+Stopped at: Completed 07-01-PLAN.md (Benchmark Integration Fixes) -- Phase 7 COMPLETE (1/1 plans)
 Resume file: None
