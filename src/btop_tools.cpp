@@ -551,10 +551,10 @@ namespace Tools {
 	}
 
 	string readfile(const std::filesystem::path& path, const string& fallback) {
-		if (not fs::exists(path)) return fallback;
 		string out;
 		try {
 			std::ifstream file(path);
+			if (not file.good()) return fallback;
 			for (string readstr; getline(file, readstr); out += readstr);
 		}
 		catch (const std::exception& e) {

@@ -36,6 +36,10 @@ tab-size = 4
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+#ifdef __linux__
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 #ifdef BTOP_DEBUG
 #include <source_location>
 #endif
@@ -375,6 +379,24 @@ namespace Tools {
 
 	//* Read a complete file and return as a string
 	string readfile(const std::filesystem::path& path, const string& fallback = "");
+
+#ifdef __linux__
+	//* Read a small file (e.g., /proc pseudo-file) into caller-provided buffer.
+	//* Returns bytes read, or -1 on error. Buffer is null-terminated on success.
+	inline ssize_t read_proc_file(const char* path, char* buf, size_t buf_size) {
+		int fd = ::open(path, O_RDONLY | O_CLOEXEC);
+		if (fd < 0) return -1;
+		ssize_t total = 0;
+		while (static_cast<size_t>(total) < buf_size - 1) {
+			ssize_t n = ::read(fd, buf + total, buf_size - 1 - total);
+			if (n <= 0) break;
+			total += n;
+		}
+		::close(fd);
+		buf[total] = '\0';
+		return total;
+	}
+#endif
 
 	//* Convert a celsius value to celsius, fahrenheit, kelvin or rankin and return tuple with new value and unit.
 	auto celsius_to(const long long& celsius, const string& scale) -> tuple<long long, string>;
