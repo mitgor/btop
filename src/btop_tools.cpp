@@ -171,7 +171,8 @@ namespace Term {
 
 				const auto is_mouse_enabled = !Config::getB(BoolKey::disable_mouse);
 				cout << alt_screen << hide_cursor << (is_mouse_enabled ? mouse_on : mouse_off) << flush;
-				Global::resized = false;
+				auto expected = Global::AppState::Resizing;
+				Global::app_state.compare_exchange_strong(expected, Global::AppState::Running);
 			}
 		}
 		return initialized;

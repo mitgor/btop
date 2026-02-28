@@ -50,6 +50,8 @@ using std::round;
 using std::to_string;
 using std::views::iota;
 
+using Global::AppState;
+
 using namespace Tools;
 using namespace std::literals; // for operator""s
 namespace rng = std::ranges;
@@ -86,14 +88,65 @@ namespace Draw {
 	}
 
 	void ScreenBuffer::clear_current() {
-		std::fill(current, current + static_cast<size_t>(w) * h, Cell{});
+		//? Copy previous frame so cells not overwritten this cycle retain their content.
+		//? This prevents static elements (borders, labels, buttons) from being erased
+		//? when draw functions skip them on non-redraw cycles.
+		std::copy(previous, previous + static_cast<size_t>(w) * h, current);
 	}
 
 	//? ===== Escape-string-to-cell-buffer parser =====
 
+	//? Cached initial fg/bg from Fx::reset for render_to_buffer
+	static uint32_t reset_fg = 0, reset_bg = 0;
+
+	void update_reset_colors() {
+		//? Parse Fx::reset to extract the theme's baseline fg/bg color values.
+		//? This ensures cells written without explicit color codes get the theme
+		//? background, not the terminal's default (which may be transparent).
+		reset_fg = 0; reset_bg = 0;
+		static thread_local std::vector<int> rparams;
+		rparams.clear();
+		const auto& reset = Fx::reset;
+		size_t ri = 0;
+		while (ri < reset.size()) {
+			if (reset[ri] != '\x1b' || ri + 1 >= reset.size() || reset[ri + 1] != '[') { ri++; continue; }
+			ri += 2;
+			rparams.clear();
+			int cur = -1;
+			while (ri < reset.size() && reset[ri] != 'm') {
+				if (reset[ri] >= '0' && reset[ri] <= '9') { if (cur < 0) cur = 0; cur = cur * 10 + (reset[ri] - '0'); }
+				else if (reset[ri] == ';') { rparams.push_back(cur < 0 ? 0 : cur); cur = -1; }
+				ri++;
+			}
+			if (cur >= 0) rparams.push_back(cur);
+			if (ri < reset.size()) ri++; // skip 'm'
+			for (size_t p = 0; p < rparams.size(); p++) {
+				if (rparams[p] == 0) { reset_fg = 0; reset_bg = 0; }
+				else if (rparams[p] == 38 && p + 1 < rparams.size()) {
+					if (rparams[p+1] == 2 && p + 4 < rparams.size()) {
+						reset_fg = (1u<<24) | (uint32_t(rparams[p+2])<<16) | (uint32_t(rparams[p+3])<<8) | uint32_t(rparams[p+4]);
+						p += 4;
+					} else if (rparams[p+1] == 5 && p + 2 < rparams.size()) {
+						reset_fg = uint32_t(rparams[p+2]) + 1; p += 2;
+					}
+				}
+				else if (rparams[p] == 48 && p + 1 < rparams.size()) {
+					if (rparams[p+1] == 2 && p + 4 < rparams.size()) {
+						reset_bg = (1u<<24) | (uint32_t(rparams[p+2])<<16) | (uint32_t(rparams[p+3])<<8) | uint32_t(rparams[p+4]);
+						p += 4;
+					} else if (rparams[p+1] == 5 && p + 2 < rparams.size()) {
+						reset_bg = uint32_t(rparams[p+2]) + 1; p += 2;
+					}
+				}
+				else if (rparams[p] == 39) reset_fg = 0;
+				else if (rparams[p] == 49) reset_bg = 0;
+			}
+		}
+	}
+
 	void render_to_buffer(ScreenBuffer& buf, const std::string& s) {
 		int cx = 0, cy = 0;
-		uint32_t fg = 0, bg = 0;
+		uint32_t fg = reset_fg, bg = reset_bg;
 		uint8_t attrs = 0;
 
 		size_t i = 0;
@@ -800,7 +853,7 @@ namespace Draw {
 		out.clear();
 
 		if (clock_str.size() != clock_len) {
-			if (not Global::resized and clock_len > 0)
+			if (Global::app_state.load() != AppState::Resizing and clock_len > 0)
 				out = Mv::to(y, x+(width / 2)-(clock_len / 2)) + Fx::ub + Theme::c("cpu_box") + Symbols::h_line * clock_len;
 			clock_len = clock_str.size();
 		}
@@ -2708,7 +2761,7 @@ namespace Draw {
 		Global::overlay.clear();
 		Runner::pause_output = false;
 		Runner::redraw = true;
-		if (not (Proc::resized or Global::resized)) {
+		if (not (Proc::resized or Global::app_state.load() == AppState::Resizing)) {
 			Proc::p_counters.clear();
 			Proc::p_graphs.clear();
 		}
