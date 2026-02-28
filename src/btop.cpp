@@ -327,6 +327,68 @@ static void process_signal_event(const event::Reload&) {
 // No-ops for event types not used in Phase 11 (included in variant for Phase 12):
 static void process_signal_event(const event::TimerTick&) {}
 static void process_signal_event(const event::ThreadError&) {}
+static void process_signal_event(const event::KeyInput&) {}
+
+//* Typed transition functions — on_event(state_tag, event, current) -> next AppState.
+//* Phase 12: coexist with process_signal_event; Plan 02 wires these into the main loop.
+
+static AppState on_event(state_tag::Running, const event::Quit& e, AppState) {
+	if (Runner::active) {
+		Runner::stopping = true;
+		return AppState::Quitting;
+	}
+	clean_quit(e.exit_code);
+	return AppState::Quitting;  // unreachable after clean_quit
+}
+
+static AppState on_event(state_tag::Running, const event::Sleep&, AppState) {
+	if (Runner::active) {
+		Runner::stopping = true;
+		return AppState::Sleeping;
+	}
+	// If runner not active, sleep is handled by process_accumulated_state
+	return AppState::Sleeping;
+}
+
+static AppState on_event(state_tag::Running, const event::Resume&, AppState) {
+	return AppState::Running;  // resume is handled by process_accumulated_state
+}
+
+static AppState on_event(state_tag::Running, const event::Resize&, AppState) {
+	return AppState::Resizing;
+}
+
+static AppState on_event(state_tag::Running, const event::Reload&, AppState) {
+	return AppState::Reloading;
+}
+
+static AppState on_event(state_tag::Running, const event::TimerTick&, AppState) {
+	return AppState::Running;  // timer action handled by main loop
+}
+
+static AppState on_event(state_tag::Running, const event::KeyInput&, AppState) {
+	return AppState::Running;  // input action handled by main loop
+}
+
+static AppState on_event(state_tag::Running, const event::ThreadError&, AppState) {
+	return AppState::Error;
+}
+
+// Catch-all: unhandled (state, event) pairs preserve current state (no-op).
+// This covers: Quitting ignoring all non-ThreadError events, Error ignoring everything,
+// Resizing/Reloading/Sleeping ignoring signal events (handled by process_accumulated_state).
+static AppState on_event(const auto&, const auto&, AppState current) {
+	return current;
+}
+
+/// Dispatch a single event against current state via state_tag + std::visit.
+AppState dispatch_event(AppState current, const AppEvent& ev) {
+	return dispatch_state(current, [&](auto tag) {
+		return std::visit([&](const auto& event) {
+			return on_event(tag, event, current);
+		}, ev);
+	});
+}
 
 //* Signal handler — pushes events into lock-free queue (async-signal-safe).
 //* All complex processing happens in process_signal_event on the main thread.
