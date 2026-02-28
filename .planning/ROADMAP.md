@@ -84,7 +84,9 @@ Full details: `milestones/v1.0-ROADMAP.md`
   2. Each state carries its own data (Running holds timing info, Quitting holds exit code, Error holds message)
   3. Being in two states simultaneously is impossible (variant holds exactly one alternative)
   4. Entry/exit actions fire on state transitions (e.g., calcSizes on entering Resizing, timer reset on entering Running)
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 13-01-PLAN.md -- State structs + variant type definitions + cross-thread rename + tests
+- [ ] 13-02-PLAN.md -- on_event migration + entry/exit actions + main loop + dispatch cleanup
 
 ### Phase 14: Runner FSM
 **Goal**: Runner thread has its own independent state machine replacing atomic flag coordination
