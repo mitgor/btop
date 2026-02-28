@@ -95,8 +95,8 @@ Full details: `milestones/v1.0-ROADMAP.md`
 **Requirements**: RUNNER-01, RUNNER-02, RUNNER-03, RUNNER-04
 **Success Criteria** (what must be TRUE):
   1. RunnerState is a std::variant (Idle, Collecting, Drawing, Stopping) -- independent from App FSM
-  2. Runner's atomic<bool> flags (active, stopping, waiting, redraw) are replaced by FSM states
-  3. Main thread communicates with runner via typed events, not flag mutation
+  2. Runner's atomic<bool> flags (active, stopping, waiting, redraw) are replaced by FSM states or typed methods (RunnerStateTag enum + Runner::request_redraw() + runner_conf.force_redraw)
+  3. Main thread communicates with runner via typed mechanisms (runner_conf struct + semaphore, RunnerStateTag enum, Runner::request_redraw()), not raw bool flag mutation
   4. Binary semaphore wake-up pattern is preserved (no performance regression in runner wake latency)
   5. Data collection and drawing work identically (same metrics, same timing, same output)
 **Plans**: TBD

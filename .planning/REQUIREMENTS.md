@@ -31,8 +31,8 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 ### Runner FSM
 
 - [ ] **RUNNER-01**: Runner thread states defined as std::variant (Idle, Collecting, Drawing, Stopping)
-- [ ] **RUNNER-02**: Runner atomic<bool> flags (active, stopping, waiting, redraw) replaced by FSM states
-- [ ] **RUNNER-03**: Main thread -> runner communication via typed events, not flag mutation
+- [ ] **RUNNER-02**: Runner atomic<bool> flags (active, stopping, waiting, redraw) replaced by FSM states or typed methods (active/stopping/waiting -> RunnerStateTag enum; redraw -> Runner::request_redraw() + runner_conf.force_redraw typed payload)
+- [ ] **RUNNER-03**: Main thread -> runner communication via typed mechanisms, not raw bool flag mutation (runner_conf struct + binary semaphore for start commands; RunnerStateTag enum store for stop; Runner::request_redraw() for redraw requests)
 - [ ] **RUNNER-04**: Binary semaphore wake-up pattern preserved for performance
 
 ### Verification
@@ -99,4 +99,4 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-02-28 after roadmap creation*
+*Last updated: 2026-03-01 — RUNNER-02/RUNNER-03 clarified for Phase 14 plan revision*
