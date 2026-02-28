@@ -29,7 +29,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 **Milestone Goal:** Replace btop's implicit boolean-flag state machines with explicit finite automata using std::variant + std::visit, enabling compile-time state safety, testable transitions, and decoupled event handling.
 
 - [x] **Phase 10: Name States** - Replace 7 atomic<bool> flags with an enum and create btop_state.hpp header (completed 2026-02-28)
-- [ ] **Phase 11: Event Queue** - Introduce typed event system and lock-free queue for signal decoupling
+- [x] **Phase 11: Event Queue** - Introduce typed event system and lock-free queue for signal decoupling (completed 2026-02-28)
 - [ ] **Phase 12: Extract Transitions** - Replace if/else if chain with typed transition functions and event-driven main loop
 - [ ] **Phase 13: Type-Safe States** - Graduate enum to std::variant with per-state data and entry/exit actions
 - [ ] **Phase 14: Runner FSM** - Extract runner thread's atomic flags into independent state machine
@@ -116,7 +116,7 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Name States | 2/2 | Complete    | 2026-02-28 | - |
-| 11. Event Queue | 1/2 | In Progress|  | - |
+| 11. Event Queue | 2/2 | Complete   | 2026-02-28 | - |
 | 12. Extract Transitions | v1.1 | 0/TBD | Not started | - |
 | 13. Type-Safe States | v1.1 | 0/TBD | Not started | - |
 | 14. Runner FSM | v1.1 | 0/TBD | Not started | - |
