@@ -138,26 +138,7 @@ TEST(EventType, KeyInputMouseSequence) {
 	EXPECT_EQ(ki.key(), "[<0;123;456M");
 }
 
-TEST(DispatchState, AllSixStatesDispatch) {
-	using Global::AppStateTag;
-	auto check = [](AppStateTag s) -> int {
-		return dispatch_state(s, [](auto tag) -> int {
-			if constexpr (std::is_same_v<decltype(tag), state_tag::Running>)   return 0;
-			if constexpr (std::is_same_v<decltype(tag), state_tag::Resizing>)  return 1;
-			if constexpr (std::is_same_v<decltype(tag), state_tag::Reloading>) return 2;
-			if constexpr (std::is_same_v<decltype(tag), state_tag::Sleeping>)  return 3;
-			if constexpr (std::is_same_v<decltype(tag), state_tag::Quitting>)  return 4;
-			if constexpr (std::is_same_v<decltype(tag), state_tag::Error>)     return 5;
-			return -1;
-		});
-	};
-	EXPECT_EQ(check(AppStateTag::Running), 0);
-	EXPECT_EQ(check(AppStateTag::Resizing), 1);
-	EXPECT_EQ(check(AppStateTag::Reloading), 2);
-	EXPECT_EQ(check(AppStateTag::Sleeping), 3);
-	EXPECT_EQ(check(AppStateTag::Quitting), 4);
-	EXPECT_EQ(check(AppStateTag::Error), 5);
-}
+// DispatchState test removed in Phase 13 Plan 02 (state_tag:: namespace no longer exists).
 
 // --- EventQueue tests ---
 
