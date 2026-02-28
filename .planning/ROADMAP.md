@@ -71,7 +71,9 @@ Full details: `milestones/v1.0-ROADMAP.md`
   3. std::visit dispatches (state, event) pairs to the correct transition function
   4. All existing priority semantics are preserved (thread_exception > quit > sleep > reload > resize > timer > input)
   5. btop handles all edge cases identically (rapid resize, signal during menu, etc.)
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 12-01-PLAN.md — KeyInput event + state_tag dispatch infrastructure + on_event() overloads + transition tests
+- [ ] 12-02-PLAN.md — Main loop migration to event-driven dispatch + process_accumulated_state
 
 ### Phase 13: Type-Safe States
 **Goal**: Illegal state combinations are compile-time errors and states carry their own data
@@ -117,7 +119,7 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 |-------|-----------|----------------|--------|-----------|
 | 10. Name States | 2/2 | Complete    | 2026-02-28 | - |
 | 11. Event Queue | 2/2 | Complete    | 2026-02-28 | - |
-| 12. Extract Transitions | v1.1 | 0/TBD | Not started | - |
+| 12. Extract Transitions | v1.1 | 0/2 | Planned | - |
 | 13. Type-Safe States | v1.1 | 0/TBD | Not started | - |
 | 14. Runner FSM | v1.1 | 0/TBD | Not started | - |
 | 15. Verification | v1.1 | 0/TBD | Not started | - |
