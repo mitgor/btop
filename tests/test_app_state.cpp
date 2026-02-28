@@ -16,6 +16,8 @@ indent = tab
 tab-size = 4
 */
 
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "btop_state.hpp"
 
@@ -154,4 +156,145 @@ TEST(AppStateTag, CompareExchangeFailsWhenExpectedDiffers) {
 	EXPECT_FALSE(exchanged);
 	EXPECT_EQ(state.load(), AppStateTag::Resizing);  // state unchanged
 	EXPECT_EQ(expected, AppStateTag::Resizing);  // expected updated to actual value
+}
+
+// --- State struct data tests ---
+
+TEST(StateData, RunningCarriesTimingData) {
+	state::Running r{1000, 5000};
+	EXPECT_EQ(r.update_ms, 1000u);
+	EXPECT_EQ(r.future_time, 5000u);
+}
+
+TEST(StateData, QuittingCarriesExitCode) {
+	state::Quitting q{42};
+	EXPECT_EQ(q.exit_code, 42);
+}
+
+TEST(StateData, QuittingExitCodeZero) {
+	state::Quitting q{0};
+	EXPECT_EQ(q.exit_code, 0);
+}
+
+TEST(StateData, ErrorCarriesMessage) {
+	state::Error e{"test error"};
+	EXPECT_EQ(e.message, "test error");
+}
+
+TEST(StateData, ErrorEmptyMessage) {
+	state::Error e{""};
+	EXPECT_TRUE(e.message.empty());
+}
+
+TEST(StateData, ResizingDefaultConstructible) {
+	state::Resizing r{};
+	(void)r;
+	SUCCEED();
+}
+
+TEST(StateData, ReloadingDefaultConstructible) {
+	state::Reloading r{};
+	(void)r;
+	SUCCEED();
+}
+
+TEST(StateData, SleepingDefaultConstructible) {
+	state::Sleeping s{};
+	(void)s;
+	SUCCEED();
+}
+
+// --- Variant tests ---
+
+TEST(StateVariant, HasExactlySixAlternatives) {
+	EXPECT_EQ(std::variant_size_v<AppStateVar>, 6u);
+}
+
+TEST(StateVariant, HoldsRunning) {
+	AppStateVar v = state::Running{500, 1000};
+	EXPECT_TRUE(std::holds_alternative<state::Running>(v));
+}
+
+TEST(StateVariant, HoldsResizing) {
+	AppStateVar v = state::Resizing{};
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(v));
+}
+
+TEST(StateVariant, HoldsReloading) {
+	AppStateVar v = state::Reloading{};
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(v));
+}
+
+TEST(StateVariant, HoldsSleeping) {
+	AppStateVar v = state::Sleeping{};
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(v));
+}
+
+TEST(StateVariant, HoldsQuitting) {
+	AppStateVar v = state::Quitting{1};
+	EXPECT_TRUE(std::holds_alternative<state::Quitting>(v));
+}
+
+TEST(StateVariant, HoldsError) {
+	AppStateVar v = state::Error{"bad"};
+	EXPECT_TRUE(std::holds_alternative<state::Error>(v));
+}
+
+TEST(StateVariant, GetRunningData) {
+	AppStateVar v = state::Running{2000, 9999};
+	auto& r = std::get<state::Running>(v);
+	EXPECT_EQ(r.update_ms, 2000u);
+	EXPECT_EQ(r.future_time, 9999u);
+}
+
+TEST(StateVariant, GetQuittingData) {
+	AppStateVar v = state::Quitting{7};
+	EXPECT_EQ(std::get<state::Quitting>(v).exit_code, 7);
+}
+
+TEST(StateVariant, GetErrorData) {
+	AppStateVar v = state::Error{"oops"};
+	EXPECT_EQ(std::get<state::Error>(v).message, "oops");
+}
+
+TEST(StateVariant, MutualExclusion) {
+	// When holding Running, cannot hold Quitting
+	AppStateVar v = state::Running{100, 200};
+	EXPECT_TRUE(std::holds_alternative<state::Running>(v));
+	EXPECT_FALSE(std::holds_alternative<state::Quitting>(v));
+	EXPECT_FALSE(std::holds_alternative<state::Error>(v));
+	EXPECT_FALSE(std::holds_alternative<state::Resizing>(v));
+}
+
+// --- to_tag tests ---
+
+TEST(StateTag, RunningMapsCorrectly) {
+	EXPECT_EQ(to_tag(AppStateVar{state::Running{0, 0}}), Global::AppStateTag::Running);
+}
+
+TEST(StateTag, ResizingMapsCorrectly) {
+	EXPECT_EQ(to_tag(AppStateVar{state::Resizing{}}), Global::AppStateTag::Resizing);
+}
+
+TEST(StateTag, ReloadingMapsCorrectly) {
+	EXPECT_EQ(to_tag(AppStateVar{state::Reloading{}}), Global::AppStateTag::Reloading);
+}
+
+TEST(StateTag, SleepingMapsCorrectly) {
+	EXPECT_EQ(to_tag(AppStateVar{state::Sleeping{}}), Global::AppStateTag::Sleeping);
+}
+
+TEST(StateTag, QuittingMapsCorrectly) {
+	EXPECT_EQ(to_tag(AppStateVar{state::Quitting{0}}), Global::AppStateTag::Quitting);
+}
+
+TEST(StateTag, ErrorMapsCorrectly) {
+	EXPECT_EQ(to_tag(AppStateVar{state::Error{"err"}}), Global::AppStateTag::Error);
+}
+
+TEST(StateTag, RoundTripWithToString) {
+	EXPECT_EQ(Global::to_string(to_tag(AppStateVar{state::Running{0, 0}})), "Running");
+	EXPECT_EQ(Global::to_string(to_tag(AppStateVar{state::Resizing{}})), "Resizing");
+	EXPECT_EQ(Global::to_string(to_tag(AppStateVar{state::Quitting{1}})), "Quitting");
+	EXPECT_EQ(Global::to_string(to_tag(AppStateVar{state::Error{"x"}})), "Error");
 }
