@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Evolve btop's architecture toward explicit, testable state machines that eliminate invalid state combinations while preserving every aspect of the user experience.
-**Current focus:** Phase 11 - Event Queue (second phase of v1.1 Automata Architecture) -- COMPLETE
+**Current focus:** Phase 12 - Extract Transitions (third phase of v1.1 Automata Architecture) -- IN PROGRESS
 
 ## Current Position
 
-Phase: 11 of 15 (Event Queue) -- COMPLETE
-Plan: 2 of 2 (all complete)
-Status: Phase Complete
-Last activity: 2026-02-28 -- Completed 11-02 signal handler migration to event queue
+Phase: 12 of 15 (Extract Transitions) -- IN PROGRESS
+Plan: 1 of 2 complete
+Status: Executing Plan 12-02
+Last activity: 2026-02-28 -- Completed 12-01 transition dispatch infrastructure
 
-Progress: [██████████] 100% (2/2 plans in phase 11)
+Progress: [█████-----] 50% (1/2 plans in phase 12)
 
 ## Performance Metrics
 
@@ -68,6 +68,10 @@ Recent decisions affecting current work:
 - [Phase 11-event-queue]: Input::interrupt() called in signal handler (not in push) to keep queue generic
 - [Phase 11-event-queue]: SIGUSR1 remains no-op pass-through (pselect interrupt, no event needed)
 - [Phase 11-event-queue]: Early exit on Quitting/Error in drain loop preserves priority semantics
+- [Phase 12-extract-transitions]: dispatch_event() declared in header, defined in btop.cpp (on_event overloads are static)
+- [Phase 12-extract-transitions]: Catch-all on_event(auto, auto, current) preserves current state for all unmatched pairs
+- [Phase 12-extract-transitions]: KeyInput uses fixed 32-byte buffer (31 chars max) for trivially copyable AppEvent
+- [Phase 12-extract-transitions]: Side-effecting transitions (Quit, Sleep) inline Runner::stopping in on_event
 
 ### Pending Todos
 
@@ -80,5 +84,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 11-02-PLAN.md (signal handler migration to event queue) -- Phase 11 complete
+Stopped at: Completed 12-01-PLAN.md (transition dispatch infrastructure) -- Plan 12-02 next
 Resume file: None
