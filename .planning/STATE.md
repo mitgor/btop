@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Automata Architecture
 status: unknown
-last_updated: "2026-02-28T14:40:01.086Z"
+last_updated: "2026-02-28T17:30:47Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 9
+  completed_plans: 9
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 13 of 15 (Type-Safe States)
-Plan: 2 of 2 (13-02 complete)
+Plan: 3 of 3 (13-03 complete)
 Status: Phase Complete
-Last activity: 2026-02-28 -- Completed 13-02 variant-based dispatch with entry/exit actions
+Last activity: 2026-02-28 -- Completed 13-03 gap closure (Ctrl+C hang and resume-no-redraw fixes)
 
-Progress: [██████████] 100% (2/2 plans in phase 13)
+Progress: [██████████] 100% (3/3 plans in phase 13)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 3.6min
-- Total execution time: 0.47 hours
+- Total plans completed: 9
+- Average duration: 3.4min
+- Total execution time: 0.50 hours
 
 **By Phase:**
 
@@ -46,6 +46,7 @@ Progress: [██████████] 100% (2/2 plans in phase 13)
 | 11-event-queue P02 | 2 tasks | 4min | 4min |
 | 13-type-safe-states P01 | 2 tasks | 5min | 5min |
 | 13-type-safe-states P02 | 2 tasks | 5min | 5min |
+| 13-type-safe-states P03 | 2 tasks | 2min | 2min |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [Phase 13-type-safe-states]: TransitionCtx struct for dependency injection (cli ref) into on_enter overloads
 - [Phase 13-type-safe-states]: on_event overloads are pure value-returning functions; side effects in on_enter/on_exit
 - [Phase 13-type-safe-states]: State chains (Reloading->Resizing->Running) via sequential transition_to() in main loop
+- [Phase 13-type-safe-states]: clean_quit uses static bool re-entrancy guard (shadow atomic conflicts with transition_to ordering)
+- [Phase 13-type-safe-states]: Resume from Sleeping routes through Resizing for full redraw via on_enter(Resizing)
 
 ### Pending Todos
 
@@ -93,5 +96,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 13-02-PLAN.md (variant-based dispatch with entry/exit actions)
+Stopped at: Completed 13-03-PLAN.md (gap closure: Ctrl+C hang and resume-no-redraw fixes)
 Resume file: None
