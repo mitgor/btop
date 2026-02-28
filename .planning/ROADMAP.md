@@ -116,7 +116,7 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Name States | 2/2 | Complete    | 2026-02-28 | - |
-| 11. Event Queue | v1.1 | 0/2 | Planned | - |
+| 11. Event Queue | 1/2 | In Progress|  | - |
 | 12. Extract Transitions | v1.1 | 0/TBD | Not started | - |
 | 13. Type-Safe States | v1.1 | 0/TBD | Not started | - |
 | 14. Runner FSM | v1.1 | 0/TBD | Not started | - |
