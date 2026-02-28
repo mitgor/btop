@@ -1,35 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Performance Optimization
-status: complete
-last_updated: "2026-02-27"
+milestone: v1.1
+milestone_name: Automata Architecture
+status: active
+last_updated: "2026-02-28"
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 20
-  completed_plans: 20
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-27)
+See: .planning/PROJECT.md (updated 2026-02-28)
 
-**Core value:** Achieve measurable, significant reductions in btop's own resource consumption (CPU, RAM, startup latency, render time) while preserving every aspect of the user experience.
-**Current focus:** v1.0 milestone complete — planning next milestone
+**Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
+**Current focus:** v1.1 Automata Architecture — defining requirements
 
 ## Current Position
 
-Milestone: v1.0 Performance Optimization — SHIPPED 2026-02-27
-Progress: [##########] 100% — 9 phases, 20 plans, all complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-28 — Milestone v1.1 started
 
 ## Accumulated Context
 
 ### Decisions
 
-Full decision log in PROJECT.md Key Decisions table (10 entries with outcomes).
+Full decision log in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
@@ -37,10 +39,10 @@ None.
 
 ### Blockers/Concerns
 
-None — milestone complete.
+None.
 
 ## Session Continuity
 
-Last session: 2026-02-27
-Stopped at: v1.0 milestone completion ceremony (archive, PROJECT.md evolution, retrospective, git tag)
+Last session: 2026-02-28
+Stopped at: Milestone v1.1 initialization
 Resume file: None
