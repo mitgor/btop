@@ -213,7 +213,9 @@ void term_resize(bool force) {
 
 //* Exit handler; stops threads, restores terminal and saves config changes
 void clean_quit(int sig) {
-	if (Global::app_state.load() == AppStateTag::Quitting) return;
+	static bool clean_quit_entered = false;
+	if (clean_quit_entered) return;
+	clean_quit_entered = true;
 	Global::app_state.store(AppStateTag::Quitting);
 	Runner::stop();
 	if (Global::_runner_started) {
@@ -1449,6 +1451,12 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 				}
 				auto next = dispatch_event(app_var, *ev);
 				transition_to(app_var, std::move(next), ctx);
+				auto tag = to_tag(app_var);
+				if (tag == AppStateTag::Quitting or tag == AppStateTag::Error) break;
+			}
+
+			//? Exit outer loop if app entered a terminal state
+			{
 				auto tag = to_tag(app_var);
 				if (tag == AppStateTag::Quitting or tag == AppStateTag::Error) break;
 			}
