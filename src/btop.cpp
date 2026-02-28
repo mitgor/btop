@@ -332,6 +332,10 @@ static AppStateVar on_event(const state::Running&, const event::ThreadError&) {
 	return state::Error{"Thread error"};
 }
 
+static AppStateVar on_event(const state::Sleeping&, const event::Resume&) {
+	return state::Resizing{};  // Route through on_enter(Resizing) for full redraw
+}
+
 // Catch-all: unhandled (state, event) pairs preserve current state
 static AppStateVar on_event(const auto& s, const auto&) {
 	return s;  // Return copy of current state variant
