@@ -18,12 +18,16 @@ tab-size = 4
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <type_traits>
 #include <variant>
+
+#include "btop_state.hpp"
 
 namespace event {
 	struct TimerTick   {};                  // Main loop timer expired (Phase 12)
@@ -33,6 +37,22 @@ namespace event {
 	struct Resume      {};                  // SIGCONT
 	struct Reload      {};                  // SIGUSR2
 	struct ThreadError {};                  // Runner thread exception
+
+	struct KeyInput {                       // Keyboard/mouse input (Phase 12)
+		std::array<char, 32> key_data{};
+		std::uint8_t key_len{0};
+
+		KeyInput() noexcept = default;
+
+		explicit KeyInput(std::string_view k) noexcept
+			: key_len(static_cast<std::uint8_t>(std::min(k.size(), std::size_t{31}))) {
+			std::copy_n(k.data(), key_len, key_data.data());
+		}
+
+		std::string_view key() const noexcept {
+			return {key_data.data(), key_len};
+		}
+	};
 }
 
 using AppEvent = std::variant<
@@ -42,11 +62,42 @@ using AppEvent = std::variant<
 	event::Sleep,
 	event::Resume,
 	event::Reload,
-	event::ThreadError
+	event::ThreadError,
+	event::KeyInput
 >;
 
 static_assert(std::is_trivially_copyable_v<AppEvent>,
 	"AppEvent must be trivially copyable for signal-safe queue operations");
+
+namespace state_tag {
+	struct Running {};
+	struct Resizing {};
+	struct Reloading {};
+	struct Sleeping {};
+	struct Quitting {};
+	struct Error {};
+}
+
+/// Convert runtime AppState enum to compile-time state_tag dispatch.
+/// Enables typed overload resolution for on_event(state_tag, event, current).
+template<typename Visitor>
+decltype(auto) dispatch_state(Global::AppState s, Visitor&& vis) {
+	using Global::AppState;
+	switch (s) {
+		case AppState::Running:   return std::forward<Visitor>(vis)(state_tag::Running{});
+		case AppState::Resizing:  return std::forward<Visitor>(vis)(state_tag::Resizing{});
+		case AppState::Reloading: return std::forward<Visitor>(vis)(state_tag::Reloading{});
+		case AppState::Sleeping:  return std::forward<Visitor>(vis)(state_tag::Sleeping{});
+		case AppState::Quitting:  return std::forward<Visitor>(vis)(state_tag::Quitting{});
+		case AppState::Error:     return std::forward<Visitor>(vis)(state_tag::Error{});
+	}
+	__builtin_unreachable();
+}
+
+/// Dispatch a single event against current state.
+/// Calls dispatch_state() + std::visit() to route to on_event() overloads.
+/// Defined in btop.cpp where on_event overloads are visible.
+Global::AppState dispatch_event(Global::AppState current, const AppEvent& ev);
 
 /// Lock-free SPSC ring buffer, safe for use in signal handlers (push side).
 /// Producer: signal handler context (async-signal-safe push).

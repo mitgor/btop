@@ -56,8 +56,8 @@ TEST(EventType, VariantHoldsThreadError) {
 	EXPECT_TRUE(std::holds_alternative<event::ThreadError>(ev));
 }
 
-TEST(EventType, HasExactlySevenTypes) {
-	EXPECT_EQ(std::variant_size_v<AppEvent>, 7u);
+TEST(EventType, HasExactlyEightTypes) {
+	EXPECT_EQ(std::variant_size_v<AppEvent>, 8u);
 }
 
 TEST(EventType, IsTriviallyCopyable) {
@@ -108,6 +108,55 @@ TEST(EventType, ThreadErrorDefaultConstructible) {
 	event::ThreadError e{};
 	(void)e;
 	SUCCEED();
+}
+
+TEST(EventType, VariantHoldsKeyInput) {
+	AppEvent ev = event::KeyInput{"test"};
+	EXPECT_TRUE(std::holds_alternative<event::KeyInput>(ev));
+}
+
+TEST(EventType, KeyInputKey) {
+	event::KeyInput ki{"hello"};
+	EXPECT_EQ(ki.key(), "hello");
+}
+
+TEST(EventType, KeyInputDefaultEmpty) {
+	event::KeyInput ki{};
+	EXPECT_EQ(ki.key(), "");
+	EXPECT_EQ(ki.key_len, 0);
+}
+
+TEST(EventType, KeyInputTruncatesLongKey) {
+	std::string long_key(50, 'x');
+	event::KeyInput ki{long_key};
+	EXPECT_EQ(ki.key_len, 31);
+	EXPECT_EQ(ki.key().size(), 31u);
+}
+
+TEST(EventType, KeyInputMouseSequence) {
+	event::KeyInput ki{"[<0;123;456M"};
+	EXPECT_EQ(ki.key(), "[<0;123;456M");
+}
+
+TEST(DispatchState, AllSixStatesDispatch) {
+	using Global::AppState;
+	auto check = [](AppState s) -> int {
+		return dispatch_state(s, [](auto tag) -> int {
+			if constexpr (std::is_same_v<decltype(tag), state_tag::Running>)   return 0;
+			if constexpr (std::is_same_v<decltype(tag), state_tag::Resizing>)  return 1;
+			if constexpr (std::is_same_v<decltype(tag), state_tag::Reloading>) return 2;
+			if constexpr (std::is_same_v<decltype(tag), state_tag::Sleeping>)  return 3;
+			if constexpr (std::is_same_v<decltype(tag), state_tag::Quitting>)  return 4;
+			if constexpr (std::is_same_v<decltype(tag), state_tag::Error>)     return 5;
+			return -1;
+		});
+	};
+	EXPECT_EQ(check(AppState::Running), 0);
+	EXPECT_EQ(check(AppState::Resizing), 1);
+	EXPECT_EQ(check(AppState::Reloading), 2);
+	EXPECT_EQ(check(AppState::Sleeping), 3);
+	EXPECT_EQ(check(AppState::Quitting), 4);
+	EXPECT_EQ(check(AppState::Error), 5);
 }
 
 // --- EventQueue tests ---
