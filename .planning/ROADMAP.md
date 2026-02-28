@@ -57,7 +57,9 @@ Full details: `milestones/v1.0-ROADMAP.md`
   2. A lock-free event queue exists for signal handler to main loop communication (signal-safe push, main-thread pop)
   3. All signal handlers (SIGWINCH, SIGINT, SIGTSTP, SIGCONT, etc.) push events into the queue instead of setting atomic flags
   4. btop responds to all signals identically to before (resize, suspend/resume, quit all work the same)
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 11-01-PLAN.md — Event types (std::variant) + lock-free SPSC EventQueue + unit tests
+- [ ] 11-02-PLAN.md — Signal handler migration + main loop event drain
 
 ### Phase 12: Extract Transitions
 **Goal**: State transition logic is explicit, typed, and the main loop is event-driven
@@ -114,7 +116,7 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Name States | 2/2 | Complete    | 2026-02-28 | - |
-| 11. Event Queue | v1.1 | 0/TBD | Not started | - |
+| 11. Event Queue | v1.1 | 0/2 | Planned | - |
 | 12. Extract Transitions | v1.1 | 0/TBD | Not started | - |
 | 13. Type-Safe States | v1.1 | 0/TBD | Not started | - |
 | 14. Runner FSM | v1.1 | 0/TBD | Not started | - |
