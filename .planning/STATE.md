@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Evolve btop's architecture toward explicit, testable state machines that eliminate invalid state combinations while preserving every aspect of the user experience.
-**Current focus:** Phase 10 - Name States (first phase of v1.1 Automata Architecture)
+**Current focus:** Phase 11 - Event Queue (second phase of v1.1 Automata Architecture) -- COMPLETE
 
 ## Current Position
 
-Phase: 10 of 15 (Name States) — first of 6 phases in v1.1 -- COMPLETE
+Phase: 11 of 15 (Event Queue) -- COMPLETE
 Plan: 2 of 2 (all complete)
 Status: Phase Complete
-Last activity: 2026-02-28 — Completed 10-02 flag migration to AppState enum
+Last activity: 2026-02-28 -- Completed 11-02 signal handler migration to event queue
 
-Progress: [██████████] 100% (2/2 plans in phase 10)
+Progress: [██████████] 100% (2/2 plans in phase 11)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
+- Total plans completed: 4
 - Average duration: 3.5min
-- Total execution time: 0.12 hours
+- Total execution time: 0.24 hours
 
 **By Phase:**
 
@@ -42,6 +42,8 @@ Progress: [██████████] 100% (2/2 plans in phase 10)
 |-------|-------|-------|----------|
 | 10-name-states P01 | 1 tasks | 2min | 2min |
 | 10-name-states P02 | 2 tasks | 5min | 5min |
+| 11-event-queue P01 | 1 tasks | 4min | 4min |
+| 11-event-queue P02 | 2 tasks | 4min | 4min |
 
 ## Accumulated Context
 
@@ -59,6 +61,13 @@ Recent decisions affecting current work:
 - [Phase 10-name-states]: init_conf and _runner_started remain as atomic<bool> (lock and lifecycle marker, not app states)
 - [Phase 10-name-states]: compare_exchange_strong used for safe state clearing back to Running
 - [Phase 10-name-states]: Error state stores use memory_order_release paired with acquire in main loop
+- [Phase 11-event-queue]: Power-of-2 capacity enforced via C++20 requires clause for bitwise modulo
+- [Phase 11-event-queue]: Cache-line aligned (alignas(64)) head/tail to prevent false sharing
+- [Phase 11-event-queue]: TimerTick and ThreadError included in variant for Phase 12 forward compatibility
+- [Phase 11-event-queue]: Tests use local EventQueue instances -- no dependency on btop.cpp globals
+- [Phase 11-event-queue]: Input::interrupt() called in signal handler (not in push) to keep queue generic
+- [Phase 11-event-queue]: SIGUSR1 remains no-op pass-through (pselect interrupt, no event needed)
+- [Phase 11-event-queue]: Early exit on Quitting/Error in drain loop preserves priority semantics
 
 ### Pending Todos
 
@@ -71,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 10-02-PLAN.md (flag migration to AppState enum) -- Phase 10 complete
+Stopped at: Completed 11-02-PLAN.md (signal handler migration to event queue) -- Phase 11 complete
 Resume file: None
