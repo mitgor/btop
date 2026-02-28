@@ -84,9 +84,10 @@ Full details: `milestones/v1.0-ROADMAP.md`
   2. Each state carries its own data (Running holds timing info, Quitting holds exit code, Error holds message)
   3. Being in two states simultaneously is impossible (variant holds exactly one alternative)
   4. Entry/exit actions fire on state transitions (e.g., calcSizes on entering Resizing, timer reset on entering Running)
-**Plans**: 2 plans
+**Plans**: 3 plans
 - [ ] 13-01-PLAN.md -- State structs + variant type definitions + cross-thread rename + tests
 - [ ] 13-02-PLAN.md -- on_event migration + entry/exit actions + main loop + dispatch cleanup
+- [ ] 13-03-PLAN.md -- Gap closure: fix Ctrl+C hang and resume-no-redraw bugs
 
 ### Phase 14: Runner FSM
 **Goal**: Runner thread has its own independent state machine replacing atomic flag coordination
@@ -122,6 +123,6 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | 10. Name States | 2/2 | Complete    | 2026-02-28 | - |
 | 11. Event Queue | 2/2 | Complete    | 2026-02-28 | - |
 | 12. Extract Transitions | 2/2 | Complete    | 2026-02-28 | - |
-| 13. Type-Safe States | 2/2 | Complete    | 2026-02-28 | - |
+| 13. Type-Safe States | 2/3 | Gap closure    | 2026-02-28 | - |
 | 14. Runner FSM | v1.1 | 0/TBD | Not started | - |
 | 15. Verification | v1.1 | 0/TBD | Not started | - |
