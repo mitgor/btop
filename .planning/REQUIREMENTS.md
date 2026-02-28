@@ -17,7 +17,7 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 ### Event System
 
 - [ ] **EVENT-01**: Events defined as std::variant of typed event structs (TimerTick, KeyInput, Resize, Signal, etc.)
-- [ ] **EVENT-02**: Lock-free event queue for signal handler → main loop communication
+- [ ] **EVENT-02**: Lock-free event queue for signal handler -> main loop communication
 - [ ] **EVENT-03**: Signal handlers push events instead of mutating global atomic flags
 - [ ] **EVENT-04**: Main loop consumes events from queue and dispatches to transition functions
 
@@ -32,7 +32,7 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 - [ ] **RUNNER-01**: Runner thread states defined as std::variant (Idle, Collecting, Drawing, Stopping)
 - [ ] **RUNNER-02**: Runner atomic<bool> flags (active, stopping, waiting, redraw) replaced by FSM states
-- [ ] **RUNNER-03**: Main thread → runner communication via typed events, not flag mutation
+- [ ] **RUNNER-03**: Main thread -> runner communication via typed events, not flag mutation
 - [ ] **RUNNER-04**: Binary semaphore wake-up pattern preserved for performance
 
 ### Verification
@@ -53,7 +53,7 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 ### Input FSM (v1.2)
 
-- **INPUT-01**: Input filtering state machine (Normal ↔ Filtering ↔ SignalSelection)
+- **INPUT-01**: Input filtering state machine (Normal <-> Filtering <-> SignalSelection)
 - **INPUT-02**: Input mode transitions explicit and testable
 
 ## Out of Scope
@@ -61,8 +61,8 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 | Feature | Reason |
 |---------|--------|
 | External FSM libraries (Boost.SML) | std::variant is sufficient, no new dependencies policy |
-| Menu system refactor | Working and complex — defer to v1.2 |
-| Input state machine refactor | Lower priority — defer to v1.2 |
+| Menu system refactor | Working and complex -- defer to v1.2 |
+| Input state machine refactor | Lower priority -- defer to v1.2 |
 | UI/UX changes | Architecture-only milestone |
 | Config system FSM | Config lock pattern is simple enough as-is |
 
@@ -70,33 +70,33 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATE-01 | — | Pending |
-| STATE-02 | — | Pending |
-| STATE-03 | — | Pending |
-| STATE-04 | — | Pending |
-| EVENT-01 | — | Pending |
-| EVENT-02 | — | Pending |
-| EVENT-03 | — | Pending |
-| EVENT-04 | — | Pending |
-| TRANS-01 | — | Pending |
-| TRANS-02 | — | Pending |
-| TRANS-03 | — | Pending |
-| TRANS-04 | — | Pending |
-| RUNNER-01 | — | Pending |
-| RUNNER-02 | — | Pending |
-| RUNNER-03 | — | Pending |
-| RUNNER-04 | — | Pending |
-| VERIFY-01 | — | Pending |
-| VERIFY-02 | — | Pending |
-| VERIFY-03 | — | Pending |
-| VERIFY-04 | — | Pending |
-| VERIFY-05 | — | Pending |
+| STATE-01 | Phase 10 | Pending |
+| STATE-02 | Phase 13 | Pending |
+| STATE-03 | Phase 13 | Pending |
+| STATE-04 | Phase 10 | Pending |
+| EVENT-01 | Phase 11 | Pending |
+| EVENT-02 | Phase 11 | Pending |
+| EVENT-03 | Phase 11 | Pending |
+| EVENT-04 | Phase 12 | Pending |
+| TRANS-01 | Phase 12 | Pending |
+| TRANS-02 | Phase 12 | Pending |
+| TRANS-03 | Phase 13 | Pending |
+| TRANS-04 | Phase 12 | Pending |
+| RUNNER-01 | Phase 14 | Pending |
+| RUNNER-02 | Phase 14 | Pending |
+| RUNNER-03 | Phase 14 | Pending |
+| RUNNER-04 | Phase 14 | Pending |
+| VERIFY-01 | Phase 15 | Pending |
+| VERIFY-02 | Phase 15 | Pending |
+| VERIFY-03 | Phase 15 | Pending |
+| VERIFY-04 | Phase 15 | Pending |
+| VERIFY-05 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-02-28 after initial definition*
+*Last updated: 2026-02-28 after roadmap creation*
