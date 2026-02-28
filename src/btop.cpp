@@ -292,45 +292,8 @@ static void _crash_handler(const int sig) {
 	std::raise(sig);
 }
 
-//* Event processors — translate signal events to state changes and actions.
-//* Called from the main thread (safe to call any function).
-static void process_signal_event(const event::Quit& e) {
-	if (Runner::active) {
-		Global::app_state.store(AppState::Quitting);
-		Runner::stopping = true;
-	} else {
-		clean_quit(e.exit_code);
-	}
-}
-
-static void process_signal_event(const event::Sleep&) {
-	if (Runner::active) {
-		Global::app_state.store(AppState::Sleeping);
-		Runner::stopping = true;
-	} else {
-		_sleep();
-	}
-}
-
-static void process_signal_event(const event::Resume&) {
-	_resume();
-}
-
-static void process_signal_event(const event::Resize&) {
-	term_resize();
-}
-
-static void process_signal_event(const event::Reload&) {
-	Global::app_state.store(AppState::Reloading);
-}
-
-// No-ops for event types not used in Phase 11 (included in variant for Phase 12):
-static void process_signal_event(const event::TimerTick&) {}
-static void process_signal_event(const event::ThreadError&) {}
-static void process_signal_event(const event::KeyInput&) {}
-
 //* Typed transition functions — on_event(state_tag, event, current) -> next AppState.
-//* Phase 12: coexist with process_signal_event; Plan 02 wires these into the main loop.
+//* Phase 12: typed transition functions dispatched via dispatch_event() in the main loop.
 
 static AppState on_event(state_tag::Running, const event::Quit& e, AppState) {
 	if (Runner::active) {
@@ -351,7 +314,7 @@ static AppState on_event(state_tag::Running, const event::Sleep&, AppState) {
 }
 
 static AppState on_event(state_tag::Running, const event::Resume&, AppState) {
-	return AppState::Running;  // resume is handled by process_accumulated_state
+	return AppState::Running;  // resume action handled by main loop drain
 }
 
 static AppState on_event(state_tag::Running, const event::Resize&, AppState) {
@@ -390,8 +353,9 @@ AppState dispatch_event(AppState current, const AppEvent& ev) {
 	});
 }
 
+
 //* Signal handler — pushes events into lock-free queue (async-signal-safe).
-//* All complex processing happens in process_signal_event on the main thread.
+//* All complex processing happens via dispatch_event() on the main thread.
 static void _signal_handler(const int sig) {
 	switch (sig) {
 		case SIGINT:
@@ -978,6 +942,46 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 }
 
 
+/// Process accumulated state -- executes multi-step actions for non-Running states.
+/// Called after event dispatch to handle Reloading, Resizing, Sleeping, Error, Quitting.
+/// Returns the resulting AppState after processing.
+static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
+	if (state == AppState::Error) {
+		clean_quit(1);
+		return state;  // unreachable
+	}
+	if (state == AppState::Quitting) {
+		clean_quit(0);
+		return state;  // unreachable
+	}
+	if (state == AppState::Sleeping) {
+		_sleep();
+		return AppState::Running;
+	}
+	if (state == AppState::Reloading) {
+		if (Runner::active) Runner::stop();
+		Config::unlock();
+		init_config(cli.low_color, cli.filter);
+		Theme::updateThemes();
+		Theme::setTheme();
+		Draw::update_reset_colors();
+		Draw::banner_gen(0, 0, false, true);
+		// Chain to Resizing (reload requires re-layout)
+		state = AppState::Resizing;
+	}
+	if (state == AppState::Resizing) {
+		term_resize(true);
+		Draw::calcSizes();
+		Runner::screen_buffer.resize(Term::width, Term::height);
+		Draw::update_clock(true);
+		if (Menu::active) Menu::process();
+		else Runner::run("all", true, true);
+		atomic_wait_for(Runner::active, true, 1000);
+		return AppState::Running;
+	}
+	return state;
+}
+
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
 [[nodiscard]] auto btop_main(const std::span<const std::string_view> args) -> int {
 
@@ -1396,68 +1400,44 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 
 	try {
 		while (not true not_eq not false) {
-			//? Drain signal events from the queue (pushed by signal handlers)
+			auto state = Global::app_state.load(std::memory_order_acquire);
+
+			//? 1. Drain signal events from queue via typed dispatch
 			while (auto ev = Global::event_queue.try_pop()) {
-				std::visit([](const auto& e) { process_signal_event(e); }, *ev);
-				// Early exit on terminal states to preserve priority semantics
-				auto s = Global::app_state.load(std::memory_order_acquire);
-				if (s == AppState::Quitting or s == AppState::Error) break;
+				//? Resume requires terminal re-init before state transition
+				if (std::holds_alternative<event::Resume>(*ev)) {
+					_resume();
+				}
+				state = dispatch_event(state, *ev);
+				Global::app_state.store(state, std::memory_order_release);
+				if (state == AppState::Quitting or state == AppState::Error) break;
 			}
 
-			//? Check app state for priority-ordered actions
-			const auto state = Global::app_state.load(std::memory_order_acquire);
-			if (state == AppState::Error) {
-				clean_quit(1);
-			}
-			else if (state == AppState::Quitting) {
-				clean_quit(0);
-			}
-			else if (state == AppState::Sleeping) {
-				auto expected = AppState::Sleeping;
-				Global::app_state.compare_exchange_strong(expected, AppState::Running);
-				_sleep();
-			}
-			//? Hot reload config from CTRL + R or SIGUSR2
-			else if (state == AppState::Reloading) {
-				if (Runner::active) Runner::stop();
-				Config::unlock();
-				init_config(cli.low_color, cli.filter);
-				Theme::updateThemes();
-				Theme::setTheme();
-				Draw::update_reset_colors();
-				Draw::banner_gen(0, 0, false, true);
-				Global::app_state.store(AppState::Resizing);
+			//? 2. Process accumulated state (multi-step actions for Reloading/Resizing/Sleeping/Error/Quitting)
+			state = process_accumulated_state(state, cli);
+			Global::app_state.store(state, std::memory_order_release);
+
+			//? 3. Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
+			term_resize();
+			if (Global::app_state.load(std::memory_order_acquire) == AppState::Resizing) {
+				state = process_accumulated_state(AppState::Resizing, cli);
+				Global::app_state.store(state, std::memory_order_release);
 			}
 
-			//? Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
-			term_resize(state == AppState::Resizing);
-
-			//? Trigger secondary thread to redraw if terminal has been resized
-			if (state == AppState::Resizing or Global::app_state.load() == AppState::Resizing) {
-				Draw::calcSizes();
-				Runner::screen_buffer.resize(Term::width, Term::height);
-				Draw::update_clock(true);
-				auto expected = AppState::Resizing;
-				Global::app_state.compare_exchange_strong(expected, AppState::Running);
-				if (Menu::active) Menu::process();
-				else Runner::run("all", true, true);
-				atomic_wait_for(Runner::active, true, 1000);
-			}
-
-			//? Update clock if needed
-			if (Draw::update_clock() and not Menu::active) {
+			//? 4. Update clock if needed
+			if (state == AppState::Running and Draw::update_clock() and not Menu::active) {
 				Runner::run("clock");
 			}
 
-			//? Start secondary collect & draw thread at the interval set by <update_ms> config value
-			if (time_ms() >= future_time and Global::app_state.load() != AppState::Resizing) {
+			//? 5. Timer tick — start secondary collect & draw thread at the interval set by <update_ms> config value
+			if (time_ms() >= future_time and state == AppState::Running) {
 				Runner::run("all");
 				update_ms = Config::getI(IntKey::update_ms);
 				future_time = time_ms() + update_ms;
 			}
 
-			//? Loop over input polling and input action processing
-			for (auto current_time = time_ms(); current_time < future_time; current_time = time_ms()) {
+			//? 6. Input polling — loop over input polling and input action processing
+			for (auto current_time = time_ms(); current_time < future_time and state == AppState::Running; current_time = time_ms()) {
 
 				//? Check for external clock changes and for changes to the update timer
 				if (std::cmp_not_equal(update_ms, Config::getI(IntKey::update_ms))) {
@@ -1467,17 +1447,18 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 				else if (future_time - current_time > update_ms) {
 					future_time = current_time;
 				}
-				//? Poll for input and process any input detected
+				//? Poll for input and dispatch via on_event
 				else if (Input::poll(min((uint64_t)1000, future_time - current_time))) {
 					if (not Runner::active) Config::unlock();
-
-					if (Menu::active) Menu::process(Input::get());
-					else Input::process(Input::get());
+					auto key = Input::get();
+					if (not key.empty()) {
+						if (Menu::active) Menu::process(key);
+						else Input::process(key);
+					}
 				}
 
 				//? Break the loop at 1000ms intervals or if input polling was interrupted
 				else break;
-
 			}
 
 		}
