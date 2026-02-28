@@ -69,35 +69,9 @@ using AppEvent = std::variant<
 static_assert(std::is_trivially_copyable_v<AppEvent>,
 	"AppEvent must be trivially copyable for signal-safe queue operations");
 
-namespace state_tag {
-	struct Running {};
-	struct Resizing {};
-	struct Reloading {};
-	struct Sleeping {};
-	struct Quitting {};
-	struct Error {};
-}
-
-/// Convert runtime AppState enum to compile-time state_tag dispatch.
-/// Enables typed overload resolution for on_event(state_tag, event, current).
-template<typename Visitor>
-decltype(auto) dispatch_state(Global::AppStateTag s, Visitor&& vis) {
-	using Global::AppStateTag;
-	switch (s) {
-		case AppStateTag::Running:   return std::forward<Visitor>(vis)(state_tag::Running{});
-		case AppStateTag::Resizing:  return std::forward<Visitor>(vis)(state_tag::Resizing{});
-		case AppStateTag::Reloading: return std::forward<Visitor>(vis)(state_tag::Reloading{});
-		case AppStateTag::Sleeping:  return std::forward<Visitor>(vis)(state_tag::Sleeping{});
-		case AppStateTag::Quitting:  return std::forward<Visitor>(vis)(state_tag::Quitting{});
-		case AppStateTag::Error:     return std::forward<Visitor>(vis)(state_tag::Error{});
-	}
-	__builtin_unreachable();
-}
-
-/// Dispatch a single event against current state.
-/// Calls dispatch_state() + std::visit() to route to on_event() overloads.
+/// Dispatch a single event against current state via two-variant visit.
 /// Defined in btop.cpp where on_event overloads are visible.
-Global::AppStateTag dispatch_event(Global::AppStateTag current, const AppEvent& ev);
+AppStateVar dispatch_event(const AppStateVar& current, const AppEvent& ev);
 
 /// Lock-free SPSC ring buffer, safe for use in signal handlers (push side).
 /// Producer: signal handler context (async-signal-safe push).

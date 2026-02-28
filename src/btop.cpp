@@ -292,65 +292,57 @@ static void _crash_handler(const int sig) {
 	std::raise(sig);
 }
 
-//* Typed transition functions — on_event(state_tag, event, current) -> next AppStateTag.
-//* Phase 12: typed transition functions dispatched via dispatch_event() in the main loop.
+//* Typed transition functions — on_event(state, event) -> next AppStateVar.
+//* Phase 13: state structs with per-state data, entry/exit actions in transition_to.
 
-static AppStateTag on_event(state_tag::Running, const event::Quit& e, AppStateTag) {
-	if (Runner::active) {
-		Runner::stopping = true;
-		return AppStateTag::Quitting;
-	}
-	clean_quit(e.exit_code);
-	return AppStateTag::Quitting;  // unreachable after clean_quit
+static AppStateVar on_event(const state::Running&, const event::Quit& e) {
+	return state::Quitting{e.exit_code};
+	// Runner::stopping moved to on_exit(Running, Quitting)
+	// clean_quit moved to on_enter(Quitting)
 }
 
-static AppStateTag on_event(state_tag::Running, const event::Sleep&, AppStateTag) {
-	if (Runner::active) {
-		Runner::stopping = true;
-		return AppStateTag::Sleeping;
-	}
-	// If runner not active, sleep is handled by process_accumulated_state
-	return AppStateTag::Sleeping;
+static AppStateVar on_event(const state::Running&, const event::Sleep&) {
+	return state::Sleeping{};
+	// Runner::stopping moved to on_exit(Running, Sleeping)
 }
 
-static AppStateTag on_event(state_tag::Running, const event::Resume&, AppStateTag) {
-	return AppStateTag::Running;  // resume action handled by main loop drain
+static AppStateVar on_event(const state::Running& s, const event::Resume&) {
+	return s;  // Stay in Running; _resume() called in drain loop before dispatch
 }
 
-static AppStateTag on_event(state_tag::Running, const event::Resize&, AppStateTag) {
-	return AppStateTag::Resizing;
+static AppStateVar on_event(const state::Running&, const event::Resize&) {
+	return state::Resizing{};
 }
 
-static AppStateTag on_event(state_tag::Running, const event::Reload&, AppStateTag) {
-	return AppStateTag::Reloading;
+static AppStateVar on_event(const state::Running&, const event::Reload&) {
+	return state::Reloading{};
 }
 
-static AppStateTag on_event(state_tag::Running, const event::TimerTick&, AppStateTag) {
-	return AppStateTag::Running;  // timer action handled by main loop
+static AppStateVar on_event(const state::Running& s, const event::TimerTick&) {
+	return s;  // Timer action handled by main loop
 }
 
-static AppStateTag on_event(state_tag::Running, const event::KeyInput&, AppStateTag) {
-	return AppStateTag::Running;  // input action handled by main loop
+static AppStateVar on_event(const state::Running& s, const event::KeyInput&) {
+	return s;  // Input action handled by main loop
 }
 
-static AppStateTag on_event(state_tag::Running, const event::ThreadError&, AppStateTag) {
-	return AppStateTag::Error;
+static AppStateVar on_event(const state::Running&, const event::ThreadError&) {
+	return state::Error{"Thread error"};
 }
 
-// Catch-all: unhandled (state, event) pairs preserve current state (no-op).
-// This covers: Quitting ignoring all non-ThreadError events, Error ignoring everything,
-// Resizing/Reloading/Sleeping ignoring signal events (handled by process_accumulated_state).
-static AppStateTag on_event(const auto&, const auto&, AppStateTag current) {
-	return current;
+// Catch-all: unhandled (state, event) pairs preserve current state
+static AppStateVar on_event(const auto& s, const auto&) {
+	return s;  // Return copy of current state variant
 }
 
-/// Dispatch a single event against current state via state_tag + std::visit.
-AppStateTag dispatch_event(AppStateTag current, const AppEvent& ev) {
-	return dispatch_state(current, [&](auto tag) {
-		return std::visit([&](const auto& event) {
-			return on_event(tag, event, current);
-		}, ev);
-	});
+/// Dispatch a single event against current state via two-variant visit.
+AppStateVar dispatch_event(const AppStateVar& current, const AppEvent& ev) {
+	return std::visit(
+		[](const auto& state, const auto& event) -> AppStateVar {
+			return on_event(state, event);
+		},
+		current, ev
+	);
 }
 
 
@@ -942,44 +934,88 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 }
 
 
-/// Process accumulated state -- executes multi-step actions for non-Running states.
-/// Called after event dispatch to handle Reloading, Resizing, Sleeping, Error, Quitting.
-/// Returns the resulting AppStateTag after processing.
-static AppStateTag process_accumulated_state(AppStateTag state, Cli::Cli& cli) {
-	if (state == AppStateTag::Error) {
-		clean_quit(1);
-		return state;  // unreachable
+//* Exit actions — called when LEAVING a state for a new state.
+
+static void on_exit(const state::Running&, const state::Quitting&) {
+	if (Runner::active) Runner::stopping = true;
+}
+
+static void on_exit(const state::Running&, const state::Sleeping&) {
+	if (Runner::active) Runner::stopping = true;
+}
+
+static void on_exit(const auto&, const auto&) {
+	// Default: no exit action
+}
+
+/// Context for entry/exit actions (avoids passing many parameters)
+struct TransitionCtx {
+	Cli::Cli& cli;
+};
+
+//* Entry actions — called when ENTERING a state.
+
+static void on_enter(state::Resizing&, TransitionCtx&) {
+	term_resize(true);
+	Draw::calcSizes();
+	Runner::screen_buffer.resize(Term::width, Term::height);
+	Draw::update_clock(true);
+	if (Menu::active) Menu::process();
+	else Runner::run("all", true, true);
+	atomic_wait_for(Runner::active, true, 1000);
+}
+
+static void on_enter(state::Reloading&, TransitionCtx& ctx) {
+	if (Runner::active) Runner::stop();
+	Config::unlock();
+	init_config(ctx.cli.low_color, ctx.cli.filter);
+	Theme::updateThemes();
+	Theme::setTheme();
+	Draw::update_reset_colors();
+	Draw::banner_gen(0, 0, false, true);
+}
+
+static void on_enter(state::Sleeping&, TransitionCtx&) {
+	_sleep();
+}
+
+static void on_enter(state::Quitting& q, TransitionCtx&) {
+	clean_quit(q.exit_code);
+}
+
+static void on_enter(state::Error& e, TransitionCtx&) {
+	Global::exit_error_msg = std::move(e.message);
+	clean_quit(1);
+}
+
+static void on_enter(state::Running&, TransitionCtx&) {
+	// Timer values are set during state construction, no action needed
+}
+
+/// Execute a state transition with entry/exit actions.
+/// Updates both the variant state and the shadow atomic enum.
+static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx& ctx) {
+	if (to_tag(current) == to_tag(next)) {
+		// Same state type — update data, no entry/exit actions
+		current = std::move(next);
+		return;
 	}
-	if (state == AppStateTag::Quitting) {
-		clean_quit(0);
-		return state;  // unreachable
-	}
-	if (state == AppStateTag::Sleeping) {
-		_sleep();
-		return AppStateTag::Running;
-	}
-	if (state == AppStateTag::Reloading) {
-		if (Runner::active) Runner::stop();
-		Config::unlock();
-		init_config(cli.low_color, cli.filter);
-		Theme::updateThemes();
-		Theme::setTheme();
-		Draw::update_reset_colors();
-		Draw::banner_gen(0, 0, false, true);
-		// Chain to Resizing (reload requires re-layout)
-		state = AppStateTag::Resizing;
-	}
-	if (state == AppStateTag::Resizing) {
-		term_resize(true);
-		Draw::calcSizes();
-		Runner::screen_buffer.resize(Term::width, Term::height);
-		Draw::update_clock(true);
-		if (Menu::active) Menu::process();
-		else Runner::run("all", true, true);
-		atomic_wait_for(Runner::active, true, 1000);
-		return AppStateTag::Running;
-	}
-	return state;
+
+	// Exit action: dispatch on (old_state, new_state)
+	std::visit([](const auto& old_st, const auto& new_st) {
+		on_exit(old_st, new_st);
+	}, current, next);
+
+	// Update shadow enum for cross-thread readers
+	Global::app_state.store(to_tag(next), std::memory_order_release);
+
+	// Move new state into current
+	current = std::move(next);
+
+	// Entry action: dispatch on new state
+	std::visit([&ctx](auto& new_st) {
+		on_enter(new_st, ctx);
+	}, current);
 }
 
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
@@ -1395,72 +1431,94 @@ static AppStateTag process_accumulated_state(AppStateTag state, Cli::Cli& cli) {
 	if (cli.updates.has_value()) {
 		Config::set(IntKey::update_ms, static_cast<int>(cli.updates.value()));
 	}
-	uint64_t update_ms = Config::getI(IntKey::update_ms);
-	auto future_time = time_ms();
+
+	TransitionCtx ctx{cli};
+
+	AppStateVar app_var = state::Running{
+		static_cast<uint64_t>(Config::getI(IntKey::update_ms)),
+		time_ms()
+	};
 
 	try {
 		while (not true not_eq not false) {
-			auto state = Global::app_state.load(std::memory_order_acquire);
-
 			//? 1. Drain signal events from queue via typed dispatch
 			while (auto ev = Global::event_queue.try_pop()) {
 				//? Resume requires terminal re-init before state transition
 				if (std::holds_alternative<event::Resume>(*ev)) {
 					_resume();
 				}
-				state = dispatch_event(state, *ev);
-				Global::app_state.store(state, std::memory_order_release);
-				if (state == AppStateTag::Quitting or state == AppStateTag::Error) break;
+				auto next = dispatch_event(app_var, *ev);
+				transition_to(app_var, std::move(next), ctx);
+				auto tag = to_tag(app_var);
+				if (tag == AppStateTag::Quitting or tag == AppStateTag::Error) break;
 			}
 
-			//? 2. Process accumulated state (multi-step actions for Reloading/Resizing/Sleeping/Error/Quitting)
-			state = process_accumulated_state(state, cli);
-			Global::app_state.store(state, std::memory_order_release);
+			//? 2. Handle state chains: Reloading -> Resizing -> Running
+			if (std::holds_alternative<state::Reloading>(app_var)) {
+				// Reloading entry action already ran; chain to Resizing
+				transition_to(app_var, state::Resizing{}, ctx);
+			}
+			if (std::holds_alternative<state::Resizing>(app_var)) {
+				// Resizing entry action already ran; return to Running with fresh timer
+				transition_to(app_var, state::Running{
+					static_cast<uint64_t>(Config::getI(IntKey::update_ms)),
+					time_ms()
+				}, ctx);
+			}
+			if (std::holds_alternative<state::Sleeping>(app_var)) {
+				// Sleeping entry action already ran (_sleep); return to Running
+				transition_to(app_var, state::Running{
+					static_cast<uint64_t>(Config::getI(IntKey::update_ms)),
+					time_ms()
+				}, ctx);
+			}
 
 			//? 3. Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
 			term_resize();
 			if (Global::app_state.load(std::memory_order_acquire) == AppStateTag::Resizing) {
-				state = process_accumulated_state(AppStateTag::Resizing, cli);
-				Global::app_state.store(state, std::memory_order_release);
+				transition_to(app_var, state::Resizing{}, ctx);
+				transition_to(app_var, state::Running{
+					static_cast<uint64_t>(Config::getI(IntKey::update_ms)),
+					time_ms()
+				}, ctx);
 			}
 
 			//? 4. Update clock if needed
-			if (state == AppStateTag::Running and Draw::update_clock() and not Menu::active) {
+			if (std::holds_alternative<state::Running>(app_var) and Draw::update_clock() and not Menu::active) {
 				Runner::run("clock");
 			}
 
-			//? 5. Timer tick — start secondary collect & draw thread at the interval set by <update_ms> config value
-			if (time_ms() >= future_time and state == AppStateTag::Running) {
+			//? 5. Timer tick — use state::Running data for timing
+			auto* running = std::get_if<state::Running>(&app_var);
+			if (running and time_ms() >= running->future_time) {
 				Runner::run("all");
-				update_ms = Config::getI(IntKey::update_ms);
-				future_time = time_ms() + update_ms;
+				running->update_ms = Config::getI(IntKey::update_ms);
+				running->future_time = time_ms() + running->update_ms;
 			}
 
-			//? 6. Input polling — loop over input polling and input action processing
-			for (auto current_time = time_ms(); current_time < future_time and state == AppStateTag::Running; current_time = time_ms()) {
-
-				//? Check for external clock changes and for changes to the update timer
-				if (std::cmp_not_equal(update_ms, Config::getI(IntKey::update_ms))) {
-					update_ms = Config::getI(IntKey::update_ms);
-					future_time = time_ms() + update_ms;
-				}
-				else if (future_time - current_time > update_ms) {
-					future_time = current_time;
-				}
-				//? Poll for input and dispatch via on_event
-				else if (Input::poll(min((uint64_t)1000, future_time - current_time))) {
-					if (not Runner::active) Config::unlock();
-					auto key = Input::get();
-					if (not key.empty()) {
-						if (Menu::active) Menu::process(key);
-						else Input::process(key);
+			//? 6. Input polling
+			if (running) {
+				for (auto current_time = time_ms(); current_time < running->future_time; current_time = time_ms()) {
+					//? Check for external clock changes and for changes to the update timer
+					if (std::cmp_not_equal(running->update_ms, Config::getI(IntKey::update_ms))) {
+						running->update_ms = Config::getI(IntKey::update_ms);
+						running->future_time = time_ms() + running->update_ms;
 					}
+					else if (running->future_time - current_time > running->update_ms) {
+						running->future_time = current_time;
+					}
+					//? Poll for input
+					else if (Input::poll(min((uint64_t)1000, running->future_time - current_time))) {
+						if (not Runner::active) Config::unlock();
+						auto key = Input::get();
+						if (not key.empty()) {
+							if (Menu::active) Menu::process(key);
+							else Input::process(key);
+						}
+					}
+					else break;
 				}
-
-				//? Break the loop at 1000ms intervals or if input polling was interrupted
-				else break;
 			}
-
 		}
 	}
 	catch (const std::exception& e) {
