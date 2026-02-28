@@ -121,6 +121,7 @@ namespace Global {
 	uint64_t start_time;
 
 	std::atomic<AppState> app_state{AppState::Running};
+	EventQueue<AppEvent, event_queue_capacity> event_queue;
 	atomic<bool> _runner_started (false);
 	atomic<bool> init_conf (false);
 }

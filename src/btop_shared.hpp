@@ -36,6 +36,8 @@ tab-size = 4
 
 #include <unistd.h>
 
+#include "btop_events.hpp"
+
 // From `man 3 getifaddrs`: <net/if.h> must be included before <ifaddrs.h>
 // clang-format off
 #include <net/if.h>
