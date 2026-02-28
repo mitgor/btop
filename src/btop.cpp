@@ -67,6 +67,7 @@ tab-size = 4
 #include "btop_log.hpp"
 #include "btop_menu.hpp"
 #include "btop_shared.hpp"
+#include "btop_state.hpp"
 #include "btop_theme.hpp"
 #include "btop_tools.hpp"
 
@@ -114,20 +115,17 @@ namespace Global {
 	fs::path self_path;
 
 	string exit_error_msg;
-	atomic<bool> thread_exception (false);
 
 	bool debug{};
 
 	uint64_t start_time;
 
-	atomic<bool> resized (false);
-	atomic<bool> quitting (false);
-	atomic<bool> should_quit (false);
-	atomic<bool> should_sleep (false);
+	std::atomic<AppState> app_state{AppState::Running};
 	atomic<bool> _runner_started (false);
 	atomic<bool> init_conf (false);
-	atomic<bool> reload_conf (false);
 }
+
+using Global::AppState;
 
 namespace Runner {
 	static pthread_t runner_id;
@@ -137,7 +135,7 @@ namespace Runner {
 void term_resize(bool force) {
 	static atomic<bool> resizing (false);
 	if (Input::polling) {
-		Global::resized = true;
+		Global::app_state.store(AppState::Resizing);
 		Input::interrupt();
 		return;
 	}
@@ -151,7 +149,7 @@ void term_resize(bool force) {
 #else
 	static const array<string, 5> all_boxes = {"", "cpu", "mem", "net", "proc"};
 #endif
-	Global::resized = true;
+	Global::app_state.store(AppState::Resizing);
 	if (Runner::active) Runner::stop();
 	Term::refresh();
 	Config::unlock();
@@ -214,8 +212,8 @@ void term_resize(bool force) {
 
 //* Exit handler; stops threads, restores terminal and saves config changes
 void clean_quit(int sig) {
-	if (Global::quitting) return;
-	Global::quitting = true;
+	if (Global::app_state.load() == AppState::Quitting) return;
+	Global::app_state.store(AppState::Quitting);
 	Runner::stop();
 	if (Global::_runner_started) {
 	#if defined __APPLE__ || defined __OpenBSD__ || defined __NetBSD__
@@ -297,7 +295,7 @@ static void _signal_handler(const int sig) {
 	switch (sig) {
 		case SIGINT:
 			if (Runner::active) {
-				Global::should_quit = true;
+				Global::app_state.store(AppState::Quitting);
 				Runner::stopping = true;
 				Input::interrupt();
 			}
@@ -307,7 +305,7 @@ static void _signal_handler(const int sig) {
 			break;
 		case SIGTSTP:
 			if (Runner::active) {
-				Global::should_sleep = true;
+				Global::app_state.store(AppState::Sleeping);
 				Runner::stopping = true;
 				Input::interrupt();
 			}
@@ -325,7 +323,7 @@ static void _signal_handler(const int sig) {
 			// Input::poll interrupt
 			break;
 		case SIGUSR2:
-			Global::reload_conf = true;
+			Global::app_state.store(AppState::Reloading);
 			Input::interrupt();
 			break;
 	}
@@ -478,16 +476,16 @@ namespace Runner {
 		std::lock_guard lock {mtx};
 
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
-		while (not Global::quitting) {
+		while (Global::app_state.load() != AppState::Quitting) {
 			thread_wait();
 			atomic_wait_for(active, true, 5000);
 			if (active) {
 				Global::exit_error_msg = "Runner thread failed to get active lock!";
-				Global::thread_exception = true;
+				Global::app_state.store(AppState::Error, std::memory_order_release);
 				Input::interrupt();
 				stopping = true;
 			}
-			if (stopping or Global::resized) {
+			if (stopping or Global::app_state.load() == AppState::Resizing) {
 				sleep_ms(1);
 				continue;
 			}
@@ -553,7 +551,7 @@ namespace Runner {
 						if (coreNum_reset) {
 							coreNum_reset = false;
 							Cpu::core_mapping = Cpu::get_core_mapping();
-							Global::resized = true;
+							Global::app_state.store(AppState::Resizing);
 							Input::interrupt();
 							continue;
 						}
@@ -659,7 +657,7 @@ namespace Runner {
 			}
 			catch (const std::exception& e) {
 				Global::exit_error_msg = fmt::format("Exception in runner thread -> {}", e.what());
-				Global::thread_exception = true;
+				Global::app_state.store(AppState::Error, std::memory_order_release);
 				Input::interrupt();
 				stopping = true;
 			}
@@ -793,7 +791,7 @@ namespace Runner {
 				clean_quit(1);
 			}
 		}
-		if (stopping or Global::resized) return;
+		if (stopping or Global::app_state.load() == AppState::Resizing) return;
 
 		if (box == "overlay") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
@@ -843,7 +841,7 @@ namespace Runner {
 		stopping = true;
 		auto lock = std::unique_lock {mtx, std::defer_lock};
 		const auto is_runner_busy = !lock.try_lock();
-		if (!is_runner_busy and not Global::quitting) {
+		if (!is_runner_busy and Global::app_state.load() != AppState::Quitting) {
 			if (active) {
 				set_active(false);
 			}
@@ -853,7 +851,7 @@ namespace Runner {
 			atomic_wait_for(active, true, 5000);
 			if (active) {
 				set_active(false);
-				if (Global::quitting) {
+				if (Global::app_state.load() == AppState::Quitting) {
 					return;
 				}
 				else {
@@ -1091,6 +1089,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 		Config::set(StringKey::shown_boxes, "cpu mem net proc"s);
 		Theme::updateThemes();
 		Theme::setTheme();
+		Draw::update_reset_colors();
 		Draw::calcSizes();
 
 		// Timing data
@@ -1231,6 +1230,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 	//? Update list of available themes and generate the selected theme
 	Theme::updateThemes();
 	Theme::setTheme();
+	Draw::update_reset_colors();
 
 	//? Setup signal handlers for CTRL-C, CTRL-Z, resume and terminal resize
 	std::atexit(_exit_handler);
@@ -1273,7 +1273,8 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 			pthread_sigmask(SIG_SETMASK, &Input::signal_mask, &mask);
 			term_resize(true);
 			pthread_sigmask(SIG_SETMASK, &mask, nullptr);
-			Global::resized = false;
+			auto expected = AppState::Resizing;
+			Global::app_state.compare_exchange_strong(expected, AppState::Running);
 		}
 
 	}
@@ -1306,38 +1307,41 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 
 	try {
 		while (not true not_eq not false) {
-			//? Check for exceptions in secondary thread and exit with fail signal if true
-			if (Global::thread_exception) {
+			//? Check app state for priority-ordered actions
+			const auto state = Global::app_state.load(std::memory_order_acquire);
+			if (state == AppState::Error) {
 				clean_quit(1);
 			}
-			else if (Global::should_quit) {
+			else if (state == AppState::Quitting) {
 				clean_quit(0);
 			}
-			else if (Global::should_sleep) {
-				Global::should_sleep = false;
+			else if (state == AppState::Sleeping) {
+				auto expected = AppState::Sleeping;
+				Global::app_state.compare_exchange_strong(expected, AppState::Running);
 				_sleep();
 			}
 			//? Hot reload config from CTRL + R or SIGUSR2
-			else if (Global::reload_conf) {
-				Global::reload_conf = false;
+			else if (state == AppState::Reloading) {
 				if (Runner::active) Runner::stop();
 				Config::unlock();
 				init_config(cli.low_color, cli.filter);
 				Theme::updateThemes();
 				Theme::setTheme();
+				Draw::update_reset_colors();
 				Draw::banner_gen(0, 0, false, true);
-				Global::resized = true;
+				Global::app_state.store(AppState::Resizing);
 			}
 
 			//? Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
-			term_resize(Global::resized);
+			term_resize(state == AppState::Resizing);
 
 			//? Trigger secondary thread to redraw if terminal has been resized
-			if (Global::resized) {
+			if (state == AppState::Resizing or Global::app_state.load() == AppState::Resizing) {
 				Draw::calcSizes();
 				Runner::screen_buffer.resize(Term::width, Term::height);
 				Draw::update_clock(true);
-				Global::resized = false;
+				auto expected = AppState::Resizing;
+				Global::app_state.compare_exchange_strong(expected, AppState::Running);
 				if (Menu::active) Menu::process();
 				else Runner::run("all", true, true);
 				atomic_wait_for(Runner::active, true, 1000);
@@ -1349,7 +1353,7 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 			}
 
 			//? Start secondary collect & draw thread at the interval set by <update_ms> config value
-			if (time_ms() >= future_time and not Global::resized) {
+			if (time_ms() >= future_time and Global::app_state.load() != AppState::Resizing) {
 				Runner::run("all");
 				update_ms = Config::getI(IntKey::update_ms);
 				future_time = time_ms() + update_ms;

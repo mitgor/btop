@@ -215,18 +215,44 @@ public:
 	[[nodiscard]] size_t capacity() const noexcept { return capacity_; }
 
 	//-- Element access -----------------------------------------------------------
-	T& operator[](size_t i) { return data_[(head_ + i) % capacity_]; }
-	const T& operator[](size_t i) const { return data_[(head_ + i) % capacity_]; }
+	T& operator[](size_t i) {
+		static T default_val{};
+		if (capacity_ == 0 or size_ == 0) return default_val;
+		return data_[(head_ + i) % capacity_];
+	}
+	const T& operator[](size_t i) const {
+		static const T default_val{};
+		if (capacity_ == 0 or size_ == 0) return default_val;
+		return data_[(head_ + i) % capacity_];
+	}
 
-	T& front() { return data_[head_]; }
-	const T& front() const { return data_[head_]; }
+	T& front() {
+		static T default_val{};
+		if (capacity_ == 0 or size_ == 0) return default_val;
+		return data_[head_];
+	}
+	const T& front() const {
+		static const T default_val{};
+		if (capacity_ == 0 or size_ == 0) return default_val;
+		return data_[head_];
+	}
 
-	T& back() { return data_[(head_ + size_ - 1) % capacity_]; }
-	const T& back() const { return data_[(head_ + size_ - 1) % capacity_]; }
+	T& back() {
+		static T default_val{};
+		if (capacity_ == 0 or size_ == 0) return default_val;
+		return data_[(head_ + size_ - 1) % capacity_];
+	}
+	const T& back() const {
+		static const T default_val{};
+		if (capacity_ == 0 or size_ == 0) return default_val;
+		return data_[(head_ + size_ - 1) % capacity_];
+	}
 
 	//-- Modifiers ----------------------------------------------------------------
 	void push_back(const T& value) {
-		if (capacity_ == 0) return;
+		if (capacity_ == 0) {
+			resize(1);
+		}
 		if (size_ < capacity_) {
 			data_[(head_ + size_) % capacity_] = value;
 			++size_;
@@ -366,14 +392,13 @@ void banner_gen();
 
 extern void clean_quit(int sig);
 
+#include "btop_state.hpp"
+
 namespace Global {
 	extern const vector<array<string, 2>> Banner_src;
 	extern const string Version;
-	extern atomic<bool> quitting;
 	extern string exit_error_msg;
-	extern atomic<bool> thread_exception;
 	extern string banner;
-	extern atomic<bool> resized;
 	extern string overlay;
 	extern string clock;
 	extern uid_t real_uid, set_uid;
