@@ -10,8 +10,8 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 ### State Definition
 
 - [x] **STATE-01**: App states are named via enum replacing 7 scattered atomic<bool> flags
-- [ ] **STATE-02**: App states carry per-state data via std::variant (Running holds timing, Quitting holds exit code, etc.)
-- [ ] **STATE-03**: Illegal state combinations are unrepresentable at compile time (can't be Running and Quitting simultaneously)
+- [x] **STATE-02**: App states carry per-state data via std::variant (Running holds timing, Quitting holds exit code, etc.)
+- [x] **STATE-03**: Illegal state combinations are unrepresentable at compile time (can't be Running and Quitting simultaneously)
 - [x] **STATE-04**: State types defined in new btop_state.hpp header
 
 ### Event System
@@ -71,8 +71,8 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | STATE-01 | Phase 10 | Complete |
-| STATE-02 | Phase 13 | Pending |
-| STATE-03 | Phase 13 | Pending |
+| STATE-02 | Phase 13 | Complete |
+| STATE-03 | Phase 13 | Complete |
 | STATE-04 | Phase 10 | Complete |
 | EVENT-01 | Phase 11 | Pending |
 | EVENT-02 | Phase 11 | Pending |
