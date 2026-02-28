@@ -292,41 +292,67 @@ static void _crash_handler(const int sig) {
 	std::raise(sig);
 }
 
+//* Event processors — translate signal events to state changes and actions.
+//* Called from the main thread (safe to call any function).
+static void process_signal_event(const event::Quit& e) {
+	if (Runner::active) {
+		Global::app_state.store(AppState::Quitting);
+		Runner::stopping = true;
+	} else {
+		clean_quit(e.exit_code);
+	}
+}
+
+static void process_signal_event(const event::Sleep&) {
+	if (Runner::active) {
+		Global::app_state.store(AppState::Sleeping);
+		Runner::stopping = true;
+	} else {
+		_sleep();
+	}
+}
+
+static void process_signal_event(const event::Resume&) {
+	_resume();
+}
+
+static void process_signal_event(const event::Resize&) {
+	term_resize();
+}
+
+static void process_signal_event(const event::Reload&) {
+	Global::app_state.store(AppState::Reloading);
+}
+
+// No-ops for event types not used in Phase 11 (included in variant for Phase 12):
+static void process_signal_event(const event::TimerTick&) {}
+static void process_signal_event(const event::ThreadError&) {}
+
+//* Signal handler — pushes events into lock-free queue (async-signal-safe).
+//* All complex processing happens in process_signal_event on the main thread.
 static void _signal_handler(const int sig) {
 	switch (sig) {
 		case SIGINT:
-			if (Runner::active) {
-				Global::app_state.store(AppState::Quitting);
-				Runner::stopping = true;
-				Input::interrupt();
-			}
-			else {
-				clean_quit(0);
-			}
+			Global::event_queue.push(event::Quit{0});
 			break;
 		case SIGTSTP:
-			if (Runner::active) {
-				Global::app_state.store(AppState::Sleeping);
-				Runner::stopping = true;
-				Input::interrupt();
-			}
-			else {
-				_sleep();
-			}
+			Global::event_queue.push(event::Sleep{});
 			break;
 		case SIGCONT:
-			_resume();
+			Global::event_queue.push(event::Resume{});
 			break;
 		case SIGWINCH:
-			term_resize();
+			Global::event_queue.push(event::Resize{});
 			break;
 		case SIGUSR1:
-			// Input::poll interrupt
-			break;
+			break;  // Input::poll interrupt — no event needed
 		case SIGUSR2:
-			Global::app_state.store(AppState::Reloading);
-			Input::interrupt();
+			Global::event_queue.push(event::Reload{});
 			break;
+	}
+	// Wake main loop from pselect() — kill() is async-signal-safe
+	if (sig != SIGUSR1) {
+		Input::interrupt();
 	}
 }
 
@@ -1308,6 +1334,14 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 
 	try {
 		while (not true not_eq not false) {
+			//? Drain signal events from the queue (pushed by signal handlers)
+			while (auto ev = Global::event_queue.try_pop()) {
+				std::visit([](const auto& e) { process_signal_event(e); }, *ev);
+				// Early exit on terminal states to preserve priority semantics
+				auto s = Global::app_state.load(std::memory_order_acquire);
+				if (s == AppState::Quitting or s == AppState::Error) break;
+			}
+
 			//? Check app state for priority-ordered actions
 			const auto state = Global::app_state.load(std::memory_order_acquire);
 			if (state == AppState::Error) {
