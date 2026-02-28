@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Automata Architecture
 status: in-progress
-last_updated: "2026-02-28T14:26:01.771Z"
+last_updated: "2026-02-28T14:33:42Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 13 of 15 (Type-Safe States)
-Plan: 1 of 2 (13-01 complete)
-Status: In Progress
-Last activity: 2026-02-28 -- Completed 13-01 type-safe state foundation
+Plan: 2 of 2 (13-02 complete)
+Status: Phase Complete
+Last activity: 2026-02-28 -- Completed 13-02 variant-based dispatch with entry/exit actions
 
-Progress: [█████-----] 50% (1/2 plans in phase 13)
+Progress: [██████████] 100% (2/2 plans in phase 13)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 3.4min
-- Total execution time: 0.40 hours
+- Total plans completed: 8
+- Average duration: 3.6min
+- Total execution time: 0.47 hours
 
 **By Phase:**
 
@@ -45,6 +45,7 @@ Progress: [█████-----] 50% (1/2 plans in phase 13)
 | 11-event-queue P01 | 1 tasks | 4min | 4min |
 | 11-event-queue P02 | 2 tasks | 4min | 4min |
 | 13-type-safe-states P01 | 2 tasks | 5min | 5min |
+| 13-type-safe-states P02 | 2 tasks | 5min | 5min |
 
 ## Accumulated Context
 
@@ -76,6 +77,10 @@ Recent decisions affecting current work:
 - [Phase 13-type-safe-states]: state:: namespace placed outside Global:: for ergonomic variant type declarations
 - [Phase 13-type-safe-states]: AppStateVar at file scope (main-thread only), distinct from cross-thread AppStateTag
 - [Phase 13-type-safe-states]: to_tag() uses if-constexpr chain inside std::visit for compile-time exhaustiveness
+- [Phase 13-type-safe-states]: Entry/exit actions placed after Runner namespace for correct forward declaration ordering
+- [Phase 13-type-safe-states]: TransitionCtx struct for dependency injection (cli ref) into on_enter overloads
+- [Phase 13-type-safe-states]: on_event overloads are pure value-returning functions; side effects in on_enter/on_exit
+- [Phase 13-type-safe-states]: State chains (Reloading->Resizing->Running) via sequential transition_to() in main loop
 
 ### Pending Todos
 
@@ -88,5 +93,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 13-01-PLAN.md (type-safe state foundation)
+Stopped at: Completed 13-02-PLAN.md (variant-based dispatch with entry/exit actions)
 Resume file: None

@@ -25,7 +25,7 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 - [ ] **TRANS-01**: Transition functions extracted from if/else if chain into typed on_event() overloads
 - [ ] **TRANS-02**: std::visit dispatches (state, event) pairs to correct transition function
-- [ ] **TRANS-03**: Entry/exit actions execute on state transitions (e.g., calcSizes on entering Resizing)
+- [x] **TRANS-03**: Entry/exit actions execute on state transitions (e.g., calcSizes on entering Resizing)
 - [ ] **TRANS-04**: All existing state transition semantics preserved (priority ordering, guard conditions)
 
 ### Runner FSM
@@ -80,7 +80,7 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 | EVENT-04 | Phase 12 | Pending |
 | TRANS-01 | Phase 12 | Pending |
 | TRANS-02 | Phase 12 | Pending |
-| TRANS-03 | Phase 13 | Pending |
+| TRANS-03 | Phase 13 | Complete |
 | TRANS-04 | Phase 12 | Pending |
 | RUNNER-01 | Phase 14 | Pending |
 | RUNNER-02 | Phase 14 | Pending |
