@@ -19,139 +19,139 @@ tab-size = 4
 #include <gtest/gtest.h>
 #include "btop_state.hpp"
 
-using Global::AppState;
+using Global::AppStateTag;
 
 // --- Enum value tests ---
 
-TEST(AppState, RunningIsZero) {
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Running), 0u);
+TEST(AppStateTag, RunningIsZero) {
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Running), 0u);
 }
 
-TEST(AppState, ResizingIsOne) {
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Resizing), 1u);
+TEST(AppStateTag, ResizingIsOne) {
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Resizing), 1u);
 }
 
-TEST(AppState, ReloadingIsTwo) {
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Reloading), 2u);
+TEST(AppStateTag, ReloadingIsTwo) {
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Reloading), 2u);
 }
 
-TEST(AppState, SleepingIsThree) {
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Sleeping), 3u);
+TEST(AppStateTag, SleepingIsThree) {
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Sleeping), 3u);
 }
 
-TEST(AppState, QuittingIsFour) {
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Quitting), 4u);
+TEST(AppStateTag, QuittingIsFour) {
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Quitting), 4u);
 }
 
-TEST(AppState, ErrorIsFive) {
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Error), 5u);
+TEST(AppStateTag, ErrorIsFive) {
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Error), 5u);
 }
 
-TEST(AppState, HasExactlySixValues) {
+TEST(AppStateTag, HasExactlySixValues) {
 	// Error is the last value at 5, so there are exactly 6 values (0..5)
-	EXPECT_EQ(static_cast<std::uint8_t>(AppState::Error) + 1, 6u);
+	EXPECT_EQ(static_cast<std::uint8_t>(AppStateTag::Error) + 1, 6u);
 }
 
 // --- Atomic lock-free test ---
 
-TEST(AppState, AtomicIsLockFree) {
-	std::atomic<AppState> state{AppState::Running};
+TEST(AppStateTag, AtomicIsLockFree) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
 	EXPECT_TRUE(state.is_lock_free());
 }
 
 // --- to_string tests ---
 
-TEST(AppState, ToStringRunning) {
-	EXPECT_EQ(Global::to_string(AppState::Running), "Running");
+TEST(AppStateTag, ToStringRunning) {
+	EXPECT_EQ(Global::to_string(AppStateTag::Running), "Running");
 }
 
-TEST(AppState, ToStringResizing) {
-	EXPECT_EQ(Global::to_string(AppState::Resizing), "Resizing");
+TEST(AppStateTag, ToStringResizing) {
+	EXPECT_EQ(Global::to_string(AppStateTag::Resizing), "Resizing");
 }
 
-TEST(AppState, ToStringReloading) {
-	EXPECT_EQ(Global::to_string(AppState::Reloading), "Reloading");
+TEST(AppStateTag, ToStringReloading) {
+	EXPECT_EQ(Global::to_string(AppStateTag::Reloading), "Reloading");
 }
 
-TEST(AppState, ToStringSleeping) {
-	EXPECT_EQ(Global::to_string(AppState::Sleeping), "Sleeping");
+TEST(AppStateTag, ToStringSleeping) {
+	EXPECT_EQ(Global::to_string(AppStateTag::Sleeping), "Sleeping");
 }
 
-TEST(AppState, ToStringQuitting) {
-	EXPECT_EQ(Global::to_string(AppState::Quitting), "Quitting");
+TEST(AppStateTag, ToStringQuitting) {
+	EXPECT_EQ(Global::to_string(AppStateTag::Quitting), "Quitting");
 }
 
-TEST(AppState, ToStringError) {
-	EXPECT_EQ(Global::to_string(AppState::Error), "Error");
+TEST(AppStateTag, ToStringError) {
+	EXPECT_EQ(Global::to_string(AppStateTag::Error), "Error");
 }
 
-TEST(AppState, ToStringUnknownValue) {
-	// Cast an out-of-range value to AppState
-	auto unknown = static_cast<AppState>(255);
+TEST(AppStateTag, ToStringUnknownValue) {
+	// Cast an out-of-range value to AppStateTag
+	auto unknown = static_cast<AppStateTag>(255);
 	EXPECT_EQ(Global::to_string(unknown), "Unknown");
 }
 
 // --- Atomic default value test ---
 
-TEST(AppState, DefaultConstructedAtomicIsRunning) {
-	std::atomic<AppState> state{AppState::Running};
-	EXPECT_EQ(state.load(), AppState::Running);
+TEST(AppStateTag, DefaultConstructedAtomicIsRunning) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	EXPECT_EQ(state.load(), AppStateTag::Running);
 }
 
 // --- Store/load round-trip tests ---
 
-TEST(AppState, StoreLoadRoundTripRunning) {
-	std::atomic<AppState> state{AppState::Error};
-	state.store(AppState::Running);
-	EXPECT_EQ(state.load(), AppState::Running);
+TEST(AppStateTag, StoreLoadRoundTripRunning) {
+	std::atomic<AppStateTag> state{AppStateTag::Error};
+	state.store(AppStateTag::Running);
+	EXPECT_EQ(state.load(), AppStateTag::Running);
 }
 
-TEST(AppState, StoreLoadRoundTripResizing) {
-	std::atomic<AppState> state{AppState::Running};
-	state.store(AppState::Resizing);
-	EXPECT_EQ(state.load(), AppState::Resizing);
+TEST(AppStateTag, StoreLoadRoundTripResizing) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	state.store(AppStateTag::Resizing);
+	EXPECT_EQ(state.load(), AppStateTag::Resizing);
 }
 
-TEST(AppState, StoreLoadRoundTripReloading) {
-	std::atomic<AppState> state{AppState::Running};
-	state.store(AppState::Reloading);
-	EXPECT_EQ(state.load(), AppState::Reloading);
+TEST(AppStateTag, StoreLoadRoundTripReloading) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	state.store(AppStateTag::Reloading);
+	EXPECT_EQ(state.load(), AppStateTag::Reloading);
 }
 
-TEST(AppState, StoreLoadRoundTripSleeping) {
-	std::atomic<AppState> state{AppState::Running};
-	state.store(AppState::Sleeping);
-	EXPECT_EQ(state.load(), AppState::Sleeping);
+TEST(AppStateTag, StoreLoadRoundTripSleeping) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	state.store(AppStateTag::Sleeping);
+	EXPECT_EQ(state.load(), AppStateTag::Sleeping);
 }
 
-TEST(AppState, StoreLoadRoundTripQuitting) {
-	std::atomic<AppState> state{AppState::Running};
-	state.store(AppState::Quitting);
-	EXPECT_EQ(state.load(), AppState::Quitting);
+TEST(AppStateTag, StoreLoadRoundTripQuitting) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	state.store(AppStateTag::Quitting);
+	EXPECT_EQ(state.load(), AppStateTag::Quitting);
 }
 
-TEST(AppState, StoreLoadRoundTripError) {
-	std::atomic<AppState> state{AppState::Running};
-	state.store(AppState::Error);
-	EXPECT_EQ(state.load(), AppState::Error);
+TEST(AppStateTag, StoreLoadRoundTripError) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	state.store(AppStateTag::Error);
+	EXPECT_EQ(state.load(), AppStateTag::Error);
 }
 
 // --- compare_exchange_strong tests ---
 
-TEST(AppState, CompareExchangeSucceedsWhenExpectedMatches) {
-	std::atomic<AppState> state{AppState::Running};
-	AppState expected = AppState::Running;
-	bool exchanged = state.compare_exchange_strong(expected, AppState::Quitting);
+TEST(AppStateTag, CompareExchangeSucceedsWhenExpectedMatches) {
+	std::atomic<AppStateTag> state{AppStateTag::Running};
+	AppStateTag expected = AppStateTag::Running;
+	bool exchanged = state.compare_exchange_strong(expected, AppStateTag::Quitting);
 	EXPECT_TRUE(exchanged);
-	EXPECT_EQ(state.load(), AppState::Quitting);
-	EXPECT_EQ(expected, AppState::Running);  // expected unchanged on success
+	EXPECT_EQ(state.load(), AppStateTag::Quitting);
+	EXPECT_EQ(expected, AppStateTag::Running);  // expected unchanged on success
 }
 
-TEST(AppState, CompareExchangeFailsWhenExpectedDiffers) {
-	std::atomic<AppState> state{AppState::Resizing};
-	AppState expected = AppState::Running;  // wrong expectation
-	bool exchanged = state.compare_exchange_strong(expected, AppState::Quitting);
+TEST(AppStateTag, CompareExchangeFailsWhenExpectedDiffers) {
+	std::atomic<AppStateTag> state{AppStateTag::Resizing};
+	AppStateTag expected = AppStateTag::Running;  // wrong expectation
+	bool exchanged = state.compare_exchange_strong(expected, AppStateTag::Quitting);
 	EXPECT_FALSE(exchanged);
-	EXPECT_EQ(state.load(), AppState::Resizing);  // state unchanged
-	EXPECT_EQ(expected, AppState::Resizing);  // expected updated to actual value
+	EXPECT_EQ(state.load(), AppStateTag::Resizing);  // state unchanged
+	EXPECT_EQ(expected, AppStateTag::Resizing);  // expected updated to actual value
 }

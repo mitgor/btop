@@ -81,15 +81,15 @@ namespace state_tag {
 /// Convert runtime AppState enum to compile-time state_tag dispatch.
 /// Enables typed overload resolution for on_event(state_tag, event, current).
 template<typename Visitor>
-decltype(auto) dispatch_state(Global::AppState s, Visitor&& vis) {
-	using Global::AppState;
+decltype(auto) dispatch_state(Global::AppStateTag s, Visitor&& vis) {
+	using Global::AppStateTag;
 	switch (s) {
-		case AppState::Running:   return std::forward<Visitor>(vis)(state_tag::Running{});
-		case AppState::Resizing:  return std::forward<Visitor>(vis)(state_tag::Resizing{});
-		case AppState::Reloading: return std::forward<Visitor>(vis)(state_tag::Reloading{});
-		case AppState::Sleeping:  return std::forward<Visitor>(vis)(state_tag::Sleeping{});
-		case AppState::Quitting:  return std::forward<Visitor>(vis)(state_tag::Quitting{});
-		case AppState::Error:     return std::forward<Visitor>(vis)(state_tag::Error{});
+		case AppStateTag::Running:   return std::forward<Visitor>(vis)(state_tag::Running{});
+		case AppStateTag::Resizing:  return std::forward<Visitor>(vis)(state_tag::Resizing{});
+		case AppStateTag::Reloading: return std::forward<Visitor>(vis)(state_tag::Reloading{});
+		case AppStateTag::Sleeping:  return std::forward<Visitor>(vis)(state_tag::Sleeping{});
+		case AppStateTag::Quitting:  return std::forward<Visitor>(vis)(state_tag::Quitting{});
+		case AppStateTag::Error:     return std::forward<Visitor>(vis)(state_tag::Error{});
 	}
 	__builtin_unreachable();
 }
@@ -97,7 +97,7 @@ decltype(auto) dispatch_state(Global::AppState s, Visitor&& vis) {
 /// Dispatch a single event against current state.
 /// Calls dispatch_state() + std::visit() to route to on_event() overloads.
 /// Defined in btop.cpp where on_event overloads are visible.
-Global::AppState dispatch_event(Global::AppState current, const AppEvent& ev);
+Global::AppStateTag dispatch_event(Global::AppStateTag current, const AppEvent& ev);
 
 /// Lock-free SPSC ring buffer, safe for use in signal handlers (push side).
 /// Producer: signal handler context (async-signal-safe push).

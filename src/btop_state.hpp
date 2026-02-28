@@ -4,14 +4,17 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <type_traits>
+#include <variant>
 
 namespace Global {
 
 	/// Application lifecycle states, ordered by check priority (highest first in main loop).
 	/// The main loop checks: Error > Quitting > Sleeping > Reloading > Resizing > Running.
 	/// WARNING: The if/else if chain ordering is load-bearing. Do NOT reorder checks.
-	enum class AppState : std::uint8_t {
+	enum class AppStateTag : std::uint8_t {
 		Running   = 0,  ///< Normal operation
 		Resizing  = 1,  ///< Terminal resize detected
 		Reloading = 2,  ///< Config reload requested (SIGUSR2 / Ctrl+R)
@@ -24,19 +27,65 @@ namespace Global {
 	/// resized, quitting, should_quit, should_sleep, reload_conf, thread_exception.
 	/// NOTE: init_conf and _runner_started remain as separate atomic<bool>
 	/// because they serve as a lock and lifecycle marker respectively.
-	extern std::atomic<AppState> app_state;
+	extern std::atomic<AppStateTag> app_state;
 
 	/// Debug/logging helper — returns the name of the given state.
-	constexpr std::string_view to_string(AppState s) noexcept {
+	constexpr std::string_view to_string(AppStateTag s) noexcept {
 		switch (s) {
-			case AppState::Running:   return "Running";
-			case AppState::Resizing:  return "Resizing";
-			case AppState::Reloading: return "Reloading";
-			case AppState::Sleeping:  return "Sleeping";
-			case AppState::Quitting:  return "Quitting";
-			case AppState::Error:     return "Error";
+			case AppStateTag::Running:   return "Running";
+			case AppStateTag::Resizing:  return "Resizing";
+			case AppStateTag::Reloading: return "Reloading";
+			case AppStateTag::Sleeping:  return "Sleeping";
+			case AppStateTag::Quitting:  return "Quitting";
+			case AppStateTag::Error:     return "Error";
 		}
 		return "Unknown";
 	}
 
 } // namespace Global
+
+/// Typed state structs carrying per-state data.
+/// Main-thread only — the authoritative application state.
+namespace state {
+	struct Running {
+		uint64_t update_ms;    // Current update interval from config
+		uint64_t future_time;  // Timestamp of next timer tick
+	};
+
+	struct Resizing {};   // Entry action does the work (calcSizes, etc.)
+	struct Reloading {};  // Entry action does the work (init_config, etc.)
+	struct Sleeping {};   // Entry action suspends process
+
+	struct Quitting {
+		int exit_code;    // Exit code for clean_quit()
+	};
+
+	struct Error {
+		std::string message;  // Error description
+	};
+}
+
+/// The authoritative application state variant. Main-thread only.
+/// Holds exactly one alternative — being in two states simultaneously is impossible.
+using AppStateVar = std::variant<
+	state::Running,
+	state::Resizing,
+	state::Reloading,
+	state::Sleeping,
+	state::Quitting,
+	state::Error
+>;
+
+/// Convert variant state to tag enum for shadow updates.
+inline Global::AppStateTag to_tag(const AppStateVar& s) noexcept {
+	using Global::AppStateTag;
+	return std::visit([](const auto& st) -> AppStateTag {
+		using T = std::decay_t<decltype(st)>;
+		if constexpr (std::is_same_v<T, state::Running>)   return AppStateTag::Running;
+		if constexpr (std::is_same_v<T, state::Resizing>)  return AppStateTag::Resizing;
+		if constexpr (std::is_same_v<T, state::Reloading>) return AppStateTag::Reloading;
+		if constexpr (std::is_same_v<T, state::Sleeping>)  return AppStateTag::Sleeping;
+		if constexpr (std::is_same_v<T, state::Quitting>)  return AppStateTag::Quitting;
+		if constexpr (std::is_same_v<T, state::Error>)     return AppStateTag::Error;
+	}, s);
+}

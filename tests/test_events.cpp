@@ -139,8 +139,8 @@ TEST(EventType, KeyInputMouseSequence) {
 }
 
 TEST(DispatchState, AllSixStatesDispatch) {
-	using Global::AppState;
-	auto check = [](AppState s) -> int {
+	using Global::AppStateTag;
+	auto check = [](AppStateTag s) -> int {
 		return dispatch_state(s, [](auto tag) -> int {
 			if constexpr (std::is_same_v<decltype(tag), state_tag::Running>)   return 0;
 			if constexpr (std::is_same_v<decltype(tag), state_tag::Resizing>)  return 1;
@@ -151,12 +151,12 @@ TEST(DispatchState, AllSixStatesDispatch) {
 			return -1;
 		});
 	};
-	EXPECT_EQ(check(AppState::Running), 0);
-	EXPECT_EQ(check(AppState::Resizing), 1);
-	EXPECT_EQ(check(AppState::Reloading), 2);
-	EXPECT_EQ(check(AppState::Sleeping), 3);
-	EXPECT_EQ(check(AppState::Quitting), 4);
-	EXPECT_EQ(check(AppState::Error), 5);
+	EXPECT_EQ(check(AppStateTag::Running), 0);
+	EXPECT_EQ(check(AppStateTag::Resizing), 1);
+	EXPECT_EQ(check(AppStateTag::Reloading), 2);
+	EXPECT_EQ(check(AppStateTag::Sleeping), 3);
+	EXPECT_EQ(check(AppStateTag::Quitting), 4);
+	EXPECT_EQ(check(AppStateTag::Error), 5);
 }
 
 // --- EventQueue tests ---

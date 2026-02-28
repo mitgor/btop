@@ -120,13 +120,13 @@ namespace Global {
 
 	uint64_t start_time;
 
-	std::atomic<AppState> app_state{AppState::Running};
+	std::atomic<AppStateTag> app_state{AppStateTag::Running};
 	EventQueue<AppEvent, event_queue_capacity> event_queue;
 	atomic<bool> _runner_started (false);
 	atomic<bool> init_conf (false);
 }
 
-using Global::AppState;
+using Global::AppStateTag;
 
 namespace Runner {
 	static pthread_t runner_id;
@@ -136,7 +136,7 @@ namespace Runner {
 void term_resize(bool force) {
 	static atomic<bool> resizing (false);
 	if (Input::polling) {
-		Global::app_state.store(AppState::Resizing);
+		Global::app_state.store(AppStateTag::Resizing);
 		Input::interrupt();
 		return;
 	}
@@ -150,7 +150,7 @@ void term_resize(bool force) {
 #else
 	static const array<string, 5> all_boxes = {"", "cpu", "mem", "net", "proc"};
 #endif
-	Global::app_state.store(AppState::Resizing);
+	Global::app_state.store(AppStateTag::Resizing);
 	if (Runner::active) Runner::stop();
 	Term::refresh();
 	Config::unlock();
@@ -213,8 +213,8 @@ void term_resize(bool force) {
 
 //* Exit handler; stops threads, restores terminal and saves config changes
 void clean_quit(int sig) {
-	if (Global::app_state.load() == AppState::Quitting) return;
-	Global::app_state.store(AppState::Quitting);
+	if (Global::app_state.load() == AppStateTag::Quitting) return;
+	Global::app_state.store(AppStateTag::Quitting);
 	Runner::stop();
 	if (Global::_runner_started) {
 	#if defined __APPLE__ || defined __OpenBSD__ || defined __NetBSD__
@@ -292,60 +292,60 @@ static void _crash_handler(const int sig) {
 	std::raise(sig);
 }
 
-//* Typed transition functions — on_event(state_tag, event, current) -> next AppState.
+//* Typed transition functions — on_event(state_tag, event, current) -> next AppStateTag.
 //* Phase 12: typed transition functions dispatched via dispatch_event() in the main loop.
 
-static AppState on_event(state_tag::Running, const event::Quit& e, AppState) {
+static AppStateTag on_event(state_tag::Running, const event::Quit& e, AppStateTag) {
 	if (Runner::active) {
 		Runner::stopping = true;
-		return AppState::Quitting;
+		return AppStateTag::Quitting;
 	}
 	clean_quit(e.exit_code);
-	return AppState::Quitting;  // unreachable after clean_quit
+	return AppStateTag::Quitting;  // unreachable after clean_quit
 }
 
-static AppState on_event(state_tag::Running, const event::Sleep&, AppState) {
+static AppStateTag on_event(state_tag::Running, const event::Sleep&, AppStateTag) {
 	if (Runner::active) {
 		Runner::stopping = true;
-		return AppState::Sleeping;
+		return AppStateTag::Sleeping;
 	}
 	// If runner not active, sleep is handled by process_accumulated_state
-	return AppState::Sleeping;
+	return AppStateTag::Sleeping;
 }
 
-static AppState on_event(state_tag::Running, const event::Resume&, AppState) {
-	return AppState::Running;  // resume action handled by main loop drain
+static AppStateTag on_event(state_tag::Running, const event::Resume&, AppStateTag) {
+	return AppStateTag::Running;  // resume action handled by main loop drain
 }
 
-static AppState on_event(state_tag::Running, const event::Resize&, AppState) {
-	return AppState::Resizing;
+static AppStateTag on_event(state_tag::Running, const event::Resize&, AppStateTag) {
+	return AppStateTag::Resizing;
 }
 
-static AppState on_event(state_tag::Running, const event::Reload&, AppState) {
-	return AppState::Reloading;
+static AppStateTag on_event(state_tag::Running, const event::Reload&, AppStateTag) {
+	return AppStateTag::Reloading;
 }
 
-static AppState on_event(state_tag::Running, const event::TimerTick&, AppState) {
-	return AppState::Running;  // timer action handled by main loop
+static AppStateTag on_event(state_tag::Running, const event::TimerTick&, AppStateTag) {
+	return AppStateTag::Running;  // timer action handled by main loop
 }
 
-static AppState on_event(state_tag::Running, const event::KeyInput&, AppState) {
-	return AppState::Running;  // input action handled by main loop
+static AppStateTag on_event(state_tag::Running, const event::KeyInput&, AppStateTag) {
+	return AppStateTag::Running;  // input action handled by main loop
 }
 
-static AppState on_event(state_tag::Running, const event::ThreadError&, AppState) {
-	return AppState::Error;
+static AppStateTag on_event(state_tag::Running, const event::ThreadError&, AppStateTag) {
+	return AppStateTag::Error;
 }
 
 // Catch-all: unhandled (state, event) pairs preserve current state (no-op).
 // This covers: Quitting ignoring all non-ThreadError events, Error ignoring everything,
 // Resizing/Reloading/Sleeping ignoring signal events (handled by process_accumulated_state).
-static AppState on_event(const auto&, const auto&, AppState current) {
+static AppStateTag on_event(const auto&, const auto&, AppStateTag current) {
 	return current;
 }
 
 /// Dispatch a single event against current state via state_tag + std::visit.
-AppState dispatch_event(AppState current, const AppEvent& ev) {
+AppStateTag dispatch_event(AppStateTag current, const AppEvent& ev) {
 	return dispatch_state(current, [&](auto tag) {
 		return std::visit([&](const auto& event) {
 			return on_event(tag, event, current);
@@ -529,16 +529,16 @@ namespace Runner {
 		std::lock_guard lock {mtx};
 
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
-		while (Global::app_state.load() != AppState::Quitting) {
+		while (Global::app_state.load() != AppStateTag::Quitting) {
 			thread_wait();
 			atomic_wait_for(active, true, 5000);
 			if (active) {
 				Global::exit_error_msg = "Runner thread failed to get active lock!";
-				Global::app_state.store(AppState::Error, std::memory_order_release);
+				Global::app_state.store(AppStateTag::Error, std::memory_order_release);
 				Input::interrupt();
 				stopping = true;
 			}
-			if (stopping or Global::app_state.load() == AppState::Resizing) {
+			if (stopping or Global::app_state.load() == AppStateTag::Resizing) {
 				sleep_ms(1);
 				continue;
 			}
@@ -604,7 +604,7 @@ namespace Runner {
 						if (coreNum_reset) {
 							coreNum_reset = false;
 							Cpu::core_mapping = Cpu::get_core_mapping();
-							Global::app_state.store(AppState::Resizing);
+							Global::app_state.store(AppStateTag::Resizing);
 							Input::interrupt();
 							continue;
 						}
@@ -710,7 +710,7 @@ namespace Runner {
 			}
 			catch (const std::exception& e) {
 				Global::exit_error_msg = fmt::format("Exception in runner thread -> {}", e.what());
-				Global::app_state.store(AppState::Error, std::memory_order_release);
+				Global::app_state.store(AppStateTag::Error, std::memory_order_release);
 				Input::interrupt();
 				stopping = true;
 			}
@@ -844,7 +844,7 @@ namespace Runner {
 				clean_quit(1);
 			}
 		}
-		if (stopping or Global::app_state.load() == AppState::Resizing) return;
+		if (stopping or Global::app_state.load() == AppStateTag::Resizing) return;
 
 		if (box == "overlay") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
@@ -894,7 +894,7 @@ namespace Runner {
 		stopping = true;
 		auto lock = std::unique_lock {mtx, std::defer_lock};
 		const auto is_runner_busy = !lock.try_lock();
-		if (!is_runner_busy and Global::app_state.load() != AppState::Quitting) {
+		if (!is_runner_busy and Global::app_state.load() != AppStateTag::Quitting) {
 			if (active) {
 				set_active(false);
 			}
@@ -904,7 +904,7 @@ namespace Runner {
 			atomic_wait_for(active, true, 5000);
 			if (active) {
 				set_active(false);
-				if (Global::app_state.load() == AppState::Quitting) {
+				if (Global::app_state.load() == AppStateTag::Quitting) {
 					return;
 				}
 				else {
@@ -944,21 +944,21 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 
 /// Process accumulated state -- executes multi-step actions for non-Running states.
 /// Called after event dispatch to handle Reloading, Resizing, Sleeping, Error, Quitting.
-/// Returns the resulting AppState after processing.
-static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
-	if (state == AppState::Error) {
+/// Returns the resulting AppStateTag after processing.
+static AppStateTag process_accumulated_state(AppStateTag state, Cli::Cli& cli) {
+	if (state == AppStateTag::Error) {
 		clean_quit(1);
 		return state;  // unreachable
 	}
-	if (state == AppState::Quitting) {
+	if (state == AppStateTag::Quitting) {
 		clean_quit(0);
 		return state;  // unreachable
 	}
-	if (state == AppState::Sleeping) {
+	if (state == AppStateTag::Sleeping) {
 		_sleep();
-		return AppState::Running;
+		return AppStateTag::Running;
 	}
-	if (state == AppState::Reloading) {
+	if (state == AppStateTag::Reloading) {
 		if (Runner::active) Runner::stop();
 		Config::unlock();
 		init_config(cli.low_color, cli.filter);
@@ -967,9 +967,9 @@ static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
 		Draw::update_reset_colors();
 		Draw::banner_gen(0, 0, false, true);
 		// Chain to Resizing (reload requires re-layout)
-		state = AppState::Resizing;
+		state = AppStateTag::Resizing;
 	}
-	if (state == AppState::Resizing) {
+	if (state == AppStateTag::Resizing) {
 		term_resize(true);
 		Draw::calcSizes();
 		Runner::screen_buffer.resize(Term::width, Term::height);
@@ -977,7 +977,7 @@ static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
 		if (Menu::active) Menu::process();
 		else Runner::run("all", true, true);
 		atomic_wait_for(Runner::active, true, 1000);
-		return AppState::Running;
+		return AppStateTag::Running;
 	}
 	return state;
 }
@@ -1366,8 +1366,8 @@ static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
 			pthread_sigmask(SIG_SETMASK, &Input::signal_mask, &mask);
 			term_resize(true);
 			pthread_sigmask(SIG_SETMASK, &mask, nullptr);
-			auto expected = AppState::Resizing;
-			Global::app_state.compare_exchange_strong(expected, AppState::Running);
+			auto expected = AppStateTag::Resizing;
+			Global::app_state.compare_exchange_strong(expected, AppStateTag::Running);
 		}
 
 	}
@@ -1410,7 +1410,7 @@ static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
 				}
 				state = dispatch_event(state, *ev);
 				Global::app_state.store(state, std::memory_order_release);
-				if (state == AppState::Quitting or state == AppState::Error) break;
+				if (state == AppStateTag::Quitting or state == AppStateTag::Error) break;
 			}
 
 			//? 2. Process accumulated state (multi-step actions for Reloading/Resizing/Sleeping/Error/Quitting)
@@ -1419,25 +1419,25 @@ static AppState process_accumulated_state(AppState state, Cli::Cli& cli) {
 
 			//? 3. Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
 			term_resize();
-			if (Global::app_state.load(std::memory_order_acquire) == AppState::Resizing) {
-				state = process_accumulated_state(AppState::Resizing, cli);
+			if (Global::app_state.load(std::memory_order_acquire) == AppStateTag::Resizing) {
+				state = process_accumulated_state(AppStateTag::Resizing, cli);
 				Global::app_state.store(state, std::memory_order_release);
 			}
 
 			//? 4. Update clock if needed
-			if (state == AppState::Running and Draw::update_clock() and not Menu::active) {
+			if (state == AppStateTag::Running and Draw::update_clock() and not Menu::active) {
 				Runner::run("clock");
 			}
 
 			//? 5. Timer tick — start secondary collect & draw thread at the interval set by <update_ms> config value
-			if (time_ms() >= future_time and state == AppState::Running) {
+			if (time_ms() >= future_time and state == AppStateTag::Running) {
 				Runner::run("all");
 				update_ms = Config::getI(IntKey::update_ms);
 				future_time = time_ms() + update_ms;
 			}
 
 			//? 6. Input polling — loop over input polling and input action processing
-			for (auto current_time = time_ms(); current_time < future_time and state == AppState::Running; current_time = time_ms()) {
+			for (auto current_time = time_ms(); current_time < future_time and state == AppStateTag::Running; current_time = time_ms()) {
 
 				//? Check for external clock changes and for changes to the update timer
 				if (std::cmp_not_equal(update_ms, Config::getI(IntKey::update_ms))) {

@@ -19,7 +19,7 @@ tab-size = 4
 #include <gtest/gtest.h>
 #include "btop_events.hpp"
 
-using Global::AppState;
+using Global::AppStateTag;
 
 // --- Running state transitions ---
 
@@ -31,79 +31,79 @@ TEST(Transition, RunningQuitReturnsQuitting) {
 }
 
 TEST(Transition, RunningResizeReturnsResizing) {
-	auto next = dispatch_event(AppState::Running, event::Resize{});
-	EXPECT_EQ(next, AppState::Resizing);
+	auto next = dispatch_event(AppStateTag::Running, event::Resize{});
+	EXPECT_EQ(next, AppStateTag::Resizing);
 }
 
 TEST(Transition, RunningReloadReturnsReloading) {
-	auto next = dispatch_event(AppState::Running, event::Reload{});
-	EXPECT_EQ(next, AppState::Reloading);
+	auto next = dispatch_event(AppStateTag::Running, event::Reload{});
+	EXPECT_EQ(next, AppStateTag::Reloading);
 }
 
 TEST(Transition, RunningThreadErrorReturnsError) {
-	auto next = dispatch_event(AppState::Running, event::ThreadError{});
-	EXPECT_EQ(next, AppState::Error);
+	auto next = dispatch_event(AppStateTag::Running, event::ThreadError{});
+	EXPECT_EQ(next, AppStateTag::Error);
 }
 
 TEST(Transition, RunningTimerTickReturnsRunning) {
-	auto next = dispatch_event(AppState::Running, event::TimerTick{});
-	EXPECT_EQ(next, AppState::Running);
+	auto next = dispatch_event(AppStateTag::Running, event::TimerTick{});
+	EXPECT_EQ(next, AppStateTag::Running);
 }
 
 TEST(Transition, RunningKeyInputReturnsRunning) {
-	auto next = dispatch_event(AppState::Running, event::KeyInput{"q"});
-	EXPECT_EQ(next, AppState::Running);
+	auto next = dispatch_event(AppStateTag::Running, event::KeyInput{"q"});
+	EXPECT_EQ(next, AppStateTag::Running);
 }
 
 TEST(Transition, RunningResumeReturnsRunning) {
-	auto next = dispatch_event(AppState::Running, event::Resume{});
-	EXPECT_EQ(next, AppState::Running);
+	auto next = dispatch_event(AppStateTag::Running, event::Resume{});
+	EXPECT_EQ(next, AppStateTag::Running);
 }
 
 // --- Terminal state guard tests ---
 
 TEST(Transition, QuittingIgnoresResize) {
-	auto next = dispatch_event(AppState::Quitting, event::Resize{});
-	EXPECT_EQ(next, AppState::Quitting);
+	auto next = dispatch_event(AppStateTag::Quitting, event::Resize{});
+	EXPECT_EQ(next, AppStateTag::Quitting);
 }
 
 TEST(Transition, QuittingIgnoresReload) {
-	auto next = dispatch_event(AppState::Quitting, event::Reload{});
-	EXPECT_EQ(next, AppState::Quitting);
+	auto next = dispatch_event(AppStateTag::Quitting, event::Reload{});
+	EXPECT_EQ(next, AppStateTag::Quitting);
 }
 
 TEST(Transition, QuittingIgnoresTimerTick) {
-	auto next = dispatch_event(AppState::Quitting, event::TimerTick{});
-	EXPECT_EQ(next, AppState::Quitting);
+	auto next = dispatch_event(AppStateTag::Quitting, event::TimerTick{});
+	EXPECT_EQ(next, AppStateTag::Quitting);
 }
 
 TEST(Transition, QuittingIgnoresKeyInput) {
-	auto next = dispatch_event(AppState::Quitting, event::KeyInput{"q"});
-	EXPECT_EQ(next, AppState::Quitting);
+	auto next = dispatch_event(AppStateTag::Quitting, event::KeyInput{"q"});
+	EXPECT_EQ(next, AppStateTag::Quitting);
 }
 
 TEST(Transition, ErrorIgnoresAllEvents) {
-	EXPECT_EQ(dispatch_event(AppState::Error, event::Resize{}), AppState::Error);
-	EXPECT_EQ(dispatch_event(AppState::Error, event::Reload{}), AppState::Error);
-	EXPECT_EQ(dispatch_event(AppState::Error, event::TimerTick{}), AppState::Error);
-	EXPECT_EQ(dispatch_event(AppState::Error, event::KeyInput{"q"}), AppState::Error);
-	EXPECT_EQ(dispatch_event(AppState::Error, event::Resume{}), AppState::Error);
-	EXPECT_EQ(dispatch_event(AppState::Error, event::Sleep{}), AppState::Error);
+	EXPECT_EQ(dispatch_event(AppStateTag::Error, event::Resize{}), AppStateTag::Error);
+	EXPECT_EQ(dispatch_event(AppStateTag::Error, event::Reload{}), AppStateTag::Error);
+	EXPECT_EQ(dispatch_event(AppStateTag::Error, event::TimerTick{}), AppStateTag::Error);
+	EXPECT_EQ(dispatch_event(AppStateTag::Error, event::KeyInput{"q"}), AppStateTag::Error);
+	EXPECT_EQ(dispatch_event(AppStateTag::Error, event::Resume{}), AppStateTag::Error);
+	EXPECT_EQ(dispatch_event(AppStateTag::Error, event::Sleep{}), AppStateTag::Error);
 }
 
 // --- Non-Running state preservation ---
 
 TEST(Transition, ResizingPreservesOnReload) {
-	auto next = dispatch_event(AppState::Resizing, event::Reload{});
-	EXPECT_EQ(next, AppState::Resizing);
+	auto next = dispatch_event(AppStateTag::Resizing, event::Reload{});
+	EXPECT_EQ(next, AppStateTag::Resizing);
 }
 
 TEST(Transition, ReloadingPreservesOnResize) {
-	auto next = dispatch_event(AppState::Reloading, event::Resize{});
-	EXPECT_EQ(next, AppState::Reloading);
+	auto next = dispatch_event(AppStateTag::Reloading, event::Resize{});
+	EXPECT_EQ(next, AppStateTag::Reloading);
 }
 
 TEST(Transition, SleepingPreservesOnResize) {
-	auto next = dispatch_event(AppState::Sleeping, event::Resize{});
-	EXPECT_EQ(next, AppState::Sleeping);
+	auto next = dispatch_event(AppStateTag::Sleeping, event::Resize{});
+	EXPECT_EQ(next, AppStateTag::Sleeping);
 }

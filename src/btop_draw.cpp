@@ -50,7 +50,7 @@ using std::round;
 using std::to_string;
 using std::views::iota;
 
-using Global::AppState;
+using Global::AppStateTag;
 
 using namespace Tools;
 using namespace std::literals; // for operator""s
@@ -853,7 +853,7 @@ namespace Draw {
 		out.clear();
 
 		if (clock_str.size() != clock_len) {
-			if (Global::app_state.load() != AppState::Resizing and clock_len > 0)
+			if (Global::app_state.load() != AppStateTag::Resizing and clock_len > 0)
 				out = Mv::to(y, x+(width / 2)-(clock_len / 2)) + Fx::ub + Theme::c("cpu_box") + Symbols::h_line * clock_len;
 			clock_len = clock_str.size();
 		}
@@ -2761,7 +2761,7 @@ namespace Draw {
 		Global::overlay.clear();
 		Runner::pause_output = false;
 		Runner::redraw = true;
-		if (not (Proc::resized or Global::app_state.load() == AppState::Resizing)) {
+		if (not (Proc::resized or Global::app_state.load() == AppStateTag::Resizing)) {
 			Proc::p_counters.clear();
 			Proc::p_graphs.clear();
 		}
