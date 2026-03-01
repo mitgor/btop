@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Automata Architecture
-status: unknown
-last_updated: "2026-02-28T17:36:26.932Z"
+status: in-progress
+last_updated: "2026-03-01T07:59:19Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Evolve btop's architecture toward explicit, testable state machines that eliminate invalid state combinations while preserving every aspect of the user experience.
-**Current focus:** Phase 13 - Type-Safe States (fourth phase of v1.1 Automata Architecture)
+**Current focus:** Phase 14 - Runner FSM (fifth phase of v1.1 Automata Architecture)
 
 ## Current Position
 
-Phase: 13 of 15 (Type-Safe States)
-Plan: 3 of 3 (13-03 complete)
-Status: Phase Complete
-Last activity: 2026-02-28 -- Completed 13-03 gap closure (Ctrl+C hang and resume-no-redraw fixes)
+Phase: 14 of 15 (Runner FSM)
+Plan: 1 of 2 (14-01 complete)
+Status: In Progress
+Last activity: 2026-03-01 -- Completed 14-01 Runner FSM type system (RunnerStateTag, runner:: structs, compatibility wrappers)
 
-Progress: [██████████] 100% (3/3 plans in phase 13)
+Progress: [█████-----] 50% (1/2 plans in phase 14)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 3.4min
-- Total execution time: 0.50 hours
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
@@ -47,6 +47,7 @@ Progress: [██████████] 100% (3/3 plans in phase 13)
 | 13-type-safe-states P01 | 2 tasks | 5min | 5min |
 | 13-type-safe-states P02 | 2 tasks | 5min | 5min |
 | 13-type-safe-states P03 | 2 tasks | 2min | 2min |
+| 14-runner-fsm P01 | 2 tasks | 3min | 3min |
 
 ## Accumulated Context
 
@@ -84,6 +85,10 @@ Recent decisions affecting current work:
 - [Phase 13-type-safe-states]: State chains (Reloading->Resizing->Running) via sequential transition_to() in main loop
 - [Phase 13-type-safe-states]: clean_quit uses static bool re-entrancy guard (shadow atomic conflicts with transition_to ordering)
 - [Phase 13-type-safe-states]: Resume from Sleeping routes through Resizing for full redraw via on_enter(Resizing)
+- [Phase 14-runner-fsm]: runner:: namespace placed outside Global:: matching state:: pattern
+- [Phase 14-runner-fsm]: to_runner_tag uses if-constexpr chain inside std::visit for compile-time exhaustiveness
+- [Phase 14-runner-fsm]: Runner::redraw extern kept temporarily (btop_draw.cpp still uses it; Plan 02 migrates)
+- [Phase 14-runner-fsm]: Compatibility wrappers (is_stopping, is_active) use acquire ordering on runner_state_tag
 
 ### Pending Todos
 
@@ -95,6 +100,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Completed 13-03-PLAN.md (gap closure: Ctrl+C hang and resume-no-redraw fixes)
+Last session: 2026-03-01
+Stopped at: Completed 14-01-PLAN.md (Runner FSM type system)
 Resume file: None
