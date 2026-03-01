@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Automata Architecture
-status: shipped
-last_updated: "2026-03-01T14:30:00.000Z"
+milestone: v1.2
+milestone_name: Tech Debt
+status: defining_requirements
+last_updated: "2026-03-01T15:00:00.000Z"
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 13
-  completed_plans: 13
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -17,13 +17,15 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-01)
 
-**Core value:** Evolve btop's architecture toward explicit, testable state machines that eliminate invalid state combinations while preserving every aspect of the user experience.
-**Current focus:** Planning next milestone
+**Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
+**Current focus:** v1.2 Tech Debt — defining requirements
 
 ## Current Position
 
-Milestone v1.1 Automata Architecture — SHIPPED 2026-03-01
-All 6 phases (10-15), 13 plans complete.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-01 — Milestone v1.2 started
 
 ## Accumulated Context
 
@@ -42,5 +44,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Milestone v1.1 archived and tagged
+Stopped at: Starting v1.2 Tech Debt milestone
 Resume file: None
