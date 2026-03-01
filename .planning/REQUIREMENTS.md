@@ -32,8 +32,8 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 - [x] **RUNNER-01**: Runner thread states defined as std::variant (Idle, Collecting, Drawing, Stopping)
 - [x] **RUNNER-02**: Runner atomic<bool> flags (active, stopping, waiting, redraw) replaced by FSM states or typed methods (active/stopping/waiting -> RunnerStateTag enum; redraw -> Runner::request_redraw() + runner_conf.force_redraw typed payload)
-- [ ] **RUNNER-03**: Main thread -> runner communication via typed mechanisms, not raw bool flag mutation (runner_conf struct + binary semaphore for start commands; RunnerStateTag enum store for stop; Runner::request_redraw() for redraw requests)
-- [ ] **RUNNER-04**: Binary semaphore wake-up pattern preserved for performance
+- [x] **RUNNER-03**: Main thread -> runner communication via typed mechanisms, not raw bool flag mutation (runner_conf struct + binary semaphore for start commands; RunnerStateTag enum store for stop; Runner::request_redraw() for redraw requests)
+- [x] **RUNNER-04**: Binary semaphore wake-up pattern preserved for performance
 
 ### Verification
 
@@ -84,8 +84,8 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 | TRANS-04 | Phase 12 | Pending |
 | RUNNER-01 | Phase 14 | Complete |
 | RUNNER-02 | Phase 14 | Complete |
-| RUNNER-03 | Phase 14 | Pending |
-| RUNNER-04 | Phase 14 | Pending |
+| RUNNER-03 | Phase 14 | Complete |
+| RUNNER-04 | Phase 14 | Complete |
 | VERIFY-01 | Phase 15 | Pending |
 | VERIFY-02 | Phase 15 | Pending |
 | VERIFY-03 | Phase 15 | Pending |

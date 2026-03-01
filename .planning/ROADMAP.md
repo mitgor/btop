@@ -32,7 +32,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 - [x] **Phase 11: Event Queue** - Introduce typed event system and lock-free queue for signal decoupling (completed 2026-02-28)
 - [x] **Phase 12: Extract Transitions** - Replace if/else if chain with typed transition functions and event-driven main loop (completed 2026-02-28)
 - [x] **Phase 13: Type-Safe States** - Graduate enum to std::variant with per-state data and entry/exit actions (completed 2026-02-28)
-- [ ] **Phase 14: Runner FSM** - Extract runner thread's atomic flags into independent state machine
+- [x] **Phase 14: Runner FSM** - Extract runner thread's atomic flags into independent state machine (completed 2026-03-01)
 - [ ] **Phase 15: Verification** - Unit tests for both FSMs, sanitizer sweeps, and behavior preservation validation
 
 ## Phase Details
@@ -124,5 +124,5 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | 11. Event Queue | 2/2 | Complete    | 2026-02-28 | - |
 | 12. Extract Transitions | 2/2 | Complete    | 2026-02-28 | - |
 | 13. Type-Safe States | 3/3 | Complete    | 2026-02-28 | - |
-| 14. Runner FSM | 1/2 | In Progress|  | - |
+| 14. Runner FSM | 2/2 | Complete   | 2026-03-01 | - |
 | 15. Verification | v1.1 | 0/TBD | Not started | - |

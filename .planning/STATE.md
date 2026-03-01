@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Automata Architecture
 status: in-progress
-last_updated: "2026-03-01T07:59:19Z"
+last_updated: "2026-03-01T08:11:27Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 14 of 15 (Runner FSM)
-Plan: 1 of 2 (14-01 complete)
-Status: In Progress
-Last activity: 2026-03-01 -- Completed 14-01 Runner FSM type system (RunnerStateTag, runner:: structs, compatibility wrappers)
+Phase: 14 of 15 (Runner FSM) -- COMPLETE
+Plan: 2 of 2 (14-02 complete)
+Status: Phase Complete
+Last activity: 2026-03-01 -- Completed 14-02 Runner FSM migration (all consumer sites migrated, old flags removed)
 
-Progress: [█████-----] 50% (1/2 plans in phase 14)
+Progress: [██████████] 100% (2/2 plans in phase 14)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 3.4min
-- Total execution time: 0.55 hours
+- Total plans completed: 11
+- Average duration: 3.8min
+- Total execution time: 0.68 hours
 
 **By Phase:**
 
@@ -48,6 +48,7 @@ Progress: [█████-----] 50% (1/2 plans in phase 14)
 | 13-type-safe-states P02 | 2 tasks | 5min | 5min |
 | 13-type-safe-states P03 | 2 tasks | 2min | 2min |
 | 14-runner-fsm P01 | 2 tasks | 3min | 3min |
+| 14-runner-fsm P02 | 2 tasks | 8min | 8min |
 
 ## Accumulated Context
 
@@ -89,6 +90,10 @@ Recent decisions affecting current work:
 - [Phase 14-runner-fsm]: to_runner_tag uses if-constexpr chain inside std::visit for compile-time exhaustiveness
 - [Phase 14-runner-fsm]: Runner::redraw extern kept temporarily (btop_draw.cpp still uses it; Plan 02 migrates)
 - [Phase 14-runner-fsm]: Compatibility wrappers (is_stopping, is_active) use acquire ordering on runner_state_tag
+- [Phase 14-runner-fsm]: Legacy flags kept as stubs during incremental migration then removed
+- [Phase 14-runner-fsm]: wait_idle() polling loop over atomic_wait for multi-state waiting
+- [Phase 14-runner-fsm]: pending_redraw folded into conf.force_redraw in Runner::run()
+- [Phase 14-runner-fsm]: btop_tools.hpp included in btop_shared.hpp for Tools::atomic_wait in wait_idle()
 
 ### Pending Todos
 
@@ -101,5 +106,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 14-01-PLAN.md (Runner FSM type system)
+Stopped at: Completed 14-02-PLAN.md (Runner FSM migration -- Phase 14 complete)
 Resume file: None
