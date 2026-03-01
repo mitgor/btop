@@ -13,8 +13,8 @@ Requirements for tech debt cleanup milestone. Each maps to roadmap phases.
 - [x] **PURE-02**: on_event(Running, ThreadError) is reachable and tested (no dead code)
 - [x] **PURE-03**: RunnerStateVar is either used for runtime dispatch or removed (no write-only dead code)
 - [x] **PURE-04**: When runner reports error, app_var transitions to state::Error (variant/shadow in sync)
-- [ ] **PURE-05**: term_resize() and clean_quit() use transition_to() instead of direct shadow atomic writes
-- [ ] **PURE-06**: SIGTERM routed through event system like other signals
+- [x] **PURE-05**: term_resize() and clean_quit() use transition_to() instead of direct shadow atomic writes
+- [x] **PURE-06**: SIGTERM routed through event system like other signals
 
 ### Test & Doc Hygiene
 
@@ -57,8 +57,8 @@ Requirements for tech debt cleanup milestone. Each maps to roadmap phases.
 | PURE-02 | Phase 16 | Complete |
 | PURE-03 | Phase 16 | Complete |
 | PURE-04 | Phase 16 | Complete |
-| PURE-05 | Phase 17 | Pending |
-| PURE-06 | Phase 17 | Pending |
+| PURE-05 | Phase 17 | Complete |
+| PURE-06 | Phase 17 | Complete |
 | HYGN-01 | Phase 18 | Pending |
 | HYGN-02 | Phase 18 | Pending |
 | PERF-01 | Phase 19 | Pending |

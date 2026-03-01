@@ -44,7 +44,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 **Milestone Goal:** Close all v1.1 integration impurities, fix pre-existing issues, route all state transitions through the FSM architecture, and measure actual CPU/memory improvements.
 
 - [x] **Phase 16: Runner Error Path Purity** - Runner exception handling uses event queue end-to-end with variant/shadow sync (completed 2026-03-01)
-- [ ] **Phase 17: Signal & Transition Routing** - All remaining shadow atomic bypasses routed through FSM transition_to()
+- [x] **Phase 17: Signal & Transition Routing** - All remaining shadow atomic bypasses routed through FSM transition_to() (completed 2026-03-01)
 - [ ] **Phase 18: Test & Doc Hygiene** - Pre-existing test failure fixed and stale documentation cleaned up
 - [ ] **Phase 19: Performance Measurement** - CPU and memory improvements from v1.0+v1.1 quantified with documented methodology
 
@@ -72,7 +72,8 @@ Full details: `milestones/v1.1-ROADMAP.md`
   2. clean_quit() triggers state changes via transition_to() instead of writing shadow atomics directly
   3. SIGTERM is pushed into the event queue and dispatched through on_event(), not handled by direct flag writes
   4. No code path outside transition_to() writes to shadow atomic state variables (grep-verifiable)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 17-01-PLAN.md — Remove shadow atomic bypasses from term_resize()/clean_quit(), route SIGTERM through event queue, grep-verify purity
 
 ### Phase 18: Test & Doc Hygiene
 **Goal**: Pre-existing test failures and stale documentation from earlier milestones are cleaned up
@@ -102,6 +103,6 @@ Full details: `milestones/v1.1-ROADMAP.md`
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
 | 16. Runner Error Path Purity | 1/1 | Complete    | 2026-03-01 | - |
-| 17. Signal & Transition Routing | v1.2 | 0/? | Not started | - |
+| 17. Signal & Transition Routing | 1/1 | Complete   | 2026-03-01 | - |
 | 18. Test & Doc Hygiene | v1.2 | 0/? | Not started | - |
 | 19. Performance Measurement | v1.2 | 0/? | Not started | - |
