@@ -413,11 +413,6 @@ void init_config(bool low_color, std::optional<std::string>& filter) {
 
 //* Manages secondary thread for collection and drawing of boxes
 namespace Runner {
-	//? Legacy flags — kept for backward compatibility until all consumer sites are migrated (Task 2).
-	//? These are NO LONGER written to by the runner loop. Runner state is tracked by runner_state_tag.
-	atomic<bool> active (false);
-	atomic<bool> stopping (false);
-	atomic<bool> redraw (false);
 	atomic<bool> coreNum_reset (false);
 
 	//? Private flag for pending redraw requests (folded into conf.force_redraw by run())

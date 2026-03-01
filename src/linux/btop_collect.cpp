@@ -1059,7 +1059,7 @@ namespace Cpu {
     }
 
 	auto collect(bool no_update) -> cpu_info& {
-		if (Runner::stopping or (no_update and not current_cpu.cpu_percent[std::to_underlying(CpuField::total)].empty())) return current_cpu;
+		if (Runner::is_stopping() or (no_update and not current_cpu.cpu_percent[std::to_underlying(CpuField::total)].empty())) return current_cpu;
 		auto& cpu = current_cpu;
 
 		if (Config::getB(BoolKey::show_cpu_freq))
@@ -1934,7 +1934,7 @@ namespace Gpu {
 
 	//? Collect data from GPU-specific libraries
 	auto collect(bool no_update) -> vector<gpu_info>& {
-		if (Runner::stopping or (no_update and not gpus.empty())) return gpus;
+		if (Runner::is_stopping() or (no_update and not gpus.empty())) return gpus;
 
 		// DebugTimer gpu_timer("GPU Total");
 
@@ -2051,7 +2051,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info& {
-		if (Runner::stopping or (no_update and not current_mem.percent[std::to_underlying(MemField::used)].empty())) return current_mem;
+		if (Runner::is_stopping() or (no_update and not current_mem.percent[std::to_underlying(MemField::used)].empty())) return current_mem;
 		auto show_swap = Config::getB(BoolKey::show_swap);
 		auto swap_disk = Config::getB(BoolKey::swap_disk);
 		auto show_disks = Config::getB(BoolKey::show_disks);
@@ -2609,7 +2609,7 @@ namespace Net {
 	uint64_t timestamp{};
 
 	auto collect(bool no_update) -> net_info& {
-		if (Runner::stopping) return empty_net;
+		if (Runner::is_stopping()) return empty_net;
 		auto& net = current_net;
 		auto& config_iface = Config::getS(StringKey::net_iface);
 		auto net_sync = Config::getB(BoolKey::net_sync);
@@ -2929,7 +2929,7 @@ namespace Proc {
 
 	//* Collects and sorts process information from /proc
 	auto collect(bool no_update) -> vector<proc_info>& {
-		if (Runner::stopping) return current_procs;
+		if (Runner::is_stopping()) return current_procs;
 		const auto& sorting = Config::getS(StringKey::proc_sorting);
 		auto reverse = Config::getB(BoolKey::proc_reversed);
 		const auto& filter = Config::getS(StringKey::proc_filter);
@@ -3015,7 +3015,7 @@ namespace Proc {
 
 			//? Iterate over all pids in /proc
 			for (const auto& d: fs::directory_iterator(Shared::procPath)) {
-				if (Runner::stopping)
+				if (Runner::is_stopping())
 					return current_procs;
 
 				const string pid_str = d.path().filename();

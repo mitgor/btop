@@ -587,7 +587,7 @@ namespace Gpu {
 
 	//? Collect data from Apple Silicon GPU
 	auto collect(bool no_update) -> vector<gpu_info>& {
-		if (Runner::stopping or (no_update and not gpus.empty())) return gpus;
+		if (Runner::is_stopping() or (no_update and not gpus.empty())) return gpus;
 
 		AppleSilicon::collect<0>(gpus.data());
 
@@ -978,7 +978,7 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info & {
-		if (Runner::stopping or (no_update and not current_cpu.cpu_percent[std::to_underlying(CpuField::total)].empty()))
+		if (Runner::is_stopping() or (no_update and not current_cpu.cpu_percent[std::to_underlying(CpuField::total)].empty()))
 			return current_cpu;
 		auto &cpu = current_cpu;
 
@@ -1201,7 +1201,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info & {
-		if (Runner::stopping or (no_update and not current_mem.percent[std::to_underlying(MemField::used)].empty()))
+		if (Runner::is_stopping() or (no_update and not current_mem.percent[std::to_underlying(MemField::used)].empty()))
 			return current_mem;
 
 		auto show_swap = Config::getB(BoolKey::show_swap);

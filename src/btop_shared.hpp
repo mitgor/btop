@@ -409,11 +409,6 @@ namespace Global {
 }
 
 namespace Runner {
-	//? Legacy flags — kept for backward compatibility until all consumer sites are migrated.
-	//? Runner::is_stopping() / Runner::is_active() / Runner::wait_idle() are the preferred API.
-	extern atomic<bool> active;
-	extern atomic<bool> stopping;
-	extern atomic<bool> redraw;
 	extern atomic<bool> coreNum_reset;
 	extern atomic<bool> pause_output;
 	extern string debug_bg;

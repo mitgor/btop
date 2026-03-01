@@ -251,7 +251,7 @@ namespace Input {
 					if (intKey == 0 or intKey > 4)
 						return;
 				#endif
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 
 					if (not Config::toggle_box(boxes.at(intKey))) {
 						Menu::show(Menu::Menus::SizeError);
@@ -276,7 +276,7 @@ namespace Input {
 					}
 					else Config::current_preset = (key == "p") ? first_preset : Config::preset_list.size() - 1;
 					if (Config::current_preset == old_preset) return;
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 					if (not Config::apply_preset(Config::preset_list.at(Config::current_preset.value()))) {
 						Menu::show(Menu::Menus::SizeError);
 						Config::current_preset = old_preset;
@@ -488,7 +488,7 @@ namespace Input {
 				else if (is_in(key, "+", "-", "space", "C") and Config::getB(BoolKey::proc_tree)) {
 					const bool is_following_detailed = Config::getB(BoolKey::follow_process) and Config::getI(IntKey::followed_pid) == Config::getI(IntKey::detailed_pid);
 					if (Config::getI(IntKey::proc_selected) > 0 or is_following_detailed) {
-						atomic_wait(Runner::active);
+						Runner::wait_idle();
 						auto& pid = is_following_detailed and Config::getI(IntKey::proc_selected) == 0 ? Config::getI(IntKey::followed_pid) : Config::getI(IntKey::selected_pid);
 						if (key == "+" or key == "space") Proc::expand = pid;
 						if (key == "-" or key == "space") Proc::collapse = pid;
@@ -497,19 +497,19 @@ namespace Input {
 					}
 				}
 				else if (is_in(key, "t", kill_key) and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 					if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
 					Menu::show(Menu::Menus::SignalSend, (key == "t" ? SIGTERM : SIGKILL));
 					return;
 				}
 				else if (key == "s" and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 					if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
 					Menu::show(Menu::Menus::SignalChoose);
 					return;
 				}
 				else if (key == "N" and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 				    if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
 				    Menu::show(Menu::Menus::Renice);
 				    return;
@@ -592,7 +592,7 @@ namespace Input {
 				bool redraw = true;
 
 				if (is_in(key, "b", "n")) {
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 					int c_index = v_index(Net::interfaces, Net::selected_iface);
 					if (c_index != (int)Net::interfaces.size()) {
 						if (key == "b") {
@@ -614,7 +614,7 @@ namespace Input {
 					Net::rescale = true;
 				}
 				else if (key == "z") {
-					atomic_wait(Runner::active);
+					Runner::wait_idle();
 					auto& ndev = Net::current_net.at(Net::selected_iface);
 					if (ndev.stat[std::to_underlying(NetDir::download)].offset + ndev.stat[std::to_underlying(NetDir::upload)].offset > 0) {
 						ndev.stat[std::to_underlying(NetDir::download)].offset = 0;

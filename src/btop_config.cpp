@@ -722,7 +722,7 @@ namespace Config {
 
 	void unlock() {
 		if (not locked) return;
-		atomic_wait(Runner::active);
+		Runner::wait_idle();
 		atomic_lock lck(writelock, true);
 		try {
 			if (Proc::shown) {

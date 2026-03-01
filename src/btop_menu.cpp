@@ -1118,7 +1118,7 @@ namespace Menu {
 		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		if (s_pid == 0) return Closed;
 		if (redraw) {
-			atomic_wait(Runner::active);
+			Runner::wait_idle();
 			auto& p_name = (s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name));
 			vector<string> cont_vec = {
 				Fx::b + Theme::c("main_fg") + "Send signal: " + Fx::ub + Theme::c("hi_fg") + to_string(signalToSend)
@@ -1367,7 +1367,7 @@ static int optionsMenu(const string& key) {
 						screen_redraw = true;
 					}
 					else if (option == "cpu_core_map") {
-						atomic_wait(Runner::active);
+						Runner::wait_idle();
 						Cpu::core_mapping = Cpu::get_core_mapping();
 					}
 				}
@@ -1482,7 +1482,7 @@ static int optionsMenu(const string& key) {
 				else if (is_in(option, "rounded_corners", "theme_background"))
 					theme_refresh = true;
 				else if (option == "background_update") {
-					Runner::pause_output = false;
+					Runner::pause_output.store(false);
 				}
 				else if (option == "base_10_sizes") {
 					recollect = true;
@@ -1640,6 +1640,7 @@ static int optionsMenu(const string& key) {
 
 		if (theme_refresh) {
 			Theme::setTheme();
+			Draw::update_reset_colors();
 			Draw::banner_gen(0, 0, false, true);
 			screen_redraw = true;
 			redraw = true;
@@ -1820,7 +1821,7 @@ static int optionsMenu(const string& key) {
 			Menu::active = false;
 			Global::overlay.clear();
 			Global::overlay.shrink_to_fit();
-			Runner::pause_output = false;
+			Runner::pause_output.store(false);
 			bg.clear();
 			bg.shrink_to_fit();
 			currentMenu = -1;
@@ -1850,7 +1851,7 @@ static int optionsMenu(const string& key) {
 			menuMask.reset(currentMenu);
 			mouse_mappings.clear();
 			bg.clear();
-			Runner::pause_output = false;
+			Runner::pause_output.store(false);
 			process();
 		}
 		else if (redraw) {
@@ -1860,7 +1861,7 @@ static int optionsMenu(const string& key) {
 		else if (retCode == Changed)
 			Runner::run("overlay");
 		else if (retCode == Switch) {
-			Runner::pause_output = false;
+			Runner::pause_output.store(false);
 			bg.clear();
 			redraw = true;
 			mouse_mappings.clear();

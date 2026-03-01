@@ -1054,7 +1054,7 @@ namespace Cpu {
 		bool force_redraw,
 		bool data_same
 	) {
-		if (Runner::stopping) return "";
+		if (Runner::is_stopping()) return "";
 		if (force_redraw) redraw = true;
 		bool show_temps = (Config::getB(BoolKey::check_temp) and got_sensors);
 		bool show_watts = (Config::getB(BoolKey::show_cpu_watts) and supports_watts);
@@ -1526,7 +1526,7 @@ namespace Gpu {
 	vector<string> box = {};
 
     string draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same) {
-		if (Runner::stopping) return "";
+		if (Runner::is_stopping()) return "";
 
 		auto& b_x = b_x_vec[index];
 		auto& b_y = b_y_vec[index];
@@ -1715,7 +1715,7 @@ namespace Mem {
 	std::unordered_map<string, Draw::Graph> io_graphs;
 
 	string draw(const mem_info& mem, bool force_redraw, bool data_same) {
-		if (Runner::stopping) return "";
+		if (Runner::is_stopping()) return "";
 		if (force_redraw) redraw = true;
 		auto show_swap = Config::getB(BoolKey::show_swap);
 		auto swap_disk = Config::getB(BoolKey::swap_disk);
@@ -1979,7 +1979,7 @@ namespace Net {
 	string box;
 
 	string draw(const net_info& net, bool force_redraw, bool data_same) {
-		if (Runner::stopping) return "";
+		if (Runner::is_stopping()) return "";
 		if (force_redraw) redraw = true;
 		auto net_sync = Config::getB(BoolKey::net_sync);
 		auto net_auto = Config::getB(BoolKey::net_auto);
@@ -2187,7 +2187,7 @@ namespace Proc {
 	}
 
 	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
-		if (Runner::stopping) return "";
+		if (Runner::is_stopping()) return "";
 		auto proc_tree = Config::getB(BoolKey::proc_tree);
 		bool show_detailed = (Config::getB(BoolKey::show_detailed) and cmp_equal(Proc::detailed.last_pid, Config::getI(IntKey::detailed_pid)));
 		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor) and Theme::gradients.contains("proc"));
@@ -2745,7 +2745,7 @@ namespace Proc {
 
 namespace Draw {
 	void calcSizes() {
-		atomic_wait(Runner::active);
+		Runner::wait_idle();
 		Config::unlock();
 		auto boxes = Config::getS(StringKey::shown_boxes);
 		auto cpu_bottom = Config::getB(BoolKey::cpu_bottom);
@@ -2759,8 +2759,8 @@ namespace Draw {
 		Proc::box.clear();
 		Global::clock.clear();
 		Global::overlay.clear();
-		Runner::pause_output = false;
-		Runner::redraw = true;
+		Runner::pause_output.store(false);
+		Runner::request_redraw();
 		if (not (Proc::resized or Global::app_state.load() == AppStateTag::Resizing)) {
 			Proc::p_counters.clear();
 			Proc::p_graphs.clear();
