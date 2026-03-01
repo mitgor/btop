@@ -226,7 +226,9 @@ namespace Input {
 			if (not filtering) {
 				bool keep_going = false;
 				if (key == "q") {
-					clean_quit(0);
+					Global::event_queue.push(event::Quit{0});
+					Input::interrupt();
+					return;
 				}
 				else if (is_in(key, "escape", "m")) {
 					Menu::show(Menu::Menus::Main);

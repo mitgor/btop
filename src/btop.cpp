@@ -223,7 +223,9 @@ void clean_quit(int sig) {
 	static bool clean_quit_entered = false;
 	if (clean_quit_entered) return;
 	clean_quit_entered = true;
-	Global::app_state.store(AppStateTag::Quitting);
+	// NOTE: Shadow write removed — transition_to() already set app_state before on_enter calls clean_quit().
+	// For init-time fatal errors, no cross-thread reader exists yet. For Runner::stop() fatal paths,
+	// runner_state_tag (Stopping) handles cross-thread coordination.
 	Runner::stop();
 	if (Global::_runner_started) {
 	#if defined __APPLE__ || defined __OpenBSD__ || defined __NetBSD__
@@ -364,6 +366,7 @@ AppStateVar dispatch_event(const AppStateVar& current, const AppEvent& ev) {
 static void _signal_handler(const int sig) {
 	switch (sig) {
 		case SIGINT:
+		case SIGTERM:
 			Global::event_queue.push(event::Quit{0});
 			break;
 		case SIGTSTP:
@@ -1418,6 +1421,7 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 	std::signal(SIGWINCH, _signal_handler);
 	std::signal(SIGUSR1, _signal_handler);
 	std::signal(SIGUSR2, _signal_handler);
+	std::signal(SIGTERM, _signal_handler);
 	// Add crash handlers to restore terminal on crash
 	std::signal(SIGSEGV, _crash_handler);
 	std::signal(SIGABRT, _crash_handler);

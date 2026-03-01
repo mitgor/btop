@@ -20,6 +20,7 @@ tab-size = 4
 
 #include "btop_config.hpp"
 #include "btop_draw.hpp"
+#include "btop_input.hpp"
 #include "btop_log.hpp"
 #include "btop_shared.hpp"
 #include "btop_theme.hpp"
@@ -1233,7 +1234,9 @@ namespace Menu {
 					currentMenu = Menus::Help;
 					return Switch;
 				case Quit:
-					clean_quit(0);
+					Global::event_queue.push(event::Quit{0});
+					Input::interrupt();
+					return NoChange;
 			}
 		}
 		else if (is_in(key, "down", "tab", "mouse_scroll_down", "j")) {
