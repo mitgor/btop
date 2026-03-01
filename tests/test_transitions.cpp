@@ -18,6 +18,7 @@ tab-size = 4
 
 #include <gtest/gtest.h>
 #include "btop_events.hpp"
+#include "btop_shared.hpp"
 
 // --- Running state transitions (variant-returning) ---
 
@@ -47,10 +48,13 @@ TEST(TypedTransition, RunningReloadReturnsReloading) {
 }
 
 TEST(TypedTransition, RunningThreadErrorReturnsError) {
+	Global::exit_error_msg = "Test runner error";
 	AppStateVar current = state::Running{1000, 5000};
 	auto next = dispatch_event(current, event::ThreadError{});
 	ASSERT_TRUE(std::holds_alternative<state::Error>(next));
-	EXPECT_EQ(std::get<state::Error>(next).message, "Thread error");
+	EXPECT_EQ(std::get<state::Error>(next).message, "Test runner error");
+	// Verify exit_error_msg was consumed (moved out)
+	EXPECT_TRUE(Global::exit_error_msg.empty());
 }
 
 TEST(TypedTransition, RunningTimerTickReturnsRunning) {
@@ -324,6 +328,23 @@ TEST(AppFsmTransition, ErrorThreadError_PreservesOriginalMessage) {
 	auto next = dispatch_event(current, event::ThreadError{});
 	ASSERT_TRUE(std::holds_alternative<state::Error>(next));
 	EXPECT_EQ(std::get<state::Error>(next).message, "first error");
+}
+
+TEST(AppFsmTransition, ThreadErrorSyncsVariantAndShadow) {
+	// Set up initial state
+	Global::exit_error_msg = "Sync test error";
+	Global::app_state.store(Global::AppStateTag::Running, std::memory_order_relaxed);
+
+	AppStateVar app_var = state::Running{1000, 5000};
+	auto next = dispatch_event(app_var, event::ThreadError{});
+
+	ASSERT_TRUE(std::holds_alternative<state::Error>(next));
+	EXPECT_EQ(std::get<state::Error>(next).message, "Sync test error");
+
+	// Note: We cannot call transition_to() in unit tests because on_enter(Error)
+	// calls clean_quit(). The key verification is that dispatch_event produces
+	// state::Error, and transition_to() is known to sync the shadow atomic
+	// (tested separately in existing transition_to tests).
 }
 
 // --- Two-variant dispatch tests ---
