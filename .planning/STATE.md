@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Automata Architecture
-status: unknown
-last_updated: "2026-03-01T08:19:09.687Z"
+status: in-progress
+last_updated: "2026-03-01T11:16:25Z"
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 12
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Evolve btop's architecture toward explicit, testable state machines that eliminate invalid state combinations while preserving every aspect of the user experience.
-**Current focus:** Phase 14 - Runner FSM (fifth phase of v1.1 Automata Architecture)
+**Current focus:** Phase 15 - Verification (sixth phase of v1.1 Automata Architecture)
 
 ## Current Position
 
-Phase: 14 of 15 (Runner FSM) -- COMPLETE
-Plan: 2 of 2 (14-02 complete)
-Status: Phase Complete
-Last activity: 2026-03-01 -- Completed 14-02 Runner FSM migration (all consumer sites migrated, old flags removed)
+Phase: 15 of 15 (Verification)
+Plan: 1 of 2 (15-01 complete)
+Status: In Progress
+Last activity: 2026-03-01 -- Completed 15-01 FSM unit test coverage (App FSM 48/48 pairs + Runner FSM query/transition tests)
 
-Progress: [██████████] 100% (2/2 plans in phase 14)
+Progress: [█████-----] 50% (1/2 plans in phase 15)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 12
 - Average duration: 3.8min
-- Total execution time: 0.68 hours
+- Total execution time: 0.75 hours
 
 **By Phase:**
 
@@ -49,6 +49,7 @@ Progress: [██████████] 100% (2/2 plans in phase 14)
 | 13-type-safe-states P03 | 2 tasks | 2min | 2min |
 | 14-runner-fsm P01 | 2 tasks | 3min | 3min |
 | 14-runner-fsm P02 | 2 tasks | 8min | 8min |
+| 15-verification P01 | 2 tasks | 4min | 4min |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 14-runner-fsm]: wait_idle() polling loop over atomic_wait for multi-state waiting
 - [Phase 14-runner-fsm]: pending_redraw folded into conf.force_redraw in Runner::run()
 - [Phase 14-runner-fsm]: btop_tools.hpp included in btop_shared.hpp for Tools::atomic_wait in wait_idle()
+- [Phase 15-verification]: Runner::stop() test sets app_state to Quitting to safely bypass clean_quit path
+- [Phase 15-verification]: Runner::stop() ends at Idle (not Stopping) since cancellation protocol resets the tag
+- [Phase 15-verification]: RAII RunnerTagGuard saves/restores Global::runner_state_tag for test isolation
 
 ### Pending Todos
 
@@ -106,5 +110,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 14-02-PLAN.md (Runner FSM migration -- Phase 14 complete)
+Stopped at: Completed 15-01-PLAN.md (FSM unit test coverage -- 40 new tests)
 Resume file: None
