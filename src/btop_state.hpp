@@ -42,6 +42,28 @@ namespace Global {
 		return "Unknown";
 	}
 
+	/// Runner thread lifecycle states (independent from App FSM).
+	enum class RunnerStateTag : std::uint8_t {
+		Idle       = 0,  ///< Waiting for work (semaphore blocked)
+		Collecting = 1,  ///< Data collection in progress
+		Drawing    = 2,  ///< Rendering output
+		Stopping   = 3,  ///< Cooperative cancellation
+	};
+
+	/// Shadow atomic for cross-thread queries (replaces Runner::active + Runner::stopping).
+	extern std::atomic<RunnerStateTag> runner_state_tag;
+
+	/// Debug/logging helper.
+	constexpr std::string_view to_string(RunnerStateTag s) noexcept {
+		switch (s) {
+			case RunnerStateTag::Idle:       return "Idle";
+			case RunnerStateTag::Collecting: return "Collecting";
+			case RunnerStateTag::Drawing:    return "Drawing";
+			case RunnerStateTag::Stopping:   return "Stopping";
+		}
+		return "Unknown";
+	}
+
 } // namespace Global
 
 /// Typed state structs carrying per-state data.
@@ -63,6 +85,36 @@ namespace state {
 	struct Error {
 		std::string message;  // Error description
 	};
+}
+
+/// Runner thread state structs — owned by the runner thread.
+namespace runner {
+	struct Idle {};
+	struct Collecting {};
+	struct Drawing {
+		bool force_redraw;
+	};
+	struct Stopping {};
+}
+
+/// Runner thread state variant — owned exclusively by the runner thread.
+using RunnerStateVar = std::variant<
+	runner::Idle,
+	runner::Collecting,
+	runner::Drawing,
+	runner::Stopping
+>;
+
+/// Convert runner variant state to tag for shadow updates.
+inline Global::RunnerStateTag to_runner_tag(const RunnerStateVar& s) noexcept {
+	using Global::RunnerStateTag;
+	return std::visit([](const auto& st) -> RunnerStateTag {
+		using T = std::decay_t<decltype(st)>;
+		if constexpr (std::is_same_v<T, runner::Idle>)       return RunnerStateTag::Idle;
+		if constexpr (std::is_same_v<T, runner::Collecting>) return RunnerStateTag::Collecting;
+		if constexpr (std::is_same_v<T, runner::Drawing>)    return RunnerStateTag::Drawing;
+		if constexpr (std::is_same_v<T, runner::Stopping>)   return RunnerStateTag::Stopping;
+	}, s);
 }
 
 /// The authoritative application state variant. Main-thread only.
