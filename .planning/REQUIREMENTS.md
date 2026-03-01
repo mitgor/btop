@@ -18,8 +18,8 @@ Requirements for tech debt cleanup milestone. Each maps to roadmap phases.
 
 ### Test & Doc Hygiene
 
-- [ ] **HYGN-01**: RingBuffer.PushBackOnZeroCapacity test passes (fix pre-existing failure)
-- [ ] **HYGN-02**: Stale VERIFICATION.md references to removed Phase 12 infrastructure cleaned up
+- [x] **HYGN-01**: RingBuffer.PushBackOnZeroCapacity test passes (fix pre-existing failure)
+- [x] **HYGN-02**: Stale VERIFICATION.md references to removed Phase 12 infrastructure cleaned up
 
 ### Performance Measurement
 
@@ -59,8 +59,8 @@ Requirements for tech debt cleanup milestone. Each maps to roadmap phases.
 | PURE-04 | Phase 16 | Complete |
 | PURE-05 | Phase 17 | Complete |
 | PURE-06 | Phase 17 | Complete |
-| HYGN-01 | Phase 18 | Pending |
-| HYGN-02 | Phase 18 | Pending |
+| HYGN-01 | Phase 18 | Complete |
+| HYGN-02 | Phase 18 | Complete |
 | PERF-01 | Phase 19 | Pending |
 | PERF-02 | Phase 19 | Pending |
 
