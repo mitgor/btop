@@ -1,0 +1,109 @@
+{
+  "system": {
+    "platform": "arm64",
+    "os": "macOS 26.3",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.4.2)",
+    "cpu": "Apple M4 Max",
+    "cores": "16",
+    "memory_gb": 64.0
+  },
+  "config": {
+    "bench_cycles": 50,
+    "warmup_cycles": 5,
+    "runs": 6,
+    "measured_per_run": 45,
+    "measured_cycles_total": 270,
+    "cmake_flags": "-G Ninja -DCMAKE_BUILD_TYPE=Release -DBTOP_LTO=ON -DBTOP_GPU=ON",
+    "baseline_version": "v1.4.6",
+    "current_commit": "656aded"
+  },
+  "old": {
+    "wall_us": {
+      "mean": 1723.5125925925927,
+      "median": 1697.6,
+      "stdev": 127.09631621523874,
+      "min": 1549.0,
+      "max": 2477.7,
+      "n": 270
+    },
+    "collect_us": {
+      "mean": 1595.0107407407406,
+      "median": 1572.3000000000002,
+      "stdev": 122.79509451670893,
+      "min": 1431.5,
+      "max": 2321.8,
+      "n": 270
+    },
+    "draw_us": {
+      "mean": 128.46925925925925,
+      "median": 126.1,
+      "stdev": 9.864421980562353,
+      "min": 114.5,
+      "max": 176.9,
+      "n": 270
+    },
+    "peak_rss_mb": {
+      "mean": 11.765625,
+      "median": 11.6953125,
+      "stdev": 0.24862905351145106,
+      "min": 11.59375,
+      "max": 12.265625,
+      "n": 6
+    },
+    "time_rss_mb": 11.640625
+  },
+  "new": {
+    "wall_us": {
+      "mean": 1648.0703703703703,
+      "median": 1601.45,
+      "stdev": 163.85531385092682,
+      "min": 1452.9,
+      "max": 2650.2,
+      "n": 270
+    },
+    "collect_us": {
+      "mean": 1494.8325925925926,
+      "median": 1451.3000000000002,
+      "stdev": 157.53569670632717,
+      "min": 1308.2,
+      "max": 2483.6,
+      "n": 270
+    },
+    "draw_us": {
+      "mean": 153.1988888888889,
+      "median": 149.2,
+      "stdev": 11.616186896626113,
+      "min": 139.2,
+      "max": 209.1,
+      "n": 270
+    },
+    "peak_rss_mb": {
+      "mean": 13.377604166666666,
+      "median": 13.2421875,
+      "stdev": 0.25105571364572976,
+      "min": 13.1875,
+      "max": 13.765625,
+      "n": 6
+    },
+    "time_rss_mb": 13.21875
+  },
+  "changes": {
+    "wall_pct": -4.38,
+    "collect_pct": -6.28,
+    "draw_pct": 19.25,
+    "rss_pct": 13.7,
+    "old_binary_kb": 1540.0,
+    "new_binary_kb": 1696.0,
+    "binary_size_pct": 10.13
+  },
+  "binaries": {
+    "old": {
+      "path": "/tmp/btop-old/build-bench/btop",
+      "size_kb": 1540.0
+    },
+    "new": {
+      "path": "/Users/mit/Documents/GitHub/btop/build-perf/btop",
+      "size_kb": 1696.0
+    }
+  }
+}
