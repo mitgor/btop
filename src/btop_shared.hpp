@@ -390,7 +390,7 @@ inline std::optional<size_t> mem_field_from_name(const string& name) {
 	return std::nullopt;
 }
 
-void term_resize(bool force=false);
+bool term_resize(bool force=false);
 void banner_gen();
 
 extern void clean_quit(int sig);

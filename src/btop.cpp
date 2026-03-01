@@ -135,24 +135,25 @@ namespace Runner {
 } // namespace Runner
 
 //* Handler for SIGWINCH and general resizing events, does nothing if terminal hasn't been resized unless force=true
-void term_resize(bool force) {
+//* Returns true if a resize was processed, false otherwise.
+//* NOTE: Does NOT write Global::app_state — callers handle state transitions via transition_to() or event queue.
+bool term_resize(bool force) {
 	static atomic<bool> resizing (false);
 	if (Input::polling) {
-		Global::app_state.store(AppStateTag::Resizing);
+		Global::event_queue.push(event::Resize{});
 		Input::interrupt();
-		return;
+		return false;
 	}
 	atomic_lock lck(resizing, true);
 	if (auto refreshed = Term::refresh(true); refreshed or force) {
 		if (force and refreshed) force = false;
 	}
-	else return;
+	else return false;
 #ifdef GPU_SUPPORT
 	static const array<string, 10> all_boxes = {"gpu5", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4"};
 #else
 	static const array<string, 5> all_boxes = {"", "cpu", "mem", "net", "proc"};
 #endif
-	Global::app_state.store(AppStateTag::Resizing);
 	if (Runner::is_active()) Runner::stop();
 	Term::refresh();
 	Config::unlock();
@@ -187,8 +188,11 @@ void term_resize(bool force) {
 			for (; not Term::refresh() and not got_key; got_key = Input::poll(10));
 			if (got_key) {
 				auto key = Input::get();
-				if (key == "q")
-					clean_quit(0);
+				if (key == "q") {
+					Global::event_queue.push(event::Quit{0});
+					Input::interrupt();
+					return true;
+				}
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
 				#ifdef GPU_SUPPORT
@@ -211,6 +215,7 @@ void term_resize(bool force) {
 	}
 
 	Input::interrupt();
+	return true;
 }
 
 //* Exit handler; stops threads, restores terminal and saves config changes
@@ -606,7 +611,7 @@ namespace Runner {
 						if (coreNum_reset) {
 							coreNum_reset = false;
 							Cpu::core_mapping = Cpu::get_core_mapping();
-							Global::app_state.store(AppStateTag::Resizing);
+							Global::event_queue.push(event::Resize{});
 							Input::interrupt();
 							continue;
 						}
@@ -1446,10 +1451,9 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 			pthread_sigmask(SIG_SETMASK, &Input::signal_mask, &mask);
 			term_resize(true);
 			pthread_sigmask(SIG_SETMASK, &mask, nullptr);
-			auto expected = AppStateTag::Resizing;
-			Global::app_state.compare_exchange_strong(expected, AppStateTag::Running);
 		}
-
+		// Drain any events pushed during init resize (e.g. from Input::polling path)
+		while (Global::event_queue.try_pop()) {}
 	}
 
 	Draw::calcSizes();
@@ -1524,8 +1528,7 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 			}
 
 			//? 3. Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
-			term_resize();
-			if (Global::app_state.load(std::memory_order_acquire) == AppStateTag::Resizing) {
+			if (term_resize()) {
 				transition_to(app_var, state::Resizing{}, ctx);
 				transition_to(app_var, state::Running{
 					static_cast<uint64_t>(Config::getI(IntKey::update_ms)),
