@@ -9,10 +9,10 @@ Requirements for tech debt cleanup milestone. Each maps to roadmap phases.
 
 ### FSM Integration Purity
 
-- [ ] **PURE-01**: Runner exception handler pushes event::ThreadError into event queue instead of writing shadow atomic directly
-- [ ] **PURE-02**: on_event(Running, ThreadError) is reachable and tested (no dead code)
-- [ ] **PURE-03**: RunnerStateVar is either used for runtime dispatch or removed (no write-only dead code)
-- [ ] **PURE-04**: When runner reports error, app_var transitions to state::Error (variant/shadow in sync)
+- [x] **PURE-01**: Runner exception handler pushes event::ThreadError into event queue instead of writing shadow atomic directly
+- [x] **PURE-02**: on_event(Running, ThreadError) is reachable and tested (no dead code)
+- [x] **PURE-03**: RunnerStateVar is either used for runtime dispatch or removed (no write-only dead code)
+- [x] **PURE-04**: When runner reports error, app_var transitions to state::Error (variant/shadow in sync)
 - [ ] **PURE-05**: term_resize() and clean_quit() use transition_to() instead of direct shadow atomic writes
 - [ ] **PURE-06**: SIGTERM routed through event system like other signals
 
@@ -53,10 +53,10 @@ Requirements for tech debt cleanup milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PURE-01 | Phase 16 | Pending |
-| PURE-02 | Phase 16 | Pending |
-| PURE-03 | Phase 16 | Pending |
-| PURE-04 | Phase 16 | Pending |
+| PURE-01 | Phase 16 | Complete |
+| PURE-02 | Phase 16 | Complete |
+| PURE-03 | Phase 16 | Complete |
+| PURE-04 | Phase 16 | Complete |
 | PURE-05 | Phase 17 | Pending |
 | PURE-06 | Phase 17 | Pending |
 | HYGN-01 | Phase 18 | Pending |

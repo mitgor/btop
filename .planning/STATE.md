@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Tech Debt
-status: ready_to_plan
-last_updated: "2026-03-01T16:00:00.000Z"
+status: executing
+last_updated: "2026-03-01T21:10:11.000Z"
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
 ---
 
 # Project State
@@ -22,25 +22,25 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 ## Current Position
 
-Phase: 16 of 19 (Runner Error Path Purity)
-Plan: — (phase not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-01 — Roadmap created for v1.2 Tech Debt (4 phases, 10 requirements)
+Phase: 16 of 19 (Runner Error Path Purity) -- COMPLETE
+Plan: 1 of 1 (complete)
+Status: Phase 16 complete, ready for Phase 17
+Last activity: 2026-03-01 — Completed 16-01: runner error path purity
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [##........] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0 (v1.2)
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 1 (v1.2)
+- Average duration: 7min
+- Total execution time: 7min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 16-runner-error-path-purity | 1 | 7min | 7min |
 
 *Updated after each plan completion*
 
@@ -53,6 +53,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - v1.2: PURE-01..04 grouped into single phase (tightly coupled error path)
 - v1.2: Phase 18 (hygiene) has no dependency on 16-17 (can be reordered if needed)
 - v1.2: Phase 19 (measurement) must run last (measures cumulative impact)
+- 16-01: Used sideband Global::exit_error_msg + empty ThreadError event for non-trivially-copyable data
+- 16-01: Added on_exit(Running, Error) to stop runner, following existing on_exit(Running, Quitting) pattern
 
 ### Pending Todos
 
@@ -65,5 +67,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Roadmap created for v1.2, ready to plan Phase 16
+Stopped at: Completed 16-01-PLAN.md (Runner Error Path Purity)
 Resume file: None

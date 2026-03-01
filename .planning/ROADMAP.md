@@ -43,7 +43,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Close all v1.1 integration impurities, fix pre-existing issues, route all state transitions through the FSM architecture, and measure actual CPU/memory improvements.
 
-- [ ] **Phase 16: Runner Error Path Purity** - Runner exception handling uses event queue end-to-end with variant/shadow sync
+- [x] **Phase 16: Runner Error Path Purity** - Runner exception handling uses event queue end-to-end with variant/shadow sync (completed 2026-03-01)
 - [ ] **Phase 17: Signal & Transition Routing** - All remaining shadow atomic bypasses routed through FSM transition_to()
 - [ ] **Phase 18: Test & Doc Hygiene** - Pre-existing test failure fixed and stale documentation cleaned up
 - [ ] **Phase 19: Performance Measurement** - CPU and memory improvements from v1.0+v1.1 quantified with documented methodology
@@ -101,7 +101,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 |-------|-----------|----------------|--------|-----------|
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
-| 16. Runner Error Path Purity | v1.2 | 0/1 | Planned | - |
+| 16. Runner Error Path Purity | 1/1 | Complete   | 2026-03-01 | - |
 | 17. Signal & Transition Routing | v1.2 | 0/? | Not started | - |
 | 18. Test & Doc Hygiene | v1.2 | 0/? | Not started | - |
 | 19. Performance Measurement | v1.2 | 0/? | Not started | - |
