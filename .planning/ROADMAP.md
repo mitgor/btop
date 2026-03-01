@@ -82,7 +82,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 **Success Criteria** (what must be TRUE):
   1. RingBuffer.PushBackOnZeroCapacity test passes in all build configs (normal, ASan+UBSan, TSan)
   2. VERIFICATION.md contains no references to removed Phase 12 infrastructure or other stale content
-  3. Full test suite runs 279/279 pass (the pre-existing failure is resolved)
+  3. Full test suite runs 266/266 pass (the pre-existing failure is resolved)
 **Plans**: TBD
 
 ### Phase 19: Performance Measurement
