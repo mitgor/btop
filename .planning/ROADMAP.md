@@ -103,6 +103,6 @@ Full details: `milestones/v1.1-ROADMAP.md`
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
 | 16. Runner Error Path Purity | 1/1 | Complete    | 2026-03-01 | - |
-| 17. Signal & Transition Routing | 1/1 | Complete   | 2026-03-01 | - |
+| 17. Signal & Transition Routing | 1/1 | Complete    | 2026-03-01 | - |
 | 18. Test & Doc Hygiene | v1.2 | 0/? | Not started | - |
 | 19. Performance Measurement | v1.2 | 0/? | Not started | - |
