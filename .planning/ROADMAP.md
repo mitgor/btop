@@ -46,7 +46,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 - [x] **Phase 16: Runner Error Path Purity** - Runner exception handling uses event queue end-to-end with variant/shadow sync (completed 2026-03-01)
 - [x] **Phase 17: Signal & Transition Routing** - All remaining shadow atomic bypasses routed through FSM transition_to() (completed 2026-03-01)
 - [x] **Phase 18: Test & Doc Hygiene** - Pre-existing test failure fixed and stale documentation cleaned up (completed 2026-03-01)
-- [ ] **Phase 19: Performance Measurement** - CPU and memory improvements from v1.0+v1.1 quantified with documented methodology
+- [x] **Phase 19: Performance Measurement** - CPU and memory improvements from v1.0+v1.1 quantified with documented methodology (completed 2026-03-01)
 
 ## Phase Details
 
@@ -108,4 +108,4 @@ Plans:
 | 16. Runner Error Path Purity | 1/1 | Complete    | 2026-03-01 | - |
 | 17. Signal & Transition Routing | 1/1 | Complete    | 2026-03-01 | - |
 | 18. Test & Doc Hygiene | 1/1 | Complete    | 2026-03-01 | - |
-| 19. Performance Measurement | v1.2 | 0/1 | Planned | - |
+| 19. Performance Measurement | v1.2 | Complete    | 2026-03-01 | - |
