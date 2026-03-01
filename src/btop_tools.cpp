@@ -544,6 +544,15 @@ namespace Tools {
 		while (atom.load(std::memory_order_relaxed) == old and (time_ms() - start_time < wait_ms)) sleep_ms(1);
 	}
 
+	void atomic_wait(const std::atomic<Global::RunnerStateTag>& atom, Global::RunnerStateTag old) noexcept {
+		atom.wait(old, std::memory_order_relaxed);
+	}
+
+	void atomic_wait_for(const std::atomic<Global::RunnerStateTag>& atom, Global::RunnerStateTag old, const uint64_t wait_ms) noexcept {
+		const uint64_t start_time = time_ms();
+		while (atom.load(std::memory_order_relaxed) == old and (time_ms() - start_time < wait_ms)) sleep_ms(1);
+	}
+
 	atomic_lock::atomic_lock(atomic<bool>& atom, bool wait) : atom(atom) {
 		if (wait) while (not this->atom.compare_exchange_strong(this->not_true, true));
 		else this->atom.store(true);

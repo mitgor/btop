@@ -409,12 +409,29 @@ namespace Global {
 
 namespace Runner {
 	extern atomic<bool> active;
-	extern atomic<bool> reading;
 	extern atomic<bool> stopping;
 	extern atomic<bool> redraw;
 	extern atomic<bool> coreNum_reset;
 	extern bool pause_output;
 	extern string debug_bg;
+
+	/// Cooperative cancellation check — replaces direct Runner::stopping reads.
+	/// Uses acquire ordering to match current seq_cst semantics.
+	inline bool is_stopping() noexcept {
+		return Global::runner_state_tag.load(std::memory_order_acquire)
+			== Global::RunnerStateTag::Stopping;
+	}
+
+	/// Active check — replaces direct Runner::active reads.
+	inline bool is_active() noexcept {
+		auto tag = Global::runner_state_tag.load(std::memory_order_acquire);
+		return tag == Global::RunnerStateTag::Collecting
+			|| tag == Global::RunnerStateTag::Drawing;
+	}
+
+	/// Request a full redraw on the next runner cycle.
+	/// Replaces direct Runner::redraw = true mutation (RUNNER-02).
+	void request_redraw() noexcept;
 
 	void run(const string& box = "", bool no_update = false, bool force_redraw = false);
 	void stop();

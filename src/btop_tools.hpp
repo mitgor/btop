@@ -55,6 +55,7 @@ tab-size = 4
 #include <fmt/format.h>
 
 #include "btop_log.hpp"
+#include "btop_state.hpp"
 
 using std::array;
 using std::atomic;
@@ -363,6 +364,13 @@ namespace Tools {
 	void atomic_wait(const atomic<bool>& atom, bool old = true) noexcept;
 
 	void atomic_wait_for(const atomic<bool>& atom, bool old = true, const uint64_t wait_ms = 0) noexcept;
+
+	void atomic_wait(const std::atomic<Global::RunnerStateTag>& atom,
+	                 Global::RunnerStateTag old) noexcept;
+
+	void atomic_wait_for(const std::atomic<Global::RunnerStateTag>& atom,
+	                     Global::RunnerStateTag old,
+	                     const uint64_t wait_ms = 0) noexcept;
 
 	//* Sets atomic<bool> to true on construct, sets to false on destruct
 	class atomic_lock {
