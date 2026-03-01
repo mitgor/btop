@@ -3,7 +3,17 @@ phase: 12-extract-transitions
 status: passed
 verified: 2026-02-28
 requirements_verified: [TRANS-01, TRANS-02, TRANS-04, EVENT-04]
+staleness_annotated: "2026-03-01"
+staleness_note: "Phase 13 replaced dispatch_state/state_tag with variant-based dispatch"
 ---
+
+> **Staleness Note (Phase 18 Hygiene):** This verification was accurate at the time Phase 12 completed (2026-02-28). Phase 13 (Type-Safe States) subsequently replaced the following Phase 12 infrastructure:
+> - `dispatch_state()` template and `state_tag` namespace (replaced by `std::variant`-based `dispatch_event(AppStateVar, AppEvent)`)
+> - `process_signal_event` overloads (removed in Phase 12 itself, confirmed absent)
+> - `state_tag` types in `btop_events.hpp` (replaced by `state::` structs in `btop_state.hpp`)
+> - Test count: 170/171 at Phase 12 time; current count is 266/266 after Phases 13-17 additions and Phase 18 fix.
+>
+> The Phase 12 *goals* (event-driven main loop, named transition functions, std::visit dispatch) remain achieved — only the implementation mechanism evolved. See 13-VERIFICATION.md for the current state.
 
 # Phase 12: Extract Transitions -- Verification
 
