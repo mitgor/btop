@@ -331,7 +331,7 @@ static AppStateVar on_event(const state::Running& s, const event::KeyInput&) {
 }
 
 static AppStateVar on_event(const state::Running&, const event::ThreadError&) {
-	return state::Error{"Thread error"};
+	return state::Error{std::move(Global::exit_error_msg)};
 }
 
 static AppStateVar on_event(const state::Sleeping&, const event::Resume&) {
@@ -538,9 +538,8 @@ namespace Runner {
 			//? Safety check: runner should be Idle after thread_wait returns
 			if (Runner::is_active()) {
 				Global::exit_error_msg = "Runner thread failed to get active lock!";
-				Global::app_state.store(AppStateTag::Error, std::memory_order_release);
+				Global::event_queue.push(event::ThreadError{});
 				Input::interrupt();
-				Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 			}
 			if (Runner::is_stopping() or Global::app_state.load() == AppStateTag::Resizing) {
 				sleep_ms(1);
@@ -716,9 +715,8 @@ namespace Runner {
 			}
 			catch (const std::exception& e) {
 				Global::exit_error_msg = fmt::format("Exception in runner thread -> {}", e.what());
-				Global::app_state.store(AppStateTag::Error, std::memory_order_release);
+				Global::event_queue.push(event::ThreadError{});
 				Input::interrupt();
-				Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 			}
 
 			if (Runner::is_stopping()) {
@@ -981,6 +979,10 @@ static void on_exit(const state::Running&, const state::Quitting&) {
 }
 
 static void on_exit(const state::Running&, const state::Sleeping&) {
+	if (Runner::is_active()) Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
+}
+
+static void on_exit(const state::Running&, const state::Error&) {
 	if (Runner::is_active()) Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 }
 
