@@ -524,12 +524,10 @@ namespace Runner {
 		pthread_sigmask(SIG_BLOCK, &mask, nullptr);
 
 		std::lock_guard lock {mtx};
-		RunnerStateVar runner_var = runner::Idle{};
 
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
 		while (Global::app_state.load() != AppStateTag::Quitting) {
 			// === IDLE STATE ===
-			runner_var = runner::Idle{};
 			Global::runner_state_tag.store(Global::RunnerStateTag::Idle, std::memory_order_release);
 			Global::runner_state_tag.notify_all();
 
@@ -547,7 +545,6 @@ namespace Runner {
 			}
 
 			// === COLLECTING STATE ===
-			runner_var = runner::Collecting{};
 			Global::runner_state_tag.store(Global::RunnerStateTag::Collecting, std::memory_order_release);
 			Global::runner_state_tag.notify_all();
 
@@ -724,7 +721,6 @@ namespace Runner {
 			}
 
 			// === DRAWING STATE ===
-			runner_var = runner::Drawing{conf.force_redraw};
 			Global::runner_state_tag.store(Global::RunnerStateTag::Drawing, std::memory_order_release);
 
 			if (conf.force_redraw) {

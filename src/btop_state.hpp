@@ -87,36 +87,6 @@ namespace state {
 	};
 }
 
-/// Runner thread state structs — owned by the runner thread.
-namespace runner {
-	struct Idle {};
-	struct Collecting {};
-	struct Drawing {
-		bool force_redraw;
-	};
-	struct Stopping {};
-}
-
-/// Runner thread state variant — owned exclusively by the runner thread.
-using RunnerStateVar = std::variant<
-	runner::Idle,
-	runner::Collecting,
-	runner::Drawing,
-	runner::Stopping
->;
-
-/// Convert runner variant state to tag for shadow updates.
-inline Global::RunnerStateTag to_runner_tag(const RunnerStateVar& s) noexcept {
-	using Global::RunnerStateTag;
-	return std::visit([](const auto& st) -> RunnerStateTag {
-		using T = std::decay_t<decltype(st)>;
-		if constexpr (std::is_same_v<T, runner::Idle>)       return RunnerStateTag::Idle;
-		if constexpr (std::is_same_v<T, runner::Collecting>) return RunnerStateTag::Collecting;
-		if constexpr (std::is_same_v<T, runner::Drawing>)    return RunnerStateTag::Drawing;
-		if constexpr (std::is_same_v<T, runner::Stopping>)   return RunnerStateTag::Stopping;
-	}, s);
-}
-
 /// The authoritative application state variant. Main-thread only.
 /// Holds exactly one alternative — being in two states simultaneously is impossible.
 using AppStateVar = std::variant<

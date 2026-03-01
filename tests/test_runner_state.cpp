@@ -16,8 +16,6 @@ indent = tab
 tab-size = 4
 */
 
-#include <variant>
-
 #include <gtest/gtest.h>
 #include "btop_state.hpp"
 #include "btop_shared.hpp"
@@ -101,87 +99,6 @@ TEST(RunnerStateTag, StoreLoadRoundTripStopping) {
 	std::atomic<RunnerStateTag> state{RunnerStateTag::Idle};
 	state.store(RunnerStateTag::Stopping);
 	EXPECT_EQ(state.load(), RunnerStateTag::Stopping);
-}
-
-// --- runner:: struct constructibility tests ---
-
-TEST(RunnerStateStructs, IdleDefaultConstructible) {
-	runner::Idle s{};
-	(void)s;
-	SUCCEED();
-}
-
-TEST(RunnerStateStructs, CollectingDefaultConstructible) {
-	runner::Collecting s{};
-	(void)s;
-	SUCCEED();
-}
-
-TEST(RunnerStateStructs, StoppingDefaultConstructible) {
-	runner::Stopping s{};
-	(void)s;
-	SUCCEED();
-}
-
-TEST(RunnerStateStructs, DrawingHasForceRedraw) {
-	runner::Drawing d{true};
-	EXPECT_TRUE(d.force_redraw);
-	runner::Drawing d2{false};
-	EXPECT_FALSE(d2.force_redraw);
-}
-
-// --- Variant tests ---
-
-TEST(RunnerStateVariant, HasExactlyFourAlternatives) {
-	EXPECT_EQ(std::variant_size_v<RunnerStateVar>, 4u);
-}
-
-TEST(RunnerStateVariant, HoldsIdle) {
-	RunnerStateVar v = runner::Idle{};
-	EXPECT_TRUE(std::holds_alternative<runner::Idle>(v));
-}
-
-TEST(RunnerStateVariant, HoldsCollecting) {
-	RunnerStateVar v = runner::Collecting{};
-	EXPECT_TRUE(std::holds_alternative<runner::Collecting>(v));
-}
-
-TEST(RunnerStateVariant, HoldsDrawing) {
-	RunnerStateVar v = runner::Drawing{false};
-	EXPECT_TRUE(std::holds_alternative<runner::Drawing>(v));
-}
-
-TEST(RunnerStateVariant, HoldsStopping) {
-	RunnerStateVar v = runner::Stopping{};
-	EXPECT_TRUE(std::holds_alternative<runner::Stopping>(v));
-}
-
-// --- to_runner_tag tests ---
-
-TEST(RunnerStateTag, ToRunnerTagIdle) {
-	EXPECT_EQ(to_runner_tag(RunnerStateVar{runner::Idle{}}), RunnerStateTag::Idle);
-}
-
-TEST(RunnerStateTag, ToRunnerTagCollecting) {
-	EXPECT_EQ(to_runner_tag(RunnerStateVar{runner::Collecting{}}), RunnerStateTag::Collecting);
-}
-
-TEST(RunnerStateTag, ToRunnerTagDrawing) {
-	EXPECT_EQ(to_runner_tag(RunnerStateVar{runner::Drawing{true}}), RunnerStateTag::Drawing);
-}
-
-TEST(RunnerStateTag, ToRunnerTagStopping) {
-	EXPECT_EQ(to_runner_tag(RunnerStateVar{runner::Stopping{}}), RunnerStateTag::Stopping);
-}
-
-// --- Mutual exclusion test ---
-
-TEST(RunnerStateVariant, MutualExclusion) {
-	RunnerStateVar v = runner::Collecting{};
-	EXPECT_TRUE(std::holds_alternative<runner::Collecting>(v));
-	EXPECT_FALSE(std::holds_alternative<runner::Idle>(v));
-	EXPECT_FALSE(std::holds_alternative<runner::Drawing>(v));
-	EXPECT_FALSE(std::holds_alternative<runner::Stopping>(v));
 }
 
 // --- Runner FSM query tests ---
