@@ -20,6 +20,7 @@ tab-size = 4
 
 #include <gtest/gtest.h>
 #include "btop_state.hpp"
+#include "btop_shared.hpp"
 
 using Global::RunnerStateTag;
 
@@ -181,4 +182,120 @@ TEST(RunnerStateVariant, MutualExclusion) {
 	EXPECT_FALSE(std::holds_alternative<runner::Idle>(v));
 	EXPECT_FALSE(std::holds_alternative<runner::Drawing>(v));
 	EXPECT_FALSE(std::holds_alternative<runner::Stopping>(v));
+}
+
+// --- Runner FSM query tests ---
+// These tests use Global::runner_state_tag directly to set the state
+// and verify Runner::is_active() and Runner::is_stopping() behavior.
+
+namespace {
+	/// RAII guard to save and restore Global::runner_state_tag around each test.
+	struct RunnerTagGuard {
+		RunnerStateTag saved;
+		RunnerTagGuard() : saved(Global::runner_state_tag.load(std::memory_order_relaxed)) {}
+		~RunnerTagGuard() { Global::runner_state_tag.store(saved, std::memory_order_release); }
+	};
+}
+
+// --- RunnerFsmQuery: is_active() ---
+
+TEST(RunnerFsmQuery, IsActiveReturnsTrueForCollecting) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Collecting, std::memory_order_release);
+	EXPECT_TRUE(Runner::is_active());
+}
+
+TEST(RunnerFsmQuery, IsActiveReturnsTrueForDrawing) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Drawing, std::memory_order_release);
+	EXPECT_TRUE(Runner::is_active());
+}
+
+TEST(RunnerFsmQuery, IsActiveReturnsFalseForIdle) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Idle, std::memory_order_release);
+	EXPECT_FALSE(Runner::is_active());
+}
+
+TEST(RunnerFsmQuery, IsActiveReturnsFalseForStopping) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Stopping, std::memory_order_release);
+	EXPECT_FALSE(Runner::is_active());
+}
+
+// --- RunnerFsmQuery: is_stopping() ---
+
+TEST(RunnerFsmQuery, IsStoppingReturnsTrueForStopping) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Stopping, std::memory_order_release);
+	EXPECT_TRUE(Runner::is_stopping());
+}
+
+TEST(RunnerFsmQuery, IsStoppingReturnsFalseForIdle) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Idle, std::memory_order_release);
+	EXPECT_FALSE(Runner::is_stopping());
+}
+
+TEST(RunnerFsmQuery, IsStoppingReturnsFalseForCollecting) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Collecting, std::memory_order_release);
+	EXPECT_FALSE(Runner::is_stopping());
+}
+
+TEST(RunnerFsmQuery, IsStoppingReturnsFalseForDrawing) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Drawing, std::memory_order_release);
+	EXPECT_FALSE(Runner::is_stopping());
+}
+
+// --- RunnerFsmTransition: state tag transitions via atomic ---
+
+TEST(RunnerFsmTransition, IdleToCollecting) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Idle, std::memory_order_release);
+	Global::runner_state_tag.store(RunnerStateTag::Collecting, std::memory_order_release);
+	EXPECT_EQ(Global::runner_state_tag.load(std::memory_order_acquire), RunnerStateTag::Collecting);
+}
+
+TEST(RunnerFsmTransition, CollectingToDrawing) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Collecting, std::memory_order_release);
+	Global::runner_state_tag.store(RunnerStateTag::Drawing, std::memory_order_release);
+	EXPECT_EQ(Global::runner_state_tag.load(std::memory_order_acquire), RunnerStateTag::Drawing);
+}
+
+TEST(RunnerFsmTransition, DrawingToIdle) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Drawing, std::memory_order_release);
+	Global::runner_state_tag.store(RunnerStateTag::Idle, std::memory_order_release);
+	EXPECT_EQ(Global::runner_state_tag.load(std::memory_order_acquire), RunnerStateTag::Idle);
+}
+
+TEST(RunnerFsmTransition, AnyToStopping) {
+	RunnerTagGuard guard;
+	Global::runner_state_tag.store(RunnerStateTag::Collecting, std::memory_order_release);
+	Global::runner_state_tag.store(RunnerStateTag::Stopping, std::memory_order_release);
+	EXPECT_EQ(Global::runner_state_tag.load(std::memory_order_acquire), RunnerStateTag::Stopping);
+}
+
+// --- Runner::stop() test ---
+// Runner::stop() stores Stopping first, then resets to Idle after completing
+// its cancellation protocol. In test context (no active runner thread),
+// it safely completes and leaves the tag at Idle.
+
+TEST(RunnerFsmTransition, StopSetsIdleAfterCancellation) {
+	RunnerTagGuard guard;
+	// Set app_state to Quitting to prevent clean_quit path in stop()
+	auto saved_app_state = Global::app_state.load(std::memory_order_relaxed);
+	Global::app_state.store(Global::AppStateTag::Quitting, std::memory_order_release);
+	Global::runner_state_tag.store(RunnerStateTag::Collecting, std::memory_order_release);
+
+	Runner::stop();
+
+	// stop() transitions through Stopping and resets to Idle
+	EXPECT_EQ(Global::runner_state_tag.load(std::memory_order_acquire), RunnerStateTag::Idle);
+
+	// Restore app_state
+	Global::app_state.store(saved_app_state, std::memory_order_release);
 }
