@@ -60,7 +60,8 @@ Full details: `milestones/v1.1-ROADMAP.md`
   3. runner_var is either used for actual runtime dispatch in the runner thread or completely removed (no write-only dead code remains)
   4. When runner reports an error, app_var holds state::Error and the shadow atomic agrees (variant and shadow are in sync)
   5. All error-path changes pass ASan+UBSan and TSan sweeps with zero findings
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 16-01-PLAN.md — Route runner errors through event queue, remove runner_var dead code, sanitizer verification
 
 ### Phase 17: Signal & Transition Routing
 **Goal**: Every state transition in btop goes through transition_to(), eliminating the last shadow atomic bypasses
@@ -100,7 +101,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 |-------|-----------|----------------|--------|-----------|
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
-| 16. Runner Error Path Purity | v1.2 | 0/? | Not started | - |
+| 16. Runner Error Path Purity | v1.2 | 0/1 | Planned | - |
 | 17. Signal & Transition Routing | v1.2 | 0/? | Not started | - |
 | 18. Test & Doc Hygiene | v1.2 | 0/? | Not started | - |
 | 19. Performance Measurement | v1.2 | 0/? | Not started | - |
