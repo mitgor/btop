@@ -39,9 +39,9 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 - [x] **VERIFY-01**: Unit tests for App FSM transitions (each state+event pair tested)
 - [x] **VERIFY-02**: Unit tests for Runner FSM transitions
-- [ ] **VERIFY-03**: ASan/UBSan sweep confirms zero memory/UB regressions
-- [ ] **VERIFY-04**: TSan sweep confirms zero data race regressions
-- [ ] **VERIFY-05**: All existing functionality unchanged (same visuals, same behavior, same defaults)
+- [x] **VERIFY-03**: ASan/UBSan sweep confirms zero memory/UB regressions
+- [x] **VERIFY-04**: TSan sweep confirms zero data race regressions
+- [x] **VERIFY-05**: All existing functionality unchanged (same visuals, same behavior, same defaults)
 
 ## Future Requirements
 
@@ -88,9 +88,9 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 | RUNNER-04 | Phase 14 | Complete |
 | VERIFY-01 | Phase 15 | Complete |
 | VERIFY-02 | Phase 15 | Complete |
-| VERIFY-03 | Phase 15 | Pending |
-| VERIFY-04 | Phase 15 | Pending |
-| VERIFY-05 | Phase 15 | Pending |
+| VERIFY-03 | Phase 15 | Complete |
+| VERIFY-04 | Phase 15 | Complete |
+| VERIFY-05 | Phase 15 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 21 total

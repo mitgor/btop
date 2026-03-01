@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Automata Architecture
-status: in-progress
-last_updated: "2026-03-01T11:16:25Z"
+status: complete
+last_updated: "2026-03-01T11:23:45Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
+  total_phases: 6
+  completed_phases: 6
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Evolve btop's architecture toward explicit, testable state machines that eliminate invalid state combinations while preserving every aspect of the user experience.
-**Current focus:** Phase 15 - Verification (sixth phase of v1.1 Automata Architecture)
+**Current focus:** v1.1 Automata Architecture milestone COMPLETE
 
 ## Current Position
 
-Phase: 15 of 15 (Verification)
-Plan: 1 of 2 (15-01 complete)
-Status: In Progress
-Last activity: 2026-03-01 -- Completed 15-01 FSM unit test coverage (App FSM 48/48 pairs + Runner FSM query/transition tests)
+Phase: 15 of 15 (Verification) -- COMPLETE
+Plan: 2 of 2 (all plans complete)
+Status: Complete
+Last activity: 2026-03-01 -- Completed 15-02 sanitizer sweeps (ASan+UBSan and TSan clean, zero findings)
 
-Progress: [█████-----] 50% (1/2 plans in phase 15)
+Progress: [██████████] 100% (2/2 plans in phase 15, 13/13 plans total)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 3.8min
-- Total execution time: 0.75 hours
+- Total execution time: 0.82 hours
 
 **By Phase:**
 
@@ -50,6 +50,7 @@ Progress: [█████-----] 50% (1/2 plans in phase 15)
 | 14-runner-fsm P01 | 2 tasks | 3min | 3min |
 | 14-runner-fsm P02 | 2 tasks | 8min | 8min |
 | 15-verification P01 | 2 tasks | 4min | 4min |
+| 15-verification P02 | 2 tasks | 4min | 4min |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 15-verification]: Runner::stop() test sets app_state to Quitting to safely bypass clean_quit path
 - [Phase 15-verification]: Runner::stop() ends at Idle (not Stopping) since cancellation protocol resets the tag
 - [Phase 15-verification]: RAII RunnerTagGuard saves/restores Global::runner_state_tag for test isolation
+- [Phase 15-verification]: FETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER needed for sanitizer builds (Homebrew GTest dylib rpath incompatible)
+- [Phase 15-verification]: Zero TSan false positives from EventQueue lock-free pattern (no suppression file needed)
+- [Phase 15-verification]: Pre-existing RingBuffer.PushBackOnZeroCapacity (1/279) is out-of-scope; not a v1.1 regression
 
 ### Pending Todos
 
@@ -110,5 +114,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 15-01-PLAN.md (FSM unit test coverage -- 40 new tests)
+Stopped at: Completed 15-02-PLAN.md (sanitizer sweeps -- v1.1 milestone complete)
 Resume file: None
