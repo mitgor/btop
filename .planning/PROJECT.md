@@ -2,22 +2,11 @@
 
 ## What This Is
 
-An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 focuses on replacing btop's implicit flag-driven state management with explicit finite automata — making state transitions first-class, testable, and compile-time safe.
+An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests.
 
 ## Core Value
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-
-## Current Milestone: v1.1 Automata Architecture
-
-**Goal:** Replace btop's implicit boolean-flag state machines with explicit finite automata using `std::variant` + `std::visit`, enabling compile-time state safety, testable transitions, and decoupled event handling.
-
-**Target features:**
-- Explicit App FSM replacing 7 scattered atomic<bool> flags
-- Event queue decoupling signal handlers from main loop state
-- Type-safe states via std::variant (illegal states = compile errors)
-- Runner thread FSM replacing atomic flag coordination
-- Testable transition logic (currently untestable due to global mutable state)
 
 ## Requirements
 
@@ -30,14 +19,14 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Reduce per-frame heap allocations via string/I/O optimization — v1.0 (POSIX I/O, format_to, RingBuffer)
 - ✓ Enum-indexed arrays replace hash map lookups — v1.0 (35-132x speedup on critical paths)
 - ✓ CI benchmark regression detection pipeline — v1.0 (github-action-benchmark + nanobench converter)
+- ✓ Replace global atomic<bool> flags with explicit App FSM (std::variant) — v1.1 (AppStateTag + AppStateVar)
+- ✓ Introduce event queue for signal→main loop communication — v1.1 (lock-free SPSC EventQueue)
+- ✓ Extract transition logic into typed transition functions — v1.1 (on_event overloads + dispatch_event)
+- ✓ Create Runner thread FSM with typed states — v1.1 (RunnerStateTag: Idle/Collecting/Drawing/Stopping)
+- ✓ Achieve testable state transitions — v1.1 (279 tests, 278/279 pass)
 
 ### Active
 
-- [ ] Replace global atomic<bool> flags with explicit App FSM (std::variant)
-- [ ] Introduce event queue for signal→main loop communication
-- [ ] Extract transition logic from if/else if chain into typed transition functions
-- [ ] Create Runner thread FSM with typed states (Idle/Collecting/Drawing/Stopping)
-- [ ] Achieve testable state transitions (unit tests for FSM logic)
 - [ ] Reduce btop's CPU usage by 50%+ during normal operation (from v1.0, measurement pending)
 - [ ] Reduce btop's memory footprint by 30%+ (from v1.0, measurement pending)
 
@@ -48,8 +37,8 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - Dropping platform support (Linux, macOS, FreeBSD all stay)
 - Rewriting in another language — this is C++ optimization, not a port
 - Adding new dependencies solely for performance (prefer zero-cost or header-only if needed)
-- Menu system refactor to pushdown automaton — defer to v1.2 (working, complex, lower priority)
-- External FSM libraries (Boost.SML) — std::variant is sufficient, no new dependencies
+- Menu system refactor to pushdown automaton — candidate for v1.2 (working, complex)
+- Input state machine refactor — candidate for v1.2 (lower priority)
 
 ## Context
 
@@ -57,12 +46,13 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - Supports Linux, macOS, and FreeBSD
 - Modern C++ features (C++20/23) used throughout — GCC 12+/Clang 15+ target
 - v1.0 shipped: 9 phases, 20 plans, 100 commits, 32 source files modified (+4,373/-1,445 LOC)
-- Benchmark infrastructure in place: nanobench microbenchmarks, --benchmark CLI mode, CI regression detection
+- v1.1 shipped: 6 phases, 13 plans, 66 commits, 63 source files modified (+13,095/-272 LOC)
+- Architecture now has explicit FSMs: App FSM (btop_state.hpp, btop.cpp) + Runner FSM (btop_state.hpp, btop_shared.hpp)
+- Event-driven main loop: event_queue.try_pop() → dispatch_event() → on_event() → transition_to()
+- 279 tests across normal, ASan+UBSan, TSan configs — zero sanitizer findings
+- Benchmark infrastructure: nanobench microbenchmarks, --benchmark CLI mode, CI regression detection
 - PGO build pipeline available (1.1% gain — I/O-bound ceiling); mimalloc evaluated (1.6% gain)
-- Sanitizer sweeps clean (ASan/UBSan/TSan) — zero regressions from all optimizations
-- Current architecture has 7 implicit state machines encoded as atomic<bool> flags and conditional chains
-- Main loop (btop.cpp:1309-1385) checks flags in priority order — ordering is load-bearing but undocumented
-- Research completed: `.planning/research/AUTOMATA-ARCHITECTURE.md` — std::variant approach validated
+- Known tech debt: runner error path bypasses event queue, runner_var write-only, variant/shadow desync on error
 
 ## Constraints
 
@@ -71,7 +61,6 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - **Compatibility**: Must build and run on Linux, macOS, FreeBSD
 - **Compiler**: Modern C++ ok (GCC 12+/Clang 15+), leverage language features where they help
 - **Approach**: Incremental migration — each phase ships independently, behavior preserved throughout
-- **Dependencies**: No external FSM libraries — std::variant + std::visit only
 
 ## Key Decisions
 
@@ -87,11 +76,11 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | RingBuffer over deque | Zero steady-state allocations | ✓ Good — comparable throughput, no heap churn |
 | Differential rendering | Only emit changed cells | ✓ Good — cell buffer with escape-string parser |
 | PGO as final phase | Profile optimized code, not original | ✓ Good — 1.1% gain (I/O-bound ceiling documented) |
-
-| std::variant + std::visit for FSM | Zero dependencies, type-safe, fits C++20 style | — Pending |
-| Orthogonal FSMs (App + Runner) | Avoids state explosion from flag combinations | — Pending |
-| Event queue for signal decoupling | Unidirectional data flow, eliminates shared mutable state | — Pending |
-| Phased migration (not big-bang) | Each phase independently deployable, reduces risk | — Pending |
+| std::variant + std::visit for FSM | Zero dependencies, type-safe, fits C++20 style | ✓ Good — compile-time state safety, 279 tests |
+| Orthogonal FSMs (App + Runner) | Avoids state explosion from flag combinations | ✓ Good — independent state machines, no 128-state product |
+| Event queue for signal decoupling | Unidirectional data flow, eliminates shared mutable state | ✓ Good — lock-free SPSC, async-signal-safe |
+| Phased migration (not big-bang) | Each phase independently deployable, reduces risk | ✓ Good — 6 phases, each shipped and tested incrementally |
+| Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ⚠️ Revisit — creates desync on error path (accepted tech debt) |
 
 ---
-*Last updated: 2026-02-28 after v1.1 milestone start*
+*Last updated: 2026-03-01 after v1.1 milestone*

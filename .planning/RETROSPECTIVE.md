@@ -50,6 +50,52 @@
 
 ---
 
+## Milestone: v1.1 — Automata Architecture
+
+**Shipped:** 2026-03-01
+**Phases:** 6 | **Plans:** 13 | **Sessions:** ~4
+
+### What Was Built
+- App FSM: AppStateTag enum replacing 7 atomic<bool> flags, AppStateVar std::variant with per-state data (Running, Resizing, Sleeping, Quitting, Error)
+- Event system: Lock-free SPSC EventQueue with async-signal-safe push, AppEvent std::variant (TimerTick, KeyInput, Resize, Quit, Sleep, Resume, Reload, ThreadError)
+- Dispatch infrastructure: on_event() overloads with std::visit, dispatch_event(), transition_to() with entry/exit actions
+- Runner FSM: RunnerStateTag enum (Idle, Collecting, Drawing, Stopping), RunnerStateVar variant, typed wrappers replacing atomic bool flags
+- Bug fixes: Ctrl+C hang (clean_quit re-entrancy guard), resume-no-redraw (on_event(Sleeping, Resume))
+- Verification: 279 tests across 3 sanitizer configs (ASan+UBSan+TSan), zero findings, human-approved behavior preservation
+
+### What Worked
+- **Incremental migration**: Each of 6 phases shipped independently with no regressions — enum → events → dispatch → variant → runner → verify
+- **Shadow atomic pattern**: Maintaining AppStateTag atomic alongside AppStateVar variant allowed gradual migration without breaking cross-thread reads
+- **Test-first in verification phase**: Writing 40 targeted FSM tests in Phase 15 caught no regressions, validating the migration quality
+- **Phased research**: AUTOMATA-ARCHITECTURE.md research doc set clear architectural direction before any code was written
+- **Rapid velocity**: 13 plans in ~50 minutes total execution time (avg 3.8 min/plan) — well-scoped plans with clear success criteria
+
+### What Was Inefficient
+- **runner_var write-only**: RunnerStateVar was created but never read at runtime — shadow atomic alone drives all behavior. The variant infrastructure exists for future use but is dead code today
+- **ThreadError dead code path**: on_event(Running, ThreadError) is unreachable because runner writes shadow atomic directly instead of pushing events
+- **Shadow atomic proliferation**: The dual-state pattern (variant + shadow atomic) creates consistency opportunities that required careful audit to catalog
+
+### Patterns Established
+- **std::variant + std::visit** as the FSM pattern for btop (compile-time exhaustiveness, zero dependencies)
+- **Shadow atomic for cross-thread state** — main-thread variant + atomic tag for cross-thread reads
+- **Lock-free SPSC queue** for signal handler → main loop communication (cache-line aligned, power-of-2 capacity)
+- **on_event overloads** as pure transition functions (return new state, no side effects) + on_enter/on_exit for effects
+- **transition_to()** as single transition point with automatic entry/exit action dispatch
+
+### Key Lessons
+1. **Shadow atomics create consistency debt** — the dual-state pattern works but requires explicit documentation of which paths use which representation
+2. **Dead code is acceptable during phased migration** — ThreadError handler and runner_var are scaffolding for future purity improvements
+3. **Type-safe FSMs with std::variant are practical** — 63 files modified with zero behavior regressions proves the approach scales
+4. **Sanitizer sweeps validate architectural changes** — zero ASan/UBSan/TSan findings across 279 tests confirms thread-safety of the new architecture
+5. **Event queue decoupling simplifies signal handling** — signal handlers reduced to trivial push + kill, all logic in main loop
+
+### Cost Observations
+- Model mix: ~80% opus, ~15% sonnet, ~5% haiku (research agents)
+- Sessions: ~4 (research, planning, execution, verification + audit)
+- Notable: Fastest milestone by plan execution time (3.8 min avg vs 8 min avg in v1.0)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -57,14 +103,18 @@
 | Milestone | Sessions | Phases | Key Change |
 |-----------|----------|--------|------------|
 | v1.0 | ~6 | 9 | Established profile-first + audit-driven gap closure |
+| v1.1 | ~4 | 6 | Incremental FSM migration with shadow atomics, fastest plan velocity (3.8 min avg) |
 
 ### Cumulative Quality
 
-| Milestone | Benchmarks | Sanitizer Status | Dependencies Added |
-|-----------|------------|-----------------|-------------------|
-| v1.0 | 5 bench binaries + CI | ASan/UBSan/TSan clean | nanobench (header-only, test-only) |
+| Milestone | Tests | Sanitizer Status | Dependencies Added |
+|-----------|-------|-----------------|-------------------|
+| v1.0 | 239 (benchmark + unit) | ASan/UBSan/TSan clean | nanobench (header-only, test-only) |
+| v1.1 | 279 (unit + FSM) | ASan/UBSan/TSan clean | None |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Profile before optimizing — confirmed by v1.0 (nanobench + macOS sampling guided all 20 plans)
-2. Audit at milestone boundaries — confirmed by v1.0 (caught 2 integration gaps closed by Phases 7-8)
+2. Audit at milestone boundaries — confirmed by v1.0 (caught 2 integration gaps), v1.1 (cataloged 3 tech debt items)
+3. Incremental migration over big-bang — confirmed by v1.1 (6 phases, each independently deployable, zero regressions)
+4. Sanitizer sweeps as safety net — confirmed by v1.0 + v1.1 (zero findings across all optimizations and architectural changes)
