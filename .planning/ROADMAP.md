@@ -83,7 +83,8 @@ Full details: `milestones/v1.1-ROADMAP.md`
   1. RingBuffer.PushBackOnZeroCapacity test passes in all build configs (normal, ASan+UBSan, TSan)
   2. VERIFICATION.md contains no references to removed Phase 12 infrastructure or other stale content
   3. Full test suite runs 266/266 pass (the pre-existing failure is resolved)
-**Plans**: TBD
+**Plans**: 1 plan
+- [x] 18-01-PLAN.md — Fix RingBuffer zero-capacity test, clean stale VERIFICATION.md references
 
 ### Phase 19: Performance Measurement
 **Goal**: Quantify the actual CPU and memory impact of v1.0+v1.1 optimizations with reproducible methodology
@@ -94,7 +95,9 @@ Full details: `milestones/v1.1-ROADMAP.md`
   2. Memory footprint is measured using a documented, reproducible methodology (tool, metric, workload specified)
   3. Before/after comparison shows measured values for both baseline (pre-v1.0) and current (post-v1.2) builds
   4. Results are committed to the repository with methodology documentation sufficient for independent reproduction
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 19-01-PLAN.md — Create measurement script, run benchmarks, generate PERFORMANCE.md with before/after results
 
 ## Progress
 
@@ -105,4 +108,4 @@ Full details: `milestones/v1.1-ROADMAP.md`
 | 16. Runner Error Path Purity | 1/1 | Complete    | 2026-03-01 | - |
 | 17. Signal & Transition Routing | 1/1 | Complete    | 2026-03-01 | - |
 | 18. Test & Doc Hygiene | 1/1 | Complete    | 2026-03-01 | - |
-| 19. Performance Measurement | v1.2 | 0/? | Not started | - |
+| 19. Performance Measurement | v1.2 | 0/1 | Planned | - |
