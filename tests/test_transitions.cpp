@@ -152,6 +152,180 @@ TEST(TypedTransition, SleepingPreservesOnResize) {
 	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
 }
 
+// --- App FSM state-event matrix: Resizing catch-all group ---
+
+TEST(AppFsmTransition, ResizingTimerTick_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::TimerTick{});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, ResizingResize_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::Resize{});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, ResizingQuit_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::Quit{1});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, ResizingSleep_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::Sleep{});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, ResizingResume_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::Resume{});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, ResizingThreadError_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::ThreadError{});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, ResizingKeyInput_PreservesState) {
+	AppStateVar current = state::Resizing{};
+	auto next = dispatch_event(current, event::KeyInput{"x"});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+// --- App FSM state-event matrix: Reloading catch-all group ---
+
+TEST(AppFsmTransition, ReloadingTimerTick_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::TimerTick{});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+TEST(AppFsmTransition, ReloadingReload_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::Reload{});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+TEST(AppFsmTransition, ReloadingQuit_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::Quit{1});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+TEST(AppFsmTransition, ReloadingSleep_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::Sleep{});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+TEST(AppFsmTransition, ReloadingResume_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::Resume{});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+TEST(AppFsmTransition, ReloadingThreadError_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::ThreadError{});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+TEST(AppFsmTransition, ReloadingKeyInput_PreservesState) {
+	AppStateVar current = state::Reloading{};
+	auto next = dispatch_event(current, event::KeyInput{"r"});
+	EXPECT_TRUE(std::holds_alternative<state::Reloading>(next));
+}
+
+// --- App FSM state-event matrix: Sleeping group ---
+
+TEST(AppFsmTransition, SleepingTimerTick_PreservesState) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::TimerTick{});
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
+}
+
+TEST(AppFsmTransition, SleepingResume_TransitionsToResizing) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::Resume{});
+	EXPECT_TRUE(std::holds_alternative<state::Resizing>(next));
+}
+
+TEST(AppFsmTransition, SleepingQuit_PreservesState) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::Quit{1});
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
+}
+
+TEST(AppFsmTransition, SleepingSleep_PreservesState) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::Sleep{});
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
+}
+
+TEST(AppFsmTransition, SleepingThreadError_PreservesState) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::ThreadError{});
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
+}
+
+TEST(AppFsmTransition, SleepingKeyInput_PreservesState) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::KeyInput{"k"});
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
+}
+
+TEST(AppFsmTransition, SleepingReload_PreservesState) {
+	AppStateVar current = state::Sleeping{};
+	auto next = dispatch_event(current, event::Reload{});
+	EXPECT_TRUE(std::holds_alternative<state::Sleeping>(next));
+}
+
+// --- App FSM state-event matrix: Quitting terminal group ---
+
+TEST(AppFsmTransition, QuittingSleep_PreservesState) {
+	AppStateVar current = state::Quitting{0};
+	auto next = dispatch_event(current, event::Sleep{});
+	EXPECT_TRUE(std::holds_alternative<state::Quitting>(next));
+}
+
+TEST(AppFsmTransition, QuittingResume_PreservesState) {
+	AppStateVar current = state::Quitting{0};
+	auto next = dispatch_event(current, event::Resume{});
+	EXPECT_TRUE(std::holds_alternative<state::Quitting>(next));
+}
+
+TEST(AppFsmTransition, QuittingThreadError_PreservesState) {
+	AppStateVar current = state::Quitting{0};
+	auto next = dispatch_event(current, event::ThreadError{});
+	EXPECT_TRUE(std::holds_alternative<state::Quitting>(next));
+}
+
+TEST(AppFsmTransition, QuittingQuit_PreservesOriginalExitCode) {
+	AppStateVar current = state::Quitting{42};
+	auto next = dispatch_event(current, event::Quit{99});
+	ASSERT_TRUE(std::holds_alternative<state::Quitting>(next));
+	EXPECT_EQ(std::get<state::Quitting>(next).exit_code, 42);
+}
+
+// --- App FSM state-event matrix: Error terminal group ---
+
+TEST(AppFsmTransition, ErrorQuit_PreservesState) {
+	AppStateVar current = state::Error{"fatal error"};
+	auto next = dispatch_event(current, event::Quit{1});
+	EXPECT_TRUE(std::holds_alternative<state::Error>(next));
+}
+
+TEST(AppFsmTransition, ErrorThreadError_PreservesOriginalMessage) {
+	AppStateVar current = state::Error{"first error"};
+	auto next = dispatch_event(current, event::ThreadError{});
+	ASSERT_TRUE(std::holds_alternative<state::Error>(next));
+	EXPECT_EQ(std::get<state::Error>(next).message, "first error");
+}
+
 // --- Two-variant dispatch tests ---
 
 TEST(TypedDispatch, AllSixStatesRouteCorrectly) {
