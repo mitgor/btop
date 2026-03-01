@@ -253,9 +253,7 @@ public:
 
 	//-- Modifiers ----------------------------------------------------------------
 	void push_back(const T& value) {
-		if (capacity_ == 0) {
-			resize(1);
-		}
+		if (capacity_ == 0) return;
 		if (size_ < capacity_) {
 			data_[(head_ + size_) % capacity_] = value;
 			++size_;
