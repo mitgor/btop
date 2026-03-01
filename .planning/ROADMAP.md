@@ -111,7 +111,9 @@ Full details: `milestones/v1.0-ROADMAP.md`
   3. ASan/UBSan sweep passes with zero findings (no memory errors or undefined behavior introduced)
   4. TSan sweep passes with zero findings (no data races introduced by event queue or FSM transitions)
   5. All existing functionality works unchanged -- same visuals, same behavior, same defaults, same keyboard shortcuts
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 15-01-PLAN.md — Complete App FSM state-event matrix tests + Runner FSM query/transition tests
+- [ ] 15-02-PLAN.md — ASan/UBSan + TSan sanitizer sweeps + behavioral smoke test
 
 ## Progress
 
@@ -125,4 +127,4 @@ Phases execute in numeric order: 10 -> 11 -> 12 -> 13 -> 14 -> 15
 | 12. Extract Transitions | 2/2 | Complete    | 2026-02-28 | - |
 | 13. Type-Safe States | 3/3 | Complete    | 2026-02-28 | - |
 | 14. Runner FSM | 2/2 | Complete    | 2026-03-01 | - |
-| 15. Verification | v1.1 | 0/TBD | Not started | - |
+| 15. Verification | v1.1 | 0/2 | Not started | - |
