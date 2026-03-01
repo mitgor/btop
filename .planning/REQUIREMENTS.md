@@ -16,17 +16,17 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 
 ### Event System
 
-- [ ] **EVENT-01**: Events defined as std::variant of typed event structs (TimerTick, KeyInput, Resize, Signal, etc.)
-- [ ] **EVENT-02**: Lock-free event queue for signal handler -> main loop communication
-- [ ] **EVENT-03**: Signal handlers push events instead of mutating global atomic flags
-- [ ] **EVENT-04**: Main loop consumes events from queue and dispatches to transition functions
+- [x] **EVENT-01**: Events defined as std::variant of typed event structs (TimerTick, KeyInput, Resize, Signal, etc.)
+- [x] **EVENT-02**: Lock-free event queue for signal handler -> main loop communication
+- [x] **EVENT-03**: Signal handlers push events instead of mutating global atomic flags
+- [x] **EVENT-04**: Main loop consumes events from queue and dispatches to transition functions
 
 ### Transition Logic
 
-- [ ] **TRANS-01**: Transition functions extracted from if/else if chain into typed on_event() overloads
-- [ ] **TRANS-02**: std::visit dispatches (state, event) pairs to correct transition function
+- [x] **TRANS-01**: Transition functions extracted from if/else if chain into typed on_event() overloads
+- [x] **TRANS-02**: std::visit dispatches (state, event) pairs to correct transition function
 - [x] **TRANS-03**: Entry/exit actions execute on state transitions (e.g., calcSizes on entering Resizing)
-- [ ] **TRANS-04**: All existing state transition semantics preserved (priority ordering, guard conditions)
+- [x] **TRANS-04**: All existing state transition semantics preserved (priority ordering, guard conditions)
 
 ### Runner FSM
 
@@ -74,14 +74,14 @@ Requirements for automata architecture milestone. Each maps to roadmap phases.
 | STATE-02 | Phase 13 | Complete |
 | STATE-03 | Phase 13 | Complete |
 | STATE-04 | Phase 10 | Complete |
-| EVENT-01 | Phase 11 | Pending |
-| EVENT-02 | Phase 11 | Pending |
-| EVENT-03 | Phase 11 | Pending |
-| EVENT-04 | Phase 12 | Pending |
-| TRANS-01 | Phase 12 | Pending |
-| TRANS-02 | Phase 12 | Pending |
+| EVENT-01 | Phase 11 | Complete |
+| EVENT-02 | Phase 11 | Complete |
+| EVENT-03 | Phase 11 | Complete |
+| EVENT-04 | Phase 12 | Complete |
+| TRANS-01 | Phase 12 | Complete |
+| TRANS-02 | Phase 12 | Complete |
 | TRANS-03 | Phase 13 | Complete |
-| TRANS-04 | Phase 12 | Pending |
+| TRANS-04 | Phase 12 | Complete |
 | RUNNER-01 | Phase 14 | Complete |
 | RUNNER-02 | Phase 14 | Complete |
 | RUNNER-03 | Phase 14 | Complete |
