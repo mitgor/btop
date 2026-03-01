@@ -37,6 +37,7 @@ tab-size = 4
 #include <unistd.h>
 
 #include "btop_events.hpp"
+#include "btop_tools.hpp"
 
 // From `man 3 getifaddrs`: <net/if.h> must be included before <ifaddrs.h>
 // clang-format off
@@ -408,11 +409,13 @@ namespace Global {
 }
 
 namespace Runner {
+	//? Legacy flags — kept for backward compatibility until all consumer sites are migrated.
+	//? Runner::is_stopping() / Runner::is_active() / Runner::wait_idle() are the preferred API.
 	extern atomic<bool> active;
 	extern atomic<bool> stopping;
 	extern atomic<bool> redraw;
 	extern atomic<bool> coreNum_reset;
-	extern bool pause_output;
+	extern atomic<bool> pause_output;
 	extern string debug_bg;
 
 	/// Cooperative cancellation check — replaces direct Runner::stopping reads.
@@ -427,6 +430,13 @@ namespace Runner {
 		auto tag = Global::runner_state_tag.load(std::memory_order_acquire);
 		return tag == Global::RunnerStateTag::Collecting
 			|| tag == Global::RunnerStateTag::Drawing;
+	}
+
+	/// Wait for runner to become idle (replaces atomic_wait(Runner::active)).
+	inline void wait_idle() noexcept {
+		while (is_active()) {
+			Tools::atomic_wait(Global::runner_state_tag, Global::runner_state_tag.load());
+		}
 	}
 
 	/// Request a full redraw on the next runner cycle.

@@ -124,6 +124,8 @@ namespace Global {
 	EventQueue<AppEvent, event_queue_capacity> event_queue;
 	atomic<bool> _runner_started (false);
 	atomic<bool> init_conf (false);
+
+	std::atomic<RunnerStateTag> runner_state_tag{RunnerStateTag::Idle};
 }
 
 using Global::AppStateTag;
@@ -151,7 +153,7 @@ void term_resize(bool force) {
 	static const array<string, 5> all_boxes = {"", "cpu", "mem", "net", "proc"};
 #endif
 	Global::app_state.store(AppStateTag::Resizing);
-	if (Runner::active) Runner::stop();
+	if (Runner::is_active()) Runner::stop();
 	Term::refresh();
 	Config::unlock();
 
@@ -411,15 +413,18 @@ void init_config(bool low_color, std::optional<std::string>& filter) {
 
 //* Manages secondary thread for collection and drawing of boxes
 namespace Runner {
+	//? Legacy flags — kept for backward compatibility until all consumer sites are migrated (Task 2).
+	//? These are NO LONGER written to by the runner loop. Runner state is tracked by runner_state_tag.
 	atomic<bool> active (false);
 	atomic<bool> stopping (false);
-	atomic<bool> waiting (false);
 	atomic<bool> redraw (false);
 	atomic<bool> coreNum_reset (false);
 
-	static inline auto set_active(bool value) noexcept {
-		active.store(value, std::memory_order_relaxed);
-		active.notify_all();
+	//? Private flag for pending redraw requests (folded into conf.force_redraw by run())
+	static atomic<bool> pending_redraw{false};
+
+	void request_redraw() noexcept {
+		pending_redraw.store(true, std::memory_order_relaxed);
 	}
 
 	//* Setup semaphore for triggering thread to do work
@@ -448,7 +453,7 @@ namespace Runner {
 
 	string output;
 	string empty_bg;
-	bool pause_output{};
+	atomic<bool> pause_output{false};
 	sigset_t mask;
 	std::mutex mtx;
 
@@ -523,26 +528,34 @@ namespace Runner {
 		sigaddset(&mask, SIGTERM);
 		pthread_sigmask(SIG_BLOCK, &mask, nullptr);
 
-		// TODO: On first glance it looks redudant with `Runner::active`. 
 		std::lock_guard lock {mtx};
+		RunnerStateVar runner_var = runner::Idle{};
 
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
 		while (Global::app_state.load() != AppStateTag::Quitting) {
+			// === IDLE STATE ===
+			runner_var = runner::Idle{};
+			Global::runner_state_tag.store(Global::RunnerStateTag::Idle, std::memory_order_release);
+			Global::runner_state_tag.notify_all();
+
 			thread_wait();
-			atomic_wait_for(active, true, 5000);
-			if (active) {
+
+			//? Safety check: runner should be Idle after thread_wait returns
+			if (Runner::is_active()) {
 				Global::exit_error_msg = "Runner thread failed to get active lock!";
 				Global::app_state.store(AppStateTag::Error, std::memory_order_release);
 				Input::interrupt();
-				stopping = true;
+				Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 			}
-			if (stopping or Global::app_state.load() == AppStateTag::Resizing) {
+			if (Runner::is_stopping() or Global::app_state.load() == AppStateTag::Resizing) {
 				sleep_ms(1);
 				continue;
 			}
 
-			//? Atomic lock used for blocking non thread-safe actions in main thread
-			atomic_lock lck(active);
+			// === COLLECTING STATE ===
+			runner_var = runner::Collecting{};
+			Global::runner_state_tag.store(Global::RunnerStateTag::Collecting, std::memory_order_release);
+			Global::runner_state_tag.notify_all();
 
 			//? Set effective user if SUID bit is set
 			gain_priv powers{};
@@ -551,7 +564,7 @@ namespace Runner {
 
 			//! DEBUG stats
 			if (Global::debug) {
-                if (debug_bg.empty() or redraw)
+                if (debug_bg.empty() or conf.force_redraw)
                     Runner::debug_bg = Draw::createBox(2, 2, 33,
 					#ifdef GPU_SUPPORT
 						9,
@@ -710,21 +723,24 @@ namespace Runner {
 				Global::exit_error_msg = fmt::format("Exception in runner thread -> {}", e.what());
 				Global::app_state.store(AppStateTag::Error, std::memory_order_release);
 				Input::interrupt();
-				stopping = true;
+				Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 			}
 
-			if (stopping) {
+			if (Runner::is_stopping()) {
 				continue;
 			}
 
-			if (redraw or conf.force_redraw) {
+			// === DRAWING STATE ===
+			runner_var = runner::Drawing{conf.force_redraw};
+			Global::runner_state_tag.store(Global::RunnerStateTag::Drawing, std::memory_order_release);
+
+			if (conf.force_redraw) {
 				empty_bg.clear();
 				screen_buffer.set_force_full();
-				redraw = false;
 			}
 
 			if (not pause_output) output += conf.clock;
-			if (not conf.overlay.empty() and not conf.background_update) pause_output = true;
+			if (not conf.overlay.empty() and not conf.background_update) pause_output.store(true);
 			if (output.empty() and not pause_output) {
 				if (empty_bg.empty()) {
 					const int x = Term::width / 2 - 10, y = Term::height / 2 - 10;
@@ -823,10 +839,17 @@ namespace Runner {
 
 	//* Runs collect and draw in a secondary thread, unlocks and locks config to update cached values
 	void run(const string& box, bool no_update, bool force_redraw) {
-		atomic_wait_for(active, true, 5000);
-		if (active) {
+		//? Wait for runner to become idle (up to 5 seconds)
+		if (Runner::is_active()) {
+			atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Collecting, 5000);
+		}
+		if (Runner::is_active()) {
+			atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Drawing, 5000);
+		}
+		if (Runner::is_active()) {
 			Logger::error("Stall in Runner thread, restarting!");
-			set_active(false);
+			Global::runner_state_tag.store(Global::RunnerStateTag::Idle, std::memory_order_release);
+			Global::runner_state_tag.notify_all();
 			// exit(1);
 			pthread_cancel(Runner::runner_id);
 
@@ -842,7 +865,7 @@ namespace Runner {
 				clean_quit(1);
 			}
 		}
-		if (stopping or Global::app_state.load() == AppStateTag::Resizing) return;
+		if (Runner::is_stopping() or Global::app_state.load() == AppStateTag::Resizing) return;
 
 		if (box == "overlay") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
@@ -878,10 +901,16 @@ namespace Runner {
 				Global::clock
 			};
 
+			//? Fold any pending_redraw into conf.force_redraw
+			if (pending_redraw.exchange(false, std::memory_order_relaxed)) {
+				current_conf.force_redraw = true;
+			}
+
 			if (Menu::active and not current_conf.background_update) Global::overlay.clear();
 
 			thread_trigger();
-			atomic_wait_for(active, false, 10);
+			//? Wait briefly for runner to leave Idle (i.e., it started work)
+			atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Idle, 10);
 		}
 
 
@@ -889,19 +918,27 @@ namespace Runner {
 
 	//* Stops any work being done in runner thread and checks for thread errors
 	void stop() {
-		stopping = true;
+		Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 		auto lock = std::unique_lock {mtx, std::defer_lock};
 		const auto is_runner_busy = !lock.try_lock();
 		if (!is_runner_busy and Global::app_state.load() != AppStateTag::Quitting) {
-			if (active) {
-				set_active(false);
+			if (Runner::is_active()) {
+				Global::runner_state_tag.store(Global::RunnerStateTag::Idle, std::memory_order_release);
+				Global::runner_state_tag.notify_all();
 			}
 			Global::exit_error_msg = "Runner thread died unexpectedly!";
 			clean_quit(1);
 		} else if (is_runner_busy) {
-			atomic_wait_for(active, true, 5000);
-			if (active) {
-				set_active(false);
+			//? Wait for runner to finish current work (up to 5 seconds)
+			if (Runner::is_active()) {
+				atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Collecting, 5000);
+			}
+			if (Runner::is_active()) {
+				atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Drawing, 5000);
+			}
+			if (Runner::is_active()) {
+				Global::runner_state_tag.store(Global::RunnerStateTag::Idle, std::memory_order_release);
+				Global::runner_state_tag.notify_all();
 				if (Global::app_state.load() == AppStateTag::Quitting) {
 					return;
 				}
@@ -911,10 +948,12 @@ namespace Runner {
 				}
 			}
 			thread_trigger();
-			atomic_wait_for(active, false, 100);
-			atomic_wait_for(active, true, 100);
+			//? Wait briefly for runner to leave Idle then become active
+			atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Idle, 100);
+			atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Collecting, 100);
 		}
-		stopping = false;
+		Global::runner_state_tag.store(Global::RunnerStateTag::Idle, std::memory_order_release);
+		Global::runner_state_tag.notify_all();
 	}
 
 }
@@ -943,11 +982,11 @@ static auto configure_tty_mode(std::optional<bool> force_tty) {
 //* Exit actions — called when LEAVING a state for a new state.
 
 static void on_exit(const state::Running&, const state::Quitting&) {
-	if (Runner::active) Runner::stopping = true;
+	if (Runner::is_active()) Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 }
 
 static void on_exit(const state::Running&, const state::Sleeping&) {
-	if (Runner::active) Runner::stopping = true;
+	if (Runner::is_active()) Global::runner_state_tag.store(Global::RunnerStateTag::Stopping, std::memory_order_release);
 }
 
 static void on_exit(const auto&, const auto&) {
@@ -968,11 +1007,17 @@ static void on_enter(state::Resizing&, TransitionCtx&) {
 	Draw::update_clock(true);
 	if (Menu::active) Menu::process();
 	else Runner::run("all", true, true);
-	atomic_wait_for(Runner::active, true, 1000);
+	//? Wait for runner to finish (up to 1 second)
+	if (Runner::is_active()) {
+		atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Collecting, 1000);
+	}
+	if (Runner::is_active()) {
+		atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Drawing, 1000);
+	}
 }
 
 static void on_enter(state::Reloading&, TransitionCtx& ctx) {
-	if (Runner::active) Runner::stop();
+	if (Runner::is_active()) Runner::stop();
 	Config::unlock();
 	init_config(ctx.cli.low_color, ctx.cli.filter);
 	Theme::updateThemes();
@@ -1521,7 +1566,7 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 					}
 					//? Poll for input
 					else if (Input::poll(min((uint64_t)1000, running->future_time - current_time))) {
-						if (not Runner::active) Config::unlock();
+						if (not Runner::is_active()) Config::unlock();
 						auto key = Input::get();
 						if (not key.empty()) {
 							if (Menu::active) Menu::process(key);
