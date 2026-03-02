@@ -1,123 +1,96 @@
-# Requirements: btop++ v1.3
+# Requirements: btop++ v1.4
 
 **Defined:** 2026-03-02
 **Core Value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## v1.3 Requirements
-
-Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases.
-
-### Menu PDA Infrastructure
-
-- [x] **PDA-01**: MenuFrameVar std::variant defined with alternatives for all 8 menus (Main, Options, Help, SizeError, SignalChoose, SignalSend, SignalReturn, Renice)
-- [x] **PDA-02**: MenuPDA class provides push(), pop(), replace(), top(), empty() operations on std::stack<MenuFrameVar, std::vector<MenuFrameVar>>
-- [x] **PDA-03**: Frame handlers return PDAAction enum (Push/Pop/Replace/NoChange) instead of modifying stack during std::visit
-- [x] **PDA-04**: PDA dispatch replaces menuMask bitset + currentMenu int + menuFunc dispatch vector
-- [x] **PDA-05**: bg string lifecycle tied to stack depth (captured on first push, cleared on final pop)
-- [x] **PDA-06**: replace() operation handles Main→Options and Main→Help transitions (ESC returns to Normal, not Main)
-
-### Frame Data
-
-- [x] **FRAME-01**: Each frame struct carries per-frame state as members (replacing function-static locals)
-- [x] **FRAME-02**: Frame structs split into layout fields (x, y, width, height) and interaction fields (selected, page, entered text)
-- [x] **FRAME-03**: invalidate_layout() zeros layout fields while preserving interaction fields
-- [x] **FRAME-04**: Frame constructors unconditionally initialize all fields (eliminating bg.empty() reset sentinel)
-- [x] **FRAME-05**: Per-frame mouse_mappings owned by frame struct (only top frame's mappings active)
-
-### Input FSM
-
-- [x] **INPUT-01**: InputStateVar std::variant defined with Normal, Filtering, and MenuActive states
-- [x] **INPUT-02**: Filtering state carries old_filter as struct member (replacing file-scoped global)
-- [x] **INPUT-03**: All input transitions typed: Normal↔Filtering, Normal↔MenuActive
-- [x] **INPUT-04**: Input::process() dispatches via InputStateVar instead of if(filtering)/if(Menu::active) branches
-- [x] **INPUT-05**: Menu::active atomic bool removed — InputStateVar is sole authority for input routing
-- [x] **INPUT-06**: Mouse routing in Input::get() reads InputStateVar instead of Menu::active bool
-
-### Integration
-
-- [x] **INTEG-01**: App FSM on_enter(Resizing) calls menu_pda.invalidate_layout() to prevent stale coordinates
-- [x] **INTEG-02**: Runner::pause_output cleared on all paths that empty the PDA stack
-- [x] **INTEG-03**: Config::proc_filtering retained for display/persistence but FSM is routing authority
-- [x] **INTEG-04**: Main loop btop.cpp:1572-1574 replaced with InputFSM-based dispatch
-
-### Testing
-
-- [x] **TEST-01**: PDA transition tests: push/pop/replace invariants, frame isolation, reopen-fresh-state
-- [x] **TEST-02**: Input FSM transition tests: all state transitions, key routing per state, mouse routing
-- [x] **TEST-03**: SizeError override test (push over existing menu)
-- [x] **TEST-04**: SignalSend→SignalReturn sequence test (post-pop push pattern)
-- [x] **TEST-05**: Resize-with-menu-open preserves interaction, invalidates layout
-- [x] **TEST-06**: All Filtering exit paths tested (keyboard ESC, mouse click, enter)
-- [x] **TEST-07**: ASan + UBSan + TSan clean builds; all existing tests passing
-
-### Cleanup
-
-- [x] **CLEAN-01**: menuMask bitset, currentMenu int, menuFunc vector removed
-- [x] **CLEAN-02**: Menu::active atomic bool declaration removed from btop_menu.hpp
-- [x] **CLEAN-03**: old_filter file-scope variable removed from btop_input.cpp
-- [x] **CLEAN-04**: All function-static locals in menu functions removed
-
 ## v1.4 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+Requirements for v1.4 Render & Collect Modernization. Each maps to roadmap phases.
 
-### Advanced State Machine Features
+### Correctness
 
-- **ADV-01**: Transition logging infrastructure for menu PDA and input FSM
-- **ADV-02**: Stack depth defensive guard (assert stack.size() <= 4)
+- [ ] **CORR-01**: calcSizes() freq_range and hasCpuHz values refresh when config changes instead of being baked at first call
+
+### Hot-Path Performance
+
+- [ ] **PERF-01**: cpu_old string-keyed unordered_map replaced with std::array<long long, CpuField::COUNT> on Linux
+- [ ] **PERF-02**: cpu_old equivalent replaced with enum-indexed array on macOS
+- [ ] **PERF-03**: cpu_old equivalent replaced with enum-indexed array on FreeBSD
+- [ ] **PERF-04**: Cpu::collect /proc/stat reads use read_proc_file() instead of ifstream (Linux)
+- [ ] **PERF-05**: Mem::collect /proc/meminfo reads use read_proc_file() instead of ifstream (Linux)
+- [ ] **PERF-06**: Theme colors map replaced with ThemeKey enum + std::array (~40 fixed color names)
+- [ ] **PERF-07**: Theme rgbs map replaced with ThemeKey enum + std::array
+- [ ] **PERF-08**: Theme gradients map replaced with ThemeKey enum + std::array
+
+### Draw Decomposition
+
+- [ ] **DRAW-01**: Proc::draw() split into focused sub-functions (detailed view, list rendering, filter display)
+- [ ] **DRAW-02**: Cpu::draw() split with battery state tracking extracted into separate function
+- [ ] **DRAW-03**: No regression in rendered output — visual diff confirms identical terminal output
+
+### Render Architecture
+
+- [ ] **REND-01**: Scattered redraw booleans (Cpu::redraw, Mem::redraw, Net::redraw, Proc::redraw, Gpu::redraw) consolidated into unified mechanism
+- [ ] **REND-02**: All existing redraw trigger sites (calcSizes, input, collect, draw) work through unified mechanism
+
+## Future Requirements
+
+Deferred to future milestone. Tracked but not in current roadmap.
+
+### Input Modernization
+
+- **INPT-01**: Input::process() 438-line if-else cascade replaced with typed key-dispatch table
+- **INPT-02**: Key dispatch indexed by current InputState variant
+
+### Collect Decomposition
+
+- **COLL-01**: Cpu::collect() (875 lines) split into collect_cpu_times(), collect_battery(), collect_sensors()
+- **COLL-02**: Mem::collect() (558 lines) split into sub-functions
+
+### Config Layer
+
+- **CONF-01**: Config::validError global side-channel replaced with returned error type
+- **CONF-02**: Config::unlock() decoupled from Proc display state
+- **CONF-03**: Proc::draw() Config::set() mutations replaced with render-output struct
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Deep push of Main under Options/Help | ESC from Options must return to Normal, not Main — this would be a regression |
-| Async/coroutine menu state machines | Would introduce races with Runner's pause_output and bg string |
-| External FSM libraries (Boost.SML, TinyFSM) | Violates no-new-dependencies constraint |
-| UI/UX changes | Architecture-only refactor, zero user-visible changes |
-| Input state machine beyond Normal/Filtering/MenuActive | Three states cover all existing input modes |
+| New state machines | v1.4 is modernization, not new FSM work |
+| Input dispatch rewrite | Deferred — large scope, independent of render/collect work |
+| Platform collector decomposition | Deferred — large scope, cross-platform testing needed |
+| Runner::pause_output refactor | Requires event queue changes, better as standalone work |
+| UI/UX changes | Architecture only, no user-facing modifications |
+| New dependencies | Prefer zero-cost or header-only if needed |
+| BSD/macOS ifstream conversion | Only Linux has read_proc_file(); BSD/macOS use sysctl APIs |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PDA-01 | Phase 20 | Complete |
-| PDA-02 | Phase 20 | Complete |
-| PDA-03 | Phase 20 | Complete |
-| PDA-04 | Phase 22 | Complete |
-| PDA-05 | Phase 20 | Complete |
-| PDA-06 | Phase 22 | Complete |
-| FRAME-01 | Phase 21 | Complete |
-| FRAME-02 | Phase 20 | Complete |
-| FRAME-03 | Phase 21 | Complete |
-| FRAME-04 | Phase 20 | Complete |
-| FRAME-05 | Phase 20 | Complete |
-| INPUT-01 | Phase 23 | Complete |
-| INPUT-02 | Phase 23 | Complete |
-| INPUT-03 | Phase 23 | Complete |
-| INPUT-04 | Phase 23 | Complete |
-| INPUT-05 | Phase 23 | Complete |
-| INPUT-06 | Phase 23 | Complete |
-| INTEG-01 | Phase 23 | Complete |
-| INTEG-02 | Phase 23 | Complete |
-| INTEG-03 | Phase 23 | Complete |
-| INTEG-04 | Phase 23 | Complete |
-| TEST-01 | Phase 24 | Complete |
-| TEST-02 | Phase 24 | Complete |
-| TEST-03 | Phase 24 | Complete |
-| TEST-04 | Phase 24 | Complete |
-| TEST-05 | Phase 24 | Complete |
-| TEST-06 | Phase 24 | Complete |
-| TEST-07 | Phase 24 | Complete |
-| CLEAN-01 | Phase 22 | Complete |
-| CLEAN-02 | Phase 23 | Complete |
-| CLEAN-03 | Phase 23 | Complete |
-| CLEAN-04 | Phase 21 | Complete |
+| CORR-01 | — | Pending |
+| PERF-01 | — | Pending |
+| PERF-02 | — | Pending |
+| PERF-03 | — | Pending |
+| PERF-04 | — | Pending |
+| PERF-05 | — | Pending |
+| PERF-06 | — | Pending |
+| PERF-07 | — | Pending |
+| PERF-08 | — | Pending |
+| DRAW-01 | — | Pending |
+| DRAW-02 | — | Pending |
+| DRAW-03 | — | Pending |
+| REND-01 | — | Pending |
+| REND-02 | — | Pending |
 
 **Coverage:**
-- v1.3 requirements: 32 total
-- Mapped to phases: 32
-- Unmapped: 0
+- v1.4 requirements: 14 total
+- Mapped to phases: 0
+- Unmapped: 14 ⚠️
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after roadmap creation*
+*Last updated: 2026-03-02 after initial definition*
