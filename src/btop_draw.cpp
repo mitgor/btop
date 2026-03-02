@@ -2190,7 +2190,7 @@ namespace Proc {
 		if (Runner::is_stopping()) return "";
 		auto proc_tree = Config::getB(BoolKey::proc_tree);
 		bool show_detailed = (Config::getB(BoolKey::show_detailed) and cmp_equal(Proc::detailed.last_pid, Config::getI(IntKey::detailed_pid)));
-		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor) and Theme::gradients.contains("proc"));
+		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor));
 		auto proc_colors = Config::getB(BoolKey::proc_colors);
 		auto tty_mode = Config::getB(BoolKey::tty_mode);
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_proc));

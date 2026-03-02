@@ -20,9 +20,10 @@ tab-size = 4
 
 #include <array>
 #include <filesystem>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
-#include <unordered_map>
 
 using std::array;
 using std::string;
@@ -35,6 +36,113 @@ namespace Theme {
 
 	//* Contains "Default" and "TTY" at indices 0 and 1, otherwise full paths to theme files
 	extern vector<string> themes;
+
+	//----------------------------------------------------------
+	// Enum keys for O(1) theme color access
+	//----------------------------------------------------------
+
+	enum class ColorKey : size_t {
+		// UI chrome colors
+		main_bg, main_fg, title, hi_fg,
+		selected_bg, selected_fg, inactive_fg,
+		graph_text, meter_bg, proc_misc,
+		// Box outline colors
+		cpu_box, mem_box, net_box, proc_box,
+		div_line,
+		// Gradient triplets: temp
+		temp_start, temp_mid, temp_end,
+		// Gradient triplets: cpu
+		cpu_start, cpu_mid, cpu_end,
+		// Gradient triplets: free
+		free_start, free_mid, free_end,
+		// Gradient triplets: cached
+		cached_start, cached_mid, cached_end,
+		// Gradient triplets: available
+		available_start, available_mid, available_end,
+		// Gradient triplets: used
+		used_start, used_mid, used_end,
+		// Gradient triplets: download
+		download_start, download_mid, download_end,
+		// Gradient triplets: upload
+		upload_start, upload_mid, upload_end,
+		// Gradient triplets: process
+		process_start, process_mid, process_end,
+		// Proc special colors
+		proc_pause_bg, proc_follow_bg, proc_banner_bg, proc_banner_fg,
+		followed_bg, followed_fg,
+		// Synthetic entries added by generateGradients() — NOT in Default_theme/TTY_theme
+		proc_start, proc_mid, proc_end,
+		proc_color_start, proc_color_mid, proc_color_end,
+		COUNT
+	};
+
+	enum class GradientKey : size_t {
+		temp, cpu, free, cached, available, used,
+		download, upload, process,
+		proc, proc_color,
+		COUNT
+	};
+
+	//----------------------------------------------------------
+	// Constexpr name tables for string-to-enum lookup
+	//----------------------------------------------------------
+
+	inline constexpr std::array<std::string_view, static_cast<size_t>(ColorKey::COUNT)> color_key_names = {
+		"main_bg", "main_fg", "title", "hi_fg",
+		"selected_bg", "selected_fg", "inactive_fg",
+		"graph_text", "meter_bg", "proc_misc",
+		"cpu_box", "mem_box", "net_box", "proc_box",
+		"div_line",
+		"temp_start", "temp_mid", "temp_end",
+		"cpu_start", "cpu_mid", "cpu_end",
+		"free_start", "free_mid", "free_end",
+		"cached_start", "cached_mid", "cached_end",
+		"available_start", "available_mid", "available_end",
+		"used_start", "used_mid", "used_end",
+		"download_start", "download_mid", "download_end",
+		"upload_start", "upload_mid", "upload_end",
+		"process_start", "process_mid", "process_end",
+		"proc_pause_bg", "proc_follow_bg", "proc_banner_bg", "proc_banner_fg",
+		"followed_bg", "followed_fg",
+		"proc_start", "proc_mid", "proc_end",
+		"proc_color_start", "proc_color_mid", "proc_color_end",
+	};
+
+	inline constexpr std::array<std::string_view, static_cast<size_t>(GradientKey::COUNT)> gradient_key_names = {
+		"temp", "cpu", "free", "cached", "available", "used",
+		"download", "upload", "process",
+		"proc", "proc_color",
+	};
+
+	//----------------------------------------------------------
+	// Gradient-to-ColorKey mapping
+	//----------------------------------------------------------
+
+	//* Map a GradientKey to the ColorKey of its _start entry
+	inline constexpr ColorKey gradient_start_key(GradientKey gk) {
+		constexpr std::array<ColorKey, static_cast<size_t>(GradientKey::COUNT)> starts = {
+			ColorKey::temp_start, ColorKey::cpu_start, ColorKey::free_start,
+			ColorKey::cached_start, ColorKey::available_start, ColorKey::used_start,
+			ColorKey::download_start, ColorKey::upload_start, ColorKey::process_start,
+			ColorKey::proc_start, ColorKey::proc_color_start,
+		};
+		return starts[static_cast<size_t>(gk)];
+	}
+
+	//----------------------------------------------------------
+	// String-to-enum lookup helpers
+	//----------------------------------------------------------
+
+	std::optional<ColorKey> colorKeyFromString(std::string_view name);
+	std::optional<GradientKey> gradientKeyFromString(std::string_view name);
+
+	//----------------------------------------------------------
+	// Enum-indexed storage (replaces unordered_map)
+	//----------------------------------------------------------
+
+	extern std::array<string, static_cast<size_t>(ColorKey::COUNT)> colors;
+	extern std::array<std::array<int, 3>, static_cast<size_t>(ColorKey::COUNT)> rgbs;
+	extern std::array<std::array<string, 101>, static_cast<size_t>(GradientKey::COUNT)> gradients;
 
 	//* Generate escape sequence for 24-bit or 256 color and return as a string
 	//* Args	hexa: ["#000000"-"#ffffff"] for color, ["#00"-"#ff"] for greyscale
@@ -54,17 +162,18 @@ namespace Theme {
 	//* Set current theme from current "color_theme" value in config
 	void setTheme();
 
-	extern std::unordered_map<string, string> colors;
-	extern std::unordered_map<string, array<int, 3>> rgbs;
-	extern std::unordered_map<string, array<string, 101>> gradients;
+	//* Return escape code for color <key>
+	inline const string& c(ColorKey key) { return colors[static_cast<size_t>(key)]; }
 
-	//* Return escape code for color <name>
-	inline const string& c(const string& name) { return colors.at(name); }
+	//* Return array of escape codes for color gradient <key>
+	inline const array<string, 101>& g(GradientKey key) { return gradients[static_cast<size_t>(key)]; }
 
-	//* Return array of escape codes for color gradient <name>
-	inline const array<string, 101>& g(const string& name) { return gradients.at(name); }
+	//* Return array of red, green and blue in decimal for color <key>
+	inline const std::array<int, 3>& dec(ColorKey key) { return rgbs[static_cast<size_t>(key)]; }
 
-	//* Return array of red, green and blue in decimal for color <name>
-	inline const std::array<int, 3>& dec(const string& name) { return rgbs.at(name); }
+	//* TEMPORARY: string-accepting overloads for incremental migration (remove after Plan 26-02)
+	const string& c(const string& name);
+	const array<string, 101>& g(const string& name);
+	const std::array<int, 3>& dec(const string& name);
 
 }

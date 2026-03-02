@@ -18,6 +18,7 @@ tab-size = 4
 
 #include <cmath>
 #include <fstream>
+#include <unordered_map>
 #include <unistd.h>
 
 #include "btop_config.hpp"
@@ -48,111 +49,191 @@ namespace Theme {
 	fs::path user_theme_dir;
 	fs::path custom_theme_dir;
 	vector<string> themes;
-	std::unordered_map<string, string> colors;
-	std::unordered_map<string, array<int, 3>> rgbs;
-	std::unordered_map<string, array<string, 101>> gradients;
 
-	const std::unordered_map<string, string> Default_theme = {
-		{ "main_bg", "#00" },
-		{ "main_fg", "#cc" },
-		{ "title", "#ee" },
-		{ "hi_fg", "#b54040" },
-		{ "selected_bg", "#6a2f2f" },
-		{ "selected_fg", "#ee" },
-		{ "inactive_fg", "#40" },
-		{ "graph_text", "#60" },
-		{ "meter_bg", "#40" },
-		{ "proc_misc", "#0de756" },
-		{ "cpu_box", "#556d59" },
-		{ "mem_box", "#6c6c4b" },
-		{ "net_box", "#5c588d" },
-		{ "proc_box", "#805252" },
-		{ "div_line", "#30" },
-		{ "temp_start", "#4897d4" },
-		{ "temp_mid", "#5474e8" },
-		{ "temp_end", "#ff40b6" },
-		{ "cpu_start", "#77ca9b" },
-		{ "cpu_mid", "#cbc06c" },
-		{ "cpu_end", "#dc4c4c" },
-		{ "free_start", "#384f21" },
-		{ "free_mid", "#b5e685" },
-		{ "free_end", "#dcff85" },
-		{ "cached_start", "#163350" },
-		{ "cached_mid", "#74e6fc" },
-		{ "cached_end", "#26c5ff" },
-		{ "available_start", "#4e3f0e" },
-		{ "available_mid", "#ffd77a" },
-		{ "available_end", "#ffb814" },
-		{ "used_start", "#592b26" },
-		{ "used_mid", "#d9626d" },
-		{ "used_end", "#ff4769" },
-		{ "download_start", "#291f75" },
-		{ "download_mid", "#4f43a3" },
-		{ "download_end", "#b0a9de" },
-		{ "upload_start", "#620665" },
-		{ "upload_mid", "#7d4180" },
-		{ "upload_end", "#dcafde" },
-		{ "process_start", "#80d0a3" },
-		{ "process_mid", "#dcd179" },
-		{ "process_end", "#d45454" },
-		{ "proc_pause_bg", "#b54040" },
-		{ "proc_follow_bg", "#4040b5"},
-		{ "proc_banner_bg", "#7b407b"},
-		{ "proc_banner_fg", "#ee"},
-		{ "followed_bg", "#4040b5"},
-		{ "followed_fg", "#ee"},
+	//----------------------------------------------------------
+	// Enum-indexed storage
+	//----------------------------------------------------------
+
+	std::array<string, static_cast<size_t>(ColorKey::COUNT)> colors{};
+	std::array<std::array<int, 3>, static_cast<size_t>(ColorKey::COUNT)> rgbs{};
+	std::array<std::array<string, 101>, static_cast<size_t>(GradientKey::COUNT)> gradients{};
+
+	//----------------------------------------------------------
+	// String-to-enum lookup helpers
+	//----------------------------------------------------------
+
+	std::optional<ColorKey> colorKeyFromString(std::string_view name) {
+		for (size_t i = 0; i < color_key_names.size(); ++i)
+			if (color_key_names[i] == name) return static_cast<ColorKey>(i);
+		return std::nullopt;
+	}
+
+	std::optional<GradientKey> gradientKeyFromString(std::string_view name) {
+		for (size_t i = 0; i < gradient_key_names.size(); ++i)
+			if (gradient_key_names[i] == name) return static_cast<GradientKey>(i);
+		return std::nullopt;
+	}
+
+	//----------------------------------------------------------
+	// TEMPORARY: string-accepting overloads (remove after Plan 26-02)
+	//----------------------------------------------------------
+
+	const string& c(const string& name) {
+		if (auto key = colorKeyFromString(name)) return colors[static_cast<size_t>(*key)];
+		static const string empty;
+		return empty;
+	}
+
+	const array<string, 101>& g(const string& name) {
+		if (auto key = gradientKeyFromString(name)) return gradients[static_cast<size_t>(*key)];
+		static const array<string, 101> empty{};
+		return empty;
+	}
+
+	const std::array<int, 3>& dec(const string& name) {
+		if (auto key = colorKeyFromString(name)) return rgbs[static_cast<size_t>(*key)];
+		static const std::array<int, 3> empty{-1, -1, -1};
+		return empty;
+	}
+
+	//----------------------------------------------------------
+	// Default and TTY theme data (ColorKey-indexed)
+	//----------------------------------------------------------
+
+	struct ThemeEntry {
+		ColorKey key;
+		const char* value;
 	};
 
-	const std::unordered_map<string, string> TTY_theme = {
-		{ "main_bg", "\x1b[0;40m" },
-		{ "main_fg", "\x1b[37m" },
-		{ "title", "\x1b[97m" },
-		{ "hi_fg", "\x1b[91m" },
-		{ "selected_bg", "\x1b[41m" },
-		{ "selected_fg", "\x1b[97m" },
-		{ "inactive_fg", "\x1b[90m" },
-		{ "graph_text", "\x1b[90m" },
-		{ "meter_bg", "\x1b[90m" },
-		{ "proc_misc", "\x1b[92m" },
-		{ "cpu_box", "\x1b[32m" },
-		{ "mem_box", "\x1b[33m" },
-		{ "net_box", "\x1b[35m" },
-		{ "proc_box", "\x1b[31m" },
-		{ "div_line", "\x1b[90m" },
-		{ "temp_start", "\x1b[94m" },
-		{ "temp_mid", "\x1b[96m" },
-		{ "temp_end", "\x1b[95m" },
-		{ "cpu_start", "\x1b[92m" },
-		{ "cpu_mid", "\x1b[93m" },
-		{ "cpu_end", "\x1b[91m" },
-		{ "free_start", "\x1b[32m" },
-		{ "free_mid", "" },
-		{ "free_end", "\x1b[92m" },
-		{ "cached_start", "\x1b[36m" },
-		{ "cached_mid", "" },
-		{ "cached_end", "\x1b[96m" },
-		{ "available_start", "\x1b[33m" },
-		{ "available_mid", "" },
-		{ "available_end", "\x1b[93m" },
-		{ "used_start", "\x1b[31m" },
-		{ "used_mid", "" },
-		{ "used_end", "\x1b[91m" },
-		{ "download_start", "\x1b[34m" },
-		{ "download_mid", "" },
-		{ "download_end", "\x1b[94m" },
-		{ "upload_start", "\x1b[35m" },
-		{ "upload_mid", "" },
-		{ "upload_end", "\x1b[95m" },
-		{ "process_start", "\x1b[32m" },
-		{ "process_mid", "\x1b[33m" },
-		{ "process_end", "\x1b[31m" },
-		{ "proc_pause_bg", "\x1b[41m" },
-		{ "proc_follow_bg", "\x1b[44m" },
-		{ "proc_banner_bg", "\x1b[45m" },
-		{ "proc_banner_fg", "\x1b[97m" },
-		{ "followed_bg", "\x1b[44m" },
-		{ "followed_fg", "\x1b[97m" },
-	};
+	//? Number of entries in Default_theme/TTY_theme (gradient triplet colors + UI chrome)
+	static constexpr size_t kThemeEntryCount = 39;
+
+	static constexpr std::array<ThemeEntry, kThemeEntryCount> Default_theme = {{
+		{ ColorKey::main_bg, "#00" },
+		{ ColorKey::main_fg, "#cc" },
+		{ ColorKey::title, "#ee" },
+		{ ColorKey::hi_fg, "#b54040" },
+		{ ColorKey::selected_bg, "#6a2f2f" },
+		{ ColorKey::selected_fg, "#ee" },
+		{ ColorKey::inactive_fg, "#40" },
+		{ ColorKey::graph_text, "#60" },
+		{ ColorKey::meter_bg, "#40" },
+		{ ColorKey::proc_misc, "#0de756" },
+		{ ColorKey::cpu_box, "#556d59" },
+		{ ColorKey::mem_box, "#6c6c4b" },
+		{ ColorKey::net_box, "#5c588d" },
+		{ ColorKey::proc_box, "#805252" },
+		{ ColorKey::div_line, "#30" },
+		{ ColorKey::temp_start, "#4897d4" },
+		{ ColorKey::temp_mid, "#5474e8" },
+		{ ColorKey::temp_end, "#ff40b6" },
+		{ ColorKey::cpu_start, "#77ca9b" },
+		{ ColorKey::cpu_mid, "#cbc06c" },
+		{ ColorKey::cpu_end, "#dc4c4c" },
+		{ ColorKey::free_start, "#384f21" },
+		{ ColorKey::free_mid, "#b5e685" },
+		{ ColorKey::free_end, "#dcff85" },
+		{ ColorKey::cached_start, "#163350" },
+		{ ColorKey::cached_mid, "#74e6fc" },
+		{ ColorKey::cached_end, "#26c5ff" },
+		{ ColorKey::available_start, "#4e3f0e" },
+		{ ColorKey::available_mid, "#ffd77a" },
+		{ ColorKey::available_end, "#ffb814" },
+		{ ColorKey::used_start, "#592b26" },
+		{ ColorKey::used_mid, "#d9626d" },
+		{ ColorKey::used_end, "#ff4769" },
+		{ ColorKey::download_start, "#291f75" },
+		{ ColorKey::download_mid, "#4f43a3" },
+		{ ColorKey::download_end, "#b0a9de" },
+		{ ColorKey::upload_start, "#620665" },
+		{ ColorKey::upload_mid, "#7d4180" },
+		{ ColorKey::upload_end, "#dcafde" },
+	}};
+
+	//? Additional entries not in TTY_theme but present in Default_theme
+	static constexpr size_t kExtraEntryCount = 12;
+	static constexpr std::array<ThemeEntry, kExtraEntryCount> Default_theme_extras = {{
+		{ ColorKey::process_start, "#80d0a3" },
+		{ ColorKey::process_mid, "#dcd179" },
+		{ ColorKey::process_end, "#d45454" },
+		{ ColorKey::proc_pause_bg, "#b54040" },
+		{ ColorKey::proc_follow_bg, "#4040b5" },
+		{ ColorKey::proc_banner_bg, "#7b407b" },
+		{ ColorKey::proc_banner_fg, "#ee" },
+		{ ColorKey::followed_bg, "#4040b5" },
+		{ ColorKey::followed_fg, "#ee" },
+		// Sentinel/padding for completeness — not used
+		{ ColorKey::proc_start, "" },
+		{ ColorKey::proc_mid, "" },
+		{ ColorKey::proc_end, "" },
+	}};
+
+	static constexpr std::array<ThemeEntry, kThemeEntryCount> TTY_theme = {{
+		{ ColorKey::main_bg, "\x1b[0;40m" },
+		{ ColorKey::main_fg, "\x1b[37m" },
+		{ ColorKey::title, "\x1b[97m" },
+		{ ColorKey::hi_fg, "\x1b[91m" },
+		{ ColorKey::selected_bg, "\x1b[41m" },
+		{ ColorKey::selected_fg, "\x1b[97m" },
+		{ ColorKey::inactive_fg, "\x1b[90m" },
+		{ ColorKey::graph_text, "\x1b[90m" },
+		{ ColorKey::meter_bg, "\x1b[90m" },
+		{ ColorKey::proc_misc, "\x1b[92m" },
+		{ ColorKey::cpu_box, "\x1b[32m" },
+		{ ColorKey::mem_box, "\x1b[33m" },
+		{ ColorKey::net_box, "\x1b[35m" },
+		{ ColorKey::proc_box, "\x1b[31m" },
+		{ ColorKey::div_line, "\x1b[90m" },
+		{ ColorKey::temp_start, "\x1b[94m" },
+		{ ColorKey::temp_mid, "\x1b[96m" },
+		{ ColorKey::temp_end, "\x1b[95m" },
+		{ ColorKey::cpu_start, "\x1b[92m" },
+		{ ColorKey::cpu_mid, "\x1b[93m" },
+		{ ColorKey::cpu_end, "\x1b[91m" },
+		{ ColorKey::free_start, "\x1b[32m" },
+		{ ColorKey::free_mid, "" },
+		{ ColorKey::free_end, "\x1b[92m" },
+		{ ColorKey::cached_start, "\x1b[36m" },
+		{ ColorKey::cached_mid, "" },
+		{ ColorKey::cached_end, "\x1b[96m" },
+		{ ColorKey::available_start, "\x1b[33m" },
+		{ ColorKey::available_mid, "" },
+		{ ColorKey::available_end, "\x1b[93m" },
+		{ ColorKey::used_start, "\x1b[31m" },
+		{ ColorKey::used_mid, "" },
+		{ ColorKey::used_end, "\x1b[91m" },
+		{ ColorKey::download_start, "\x1b[34m" },
+		{ ColorKey::download_mid, "" },
+		{ ColorKey::download_end, "\x1b[94m" },
+		{ ColorKey::upload_start, "\x1b[35m" },
+		{ ColorKey::upload_mid, "" },
+		{ ColorKey::upload_end, "\x1b[95m" },
+	}};
+
+	static constexpr std::array<ThemeEntry, kExtraEntryCount> TTY_theme_extras = {{
+		{ ColorKey::process_start, "\x1b[32m" },
+		{ ColorKey::process_mid, "\x1b[33m" },
+		{ ColorKey::process_end, "\x1b[31m" },
+		{ ColorKey::proc_pause_bg, "\x1b[41m" },
+		{ ColorKey::proc_follow_bg, "\x1b[44m" },
+		{ ColorKey::proc_banner_bg, "\x1b[45m" },
+		{ ColorKey::proc_banner_fg, "\x1b[97m" },
+		{ ColorKey::followed_bg, "\x1b[44m" },
+		{ ColorKey::followed_fg, "\x1b[97m" },
+		// Sentinel/padding — not used
+		{ ColorKey::proc_start, "" },
+		{ ColorKey::proc_mid, "" },
+		{ ColorKey::proc_end, "" },
+	}};
+
+	//? Set of ColorKeys that are valid in theme files (for loadFile validation)
+	static bool isValidThemeKey(std::string_view name) {
+		auto key = colorKeyFromString(name);
+		if (not key.has_value()) return false;
+		// Only the 38 base + 9 extra keys are valid in theme files (not synthetic proc/proc_color)
+		const auto k = *key;
+		return k < ColorKey::proc_start; // proc_start..proc_color_end are synthetic
+	}
 
 	namespace {
 		//* Convert 24-bit colors to 256 colors
@@ -241,94 +322,132 @@ namespace Theme {
 			return {-1 ,-1 ,-1};
 		}
 
+		//? Helper: index into colors/rgbs arrays
+		inline constexpr size_t ci(ColorKey k) { return static_cast<size_t>(k); }
+
 		//* Generate colors and rgb decimal vectors for the theme
+		//* source: string-keyed map from theme file parsing (or empty for Default)
 		void generateColors(const std::unordered_map<string, string>& source) {
 			vector<string> t_rgb;
 			string depth;
 			bool t_to_256 = Config::getB(BoolKey::lowcolor);
-			colors.clear(); rgbs.clear();
-			for (const auto& [name, color] : Default_theme) {
-				if (name == "main_bg" and not Config::getB(BoolKey::theme_background)) {
-						colors[name] = "\x1b[49m";
-						rgbs[name] = {-1, -1, -1};
-						continue;
-				}
-				depth = (name.ends_with("bg") and name != "meter_bg") ? "bg" : "fg";
-				if (source.contains(name)) {
-					if (name == "main_bg" and source.at(name).empty()) {
-						colors[name] = "\x1b[49m";
-						rgbs[name] = {-1, -1, -1};
-						continue;
-					}
-					else if (source.at(name).empty() and (name.ends_with("_mid") or name.ends_with("_end"))) {
-						colors[name] = "";
-						rgbs[name] = {-1, -1, -1};
-						continue;
-					}
-					else if (source.at(name).starts_with('#')) {
-						colors[name] = hex_to_color(source.at(name), t_to_256, depth);
-						rgbs[name] = hex_to_dec(source.at(name));
-					}
-					else if (not source.at(name).empty()) {
-						t_rgb = ssplit(source.at(name));
-						if (t_rgb.size() != 3) {
-							Logger::error("Invalid RGB decimal value: \"{}\"", source.at(name));
-						} else {
-							colors[name] = dec_to_color(stoi(t_rgb[0]), stoi(t_rgb[1]), stoi(t_rgb[2]), t_to_256, depth);
-							rgbs[name] = array{stoi(t_rgb[0]), stoi(t_rgb[1]), stoi(t_rgb[2])};
 
+			//? Clear arrays
+			colors.fill({});
+			for (auto& rgb : rgbs) rgb = {0, 0, 0};
+
+			//? Track which color keys have been set (for fallback logic)
+			std::array<bool, static_cast<size_t>(ColorKey::COUNT)> color_set{};
+
+			//? Process base theme entries (38 keys shared between Default and custom themes)
+			auto processEntry = [&](ColorKey key, const char* default_value) {
+				const auto name = color_key_names[ci(key)];
+				const string name_str{name};
+
+				if (key == ColorKey::main_bg and not Config::getB(BoolKey::theme_background)) {
+					colors[ci(key)] = "\x1b[49m";
+					rgbs[ci(key)] = {-1, -1, -1};
+					color_set[ci(key)] = true;
+					return;
+				}
+				depth = (name.ends_with("bg") and key != ColorKey::meter_bg) ? "bg" : "fg";
+				if (source.contains(name_str)) {
+					const auto& src_value = source.at(name_str);
+					if (key == ColorKey::main_bg and src_value.empty()) {
+						colors[ci(key)] = "\x1b[49m";
+						rgbs[ci(key)] = {-1, -1, -1};
+						color_set[ci(key)] = true;
+						return;
+					}
+					else if (src_value.empty() and (name.ends_with("_mid") or name.ends_with("_end"))) {
+						colors[ci(key)] = "";
+						rgbs[ci(key)] = {-1, -1, -1};
+						color_set[ci(key)] = true;
+						return;
+					}
+					else if (src_value.starts_with('#')) {
+						colors[ci(key)] = hex_to_color(string(src_value), t_to_256, depth);
+						rgbs[ci(key)] = hex_to_dec(string(src_value));
+						color_set[ci(key)] = true;
+					}
+					else if (not src_value.empty()) {
+						t_rgb = ssplit(src_value);
+						if (t_rgb.size() != 3) {
+							Logger::error("Invalid RGB decimal value: \"{}\"", src_value);
+						} else {
+							colors[ci(key)] = dec_to_color(stoi(t_rgb[0]), stoi(t_rgb[1]), stoi(t_rgb[2]), t_to_256, depth);
+							rgbs[ci(key)] = array{stoi(t_rgb[0]), stoi(t_rgb[1]), stoi(t_rgb[2])};
+							color_set[ci(key)] = true;
 						}
 					}
 				}
-				if (not colors.contains(name) and not is_in(name, "meter_bg", "process_start", "process_mid", "process_end", "graph_text")) {
+				//? Use default value if not set, unless it's an optional color
+				if (not color_set[ci(key)] and
+					key != ColorKey::meter_bg and
+					key != ColorKey::process_start and key != ColorKey::process_mid and key != ColorKey::process_end and
+					key != ColorKey::graph_text) {
 					Logger::debug("Missing color value for \"{}\". Using value from default.", name);
-					colors[name] = hex_to_color(color, t_to_256, depth);
-					rgbs[name] = hex_to_dec(color);
+					colors[ci(key)] = hex_to_color(string(default_value), t_to_256, depth);
+					rgbs[ci(key)] = hex_to_dec(string(default_value));
+					color_set[ci(key)] = true;
 				}
+			};
+
+			//? Process base entries
+			for (const auto& [key, value] : Default_theme) {
+				processEntry(key, value);
 			}
+
+			//? Process extra entries (process colors, proc special colors, followed)
+			for (const auto& [key, value] : Default_theme_extras) {
+				if (key >= ColorKey::proc_start) break; // Skip synthetic entries
+				processEntry(key, value);
+			}
+
 			//? Set fallback values for optional colors not defined in theme file
-			if (not colors.contains("meter_bg")) {
-				colors["meter_bg"] = colors.at("inactive_fg");
-				rgbs["meter_bg"] = rgbs.at("inactive_fg");
+			if (not color_set[ci(ColorKey::meter_bg)]) {
+				colors[ci(ColorKey::meter_bg)] = colors[ci(ColorKey::inactive_fg)];
+				rgbs[ci(ColorKey::meter_bg)] = rgbs[ci(ColorKey::inactive_fg)];
 			}
-			if (not colors.contains("process_start")) {
-				colors["process_start"] = colors.at("cpu_start");
-				colors["process_mid"] = colors.at("cpu_mid");
-				colors["process_end"] = colors.at("cpu_end");
-				rgbs["process_start"] = rgbs.at("cpu_start");
-				rgbs["process_mid"] = rgbs.at("cpu_mid");
-				rgbs["process_end"] = rgbs.at("cpu_end");
+			if (not color_set[ci(ColorKey::process_start)]) {
+				colors[ci(ColorKey::process_start)] = colors[ci(ColorKey::cpu_start)];
+				colors[ci(ColorKey::process_mid)] = colors[ci(ColorKey::cpu_mid)];
+				colors[ci(ColorKey::process_end)] = colors[ci(ColorKey::cpu_end)];
+				rgbs[ci(ColorKey::process_start)] = rgbs[ci(ColorKey::cpu_start)];
+				rgbs[ci(ColorKey::process_mid)] = rgbs[ci(ColorKey::cpu_mid)];
+				rgbs[ci(ColorKey::process_end)] = rgbs[ci(ColorKey::cpu_end)];
 			}
-			if (not colors.contains("graph_text")) {
-				colors["graph_text"] = colors.at("inactive_fg");
-				rgbs["graph_text"] = rgbs.at("inactive_fg");
+			if (not color_set[ci(ColorKey::graph_text)]) {
+				colors[ci(ColorKey::graph_text)] = colors[ci(ColorKey::inactive_fg)];
+				rgbs[ci(ColorKey::graph_text)] = rgbs[ci(ColorKey::inactive_fg)];
 			}
 		}
 
 		//* Generate color gradients from two or three colors, 101 values indexed 0-100
 		void generateGradients() {
-			gradients.clear();
+			//? Clear gradient arrays
+			for (auto& grad : gradients) grad.fill({});
+
 			bool t_to_256 = Config::getB(BoolKey::lowcolor);
 
-			//? Insert values for processes greyscale gradient and processes color gradient
-			rgbs.insert({
-				{ "proc_start", 		rgbs["main_fg"]			},
-				{ "proc_mid", 			{-1, -1, -1}			},
-				{ "proc_end", 			rgbs["inactive_fg"]		},
-				{ "proc_color_start", 	rgbs["inactive_fg"]		},
-				{ "proc_color_mid", 	{-1, -1, -1}			},
-				{ "proc_color_end", 	rgbs["process_start"]	},
-			});
+			//? Set synthetic proc/proc_color RGB values (derived from other colors)
+			rgbs[ci(ColorKey::proc_start)] = rgbs[ci(ColorKey::main_fg)];
+			rgbs[ci(ColorKey::proc_mid)] = {-1, -1, -1};
+			rgbs[ci(ColorKey::proc_end)] = rgbs[ci(ColorKey::inactive_fg)];
+			rgbs[ci(ColorKey::proc_color_start)] = rgbs[ci(ColorKey::inactive_fg)];
+			rgbs[ci(ColorKey::proc_color_mid)] = {-1, -1, -1};
+			rgbs[ci(ColorKey::proc_color_end)] = rgbs[ci(ColorKey::process_start)];
 
-			for (const auto& [name, source_arr] : rgbs) {
-				if (not name.ends_with("_start")) continue;
-				const string color_name { rtrim(name, "_start") };
+			//? Generate gradient for each GradientKey
+			for (size_t gk = 0; gk < static_cast<size_t>(GradientKey::COUNT); ++gk) {
+				const auto start_key = gradient_start_key(static_cast<GradientKey>(gk));
+				const size_t start_idx = static_cast<size_t>(start_key);
 
 				//? input_colors[start,mid,end][red,green,blue]
 				const array<array<int, 3>, 3> input_colors = {
-					source_arr,
-					rgbs[color_name + "_mid"],
-					rgbs[color_name + "_end"]
+					rgbs[start_idx],
+					rgbs[start_idx + 1],
+					rgbs[start_idx + 2]
 				};
 
 				//? output_colors[red,green,blue][0-100]
@@ -359,29 +478,56 @@ namespace Theme {
 				}
 				else {
 					//? If only start was defined fill array with start color
-					color_gradient.fill(colors[name]);
+					color_gradient.fill(colors[start_idx]);
 				}
-				gradients[color_name] = std::move(color_gradient);
+				gradients[gk] = std::move(color_gradient);
 			}
 		}
 
 		//* Set colors and generate gradients for the TTY theme
 		void generateTTYColors() {
-			rgbs.clear();
-			gradients.clear();
-			colors = TTY_theme;
-			if (not Config::getB(BoolKey::theme_background))
-				colors["main_bg"] = "\x1b[49m";
+			//? Clear arrays
+			colors.fill({});
+			for (auto& rgb : rgbs) rgb = {0, 0, 0};
+			for (auto& grad : gradients) grad.fill({});
 
-			for (const auto& c : colors) {
-				if (not c.first.ends_with("_start")) continue;
-				const string base_name { rtrim(c.first, "_start") };
-				string section = "_start";
-				int split = colors.at(base_name + "_mid").empty() ? 50 : 33;
+			//? Populate colors from TTY_theme entries
+			for (const auto& [key, value] : TTY_theme)
+				colors[ci(key)] = value;
+			for (const auto& [key, value] : TTY_theme_extras) {
+				if (key >= ColorKey::proc_start) break;
+				colors[ci(key)] = value;
+			}
+
+			if (not Config::getB(BoolKey::theme_background))
+				colors[ci(ColorKey::main_bg)] = "\x1b[49m";
+
+			//? Generate TTY gradients from color triplets
+			for (size_t gk = 0; gk < static_cast<size_t>(GradientKey::COUNT); ++gk) {
+				//? Only process gradients whose _start color is defined in TTY theme
+				const auto gradient_key = static_cast<GradientKey>(gk);
+				//? Skip synthetic proc/proc_color gradients — TTY doesn't define them
+				if (gradient_key == GradientKey::proc or gradient_key == GradientKey::proc_color)
+					continue;
+
+				const auto start_key = gradient_start_key(gradient_key);
+				const size_t start_idx = static_cast<size_t>(start_key);
+				const auto& start_color = colors[start_idx];
+				const auto& mid_color = colors[start_idx + 1];
+				const auto& end_color = colors[start_idx + 2];
+
+				string section_suffix = "_start";
+				int split = mid_color.empty() ? 50 : 33;
 				for (int i : iota(0, 101)) {
-					gradients[base_name][i] = colors.at(base_name + section);
+					if (section_suffix == "_start")
+						gradients[gk][i] = start_color;
+					else if (section_suffix == "_mid")
+						gradients[gk][i] = mid_color;
+					else
+						gradients[gk][i] = end_color;
+
 					if (i == split) {
-						section = (split == 33) ? "_mid" : "_end";
+						section_suffix = (split == 33) ? "_mid" : "_end";
 						split *= 2;
 					}
 				}
@@ -391,8 +537,9 @@ namespace Theme {
 		//* Load a .theme file from disk
 		auto loadFile(const string& filename) {
 			const fs::path filepath = filename;
+			std::unordered_map<string, string> empty_map;
 			if (not fs::exists(filepath))
-				return Default_theme;
+				return empty_map;
 
 			std::ifstream themefile(filepath);
 			if (themefile.good()) {
@@ -407,7 +554,7 @@ namespace Theme {
 					if (themefile.eof()) break;
 					string name, value;
 					getline(themefile, name, ']');
-					if (not Default_theme.contains(name)) {
+					if (not isValidThemeKey(name)) {
 						themefile.ignore(SSmax, '\n');
 						continue;
 					}
@@ -425,7 +572,7 @@ namespace Theme {
 				}
 				return theme_out;
 			}
-			return Default_theme;
+			return empty_map;
 		}
 	}
 
@@ -458,11 +605,14 @@ namespace Theme {
 		if (theme == "TTY" or Config::getB(BoolKey::tty_mode))
 			generateTTYColors();
 		else {
-			generateColors((theme == "Default" or theme_path.empty() ? Default_theme : loadFile(theme_path)));
+			const auto source = (theme == "Default" or theme_path.empty())
+				? std::unordered_map<string, string>{}
+				: loadFile(theme_path);
+			generateColors(source);
 			generateGradients();
 		}
-		Term::fg = colors.at("main_fg");
-		Term::bg = colors.at("main_bg");
+		Term::fg = colors[ci(ColorKey::main_fg)];
+		Term::bg = colors[ci(ColorKey::main_bg)];
 		Fx::reset = Fx::reset_base + Term::fg + Term::bg;
 	}
 
