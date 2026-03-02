@@ -51,6 +51,8 @@ using namespace Tools;
 using Config::BoolKey;
 using Config::IntKey;
 using Config::StringKey;
+using menu::PDAResult;
+using menu::PDAAction;
 
 namespace fs = std::filesystem;
 
@@ -986,15 +988,14 @@ namespace Menu {
 		Switch
 	};
 
-	static int signalChoose(const string& key) {
-		auto& frame = std::get<menu::SignalChooseFrame>(pda.top());
+	static PDAResult signalChoose(std::string_view key, menu::SignalChooseFrame& frame) {
 		auto& x = frame.x;
 		auto& y = frame.y;
 		auto& selected_signal = frame.selected_signal;
 
 		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		auto& out = Global::overlay;
-		int retval = Changed;
+		bool did_render = true;
 
 		if (redraw) {
 			x = Term::width/2 - 40;
@@ -1005,10 +1006,10 @@ namespace Menu {
 			pda.set_bg(std::move(local_bg));
 		}
 		else if (is_in(key, "escape", "q")) {
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (key.starts_with("button_")) {
-			if (int new_select = stoi(key.substr(7)); new_select == selected_signal)
+			if (int new_select = stoi(std::string(key.substr(7))); new_select == selected_signal)
 				goto ChooseEntering;
 			else
 				selected_signal = new_select;
@@ -1018,16 +1019,17 @@ namespace Menu {
 			signalKillRet = 0;
 			if (s_pid < 1) {
 				signalKillRet = ESRCH;
-				menuMask.set(SignalReturn);
 			}
 			else if (kill(s_pid, selected_signal) != 0) {
 				signalKillRet = errno;
-				menuMask.set(SignalReturn);
 			}
-			return Closed;
+			if (signalKillRet != 0) {
+				return {PDAAction::Replace, menu::SignalReturnFrame{}};
+			}
+			return {PDAAction::Pop};
 		}
 		else if (key.size() == 1 and isdigit(key.at(0)) and selected_signal < 10) {
-			selected_signal = std::min(std::stoi((selected_signal < 1 ? key : to_string(selected_signal) + key)), 64);
+			selected_signal = std::min(std::stoi(selected_signal < 1 ? std::string(key) : to_string(selected_signal) + std::string(key)), 64);
 		}
 		else if (key == "backspace" and selected_signal != -1) {
 			selected_signal = (selected_signal < 10 ? -1 : selected_signal / 10);
@@ -1061,10 +1063,10 @@ namespace Menu {
 			else if (selected_signal == 16) selected_signal++;
 		}
 		else {
-			retval = NoChange;
+			did_render = false;
 		}
 
-		if (retval == Changed) {
+		if (did_render) {
 			int cy = y+4, cx = x+4;
 			out = pda.bg() + Mv::to(cy++, x+3) + Theme::c("main_fg") + Fx::ub
 				+ rjust("Enter signal number: ", 48) + Theme::c("hi_fg") + (selected_signal >= 0 ? to_string(selected_signal) : "") + Theme::c("main_fg") + Fx::bl + "█" + Fx::ubl;
@@ -1092,11 +1094,10 @@ namespace Menu {
 			out += Fx::reset;
 		}
 
-		return (redraw ? Changed : retval);
+		return {PDAAction::NoChange, {}, did_render || redraw};
 	}
 
-	static int sizeError(const string& key) {
-		// auto& frame = std::get<menu::SizeErrorFrame>(pda.top()); // available if needed
+	static PDAResult sizeError(std::string_view key, [[maybe_unused]] menu::SizeErrorFrame& frame) {
 		if (redraw) {
 			vector<string> cont_vec {
 				Fx::b + Theme::g("used")[100] + "Error:" + Theme::c("main_fg") + Fx::ub,
@@ -1107,21 +1108,20 @@ namespace Menu {
 			Global::overlay = messageBox();
 		}
 
-		auto ret = messageBox.input(key);
+		auto ret = messageBox.input(std::string(key));
 		if (ret == msgBox::Ok_Yes or ret == msgBox::No_Esc) {
 			messageBox.clear();
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (redraw) {
-			return Changed;
+			return {PDAAction::NoChange, {}, true};
 		}
-		return NoChange;
+		return {PDAAction::NoChange};
 	}
 
-	static int signalSend(const string& key) {
-		// auto& frame = std::get<menu::SignalSendFrame>(pda.top()); // available if needed
+	static PDAResult signalSend(std::string_view key, [[maybe_unused]] menu::SignalSendFrame& frame) {
 		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
-		if (s_pid == 0) return Closed;
+		if (s_pid == 0) return {PDAAction::Pop};
 		if (redraw) {
 			Runner::wait_idle();
 			auto& p_name = (s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name));
@@ -1135,32 +1135,33 @@ namespace Menu {
 			messageBox = Menu::msgBox{50, 1, cont_vec, (signalToSend > 1 and signalToSend <= 32 and signalToSend != 17 ? P_Signals.at(signalToSend) : "signal")};
 			Global::overlay = messageBox();
 		}
-		auto ret = messageBox.input(key);
+		auto ret = messageBox.input(std::string(key));
 		if (ret == msgBox::Ok_Yes) {
 			signalKillRet = 0;
 			if (kill(s_pid, signalToSend) != 0) {
 				signalKillRet = errno;
-				menuMask.set(SignalReturn);
 			}
 			messageBox.clear();
-			return Closed;
+			if (signalKillRet != 0) {
+				return {PDAAction::Replace, menu::SignalReturnFrame{}};
+			}
+			return {PDAAction::Pop};
 		}
 		else if (ret == msgBox::No_Esc) {
 			messageBox.clear();
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (ret == msgBox::Select) {
 			Global::overlay = messageBox();
-			return Changed;
+			return {PDAAction::NoChange, {}, true};
 		}
 		else if (redraw) {
-			return Changed;
+			return {PDAAction::NoChange, {}, true};
 		}
-		return NoChange;
+		return {PDAAction::NoChange};
 	}
 
-	static int signalReturn(const string& key) {
-		// auto& frame = std::get<menu::SignalReturnFrame>(pda.top()); // available if needed
+	static PDAResult signalReturn(std::string_view key, [[maybe_unused]] menu::SignalReturnFrame& frame) {
 		if (redraw) {
 			vector<string> cont_vec;
 			cont_vec.push_back(Fx::b + Theme::g("used")[100] + "Failure:" + Theme::c("main_fg") + Fx::ub);
@@ -1181,19 +1182,18 @@ namespace Menu {
 			Global::overlay = messageBox();
 		}
 
-		auto ret = messageBox.input(key);
+		auto ret = messageBox.input(std::string(key));
 		if (ret == msgBox::Ok_Yes or ret == msgBox::No_Esc) {
 			messageBox.clear();
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (redraw) {
-			return Changed;
+			return {PDAAction::NoChange, {}, true};
 		}
-		return NoChange;
+		return {PDAAction::NoChange};
 	}
 
-	static int mainMenu(const string& key) {
-		auto& frame = std::get<menu::MainFrame>(pda.top());
+	static PDAResult mainMenu(std::string_view key, menu::MainFrame& frame) {
 		auto& y = frame.y;
 		auto& selected = frame.selected;
 		auto& colors_selected = frame.colors_selected;
@@ -1201,7 +1201,7 @@ namespace Menu {
 
 		enum MenuItems { Options, Help, Quit };
 		auto tty_mode = Config::getB(BoolKey::tty_mode);
-		int retval = Changed;
+		bool did_render = true;
 
 		if (redraw) {
 			y = Term::height/2 - 10;
@@ -1220,7 +1220,7 @@ namespace Menu {
 			}
 		}
 		else if (is_in(key, "escape", "q", "m", "mouse_click")) {
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (key.starts_with("button_")) {
 			if (int new_select = key.back() - '0'; new_select == selected)
@@ -1232,19 +1232,13 @@ namespace Menu {
 			MainEntering:
 			switch (selected) {
 				case Options:
-					menuMask.set(Menus::Options);
-					currentMenu = Menus::Options;
-					pda.replace(menu::OptionsFrame{});
-					return Switch;
+					return {PDAAction::Replace, menu::OptionsFrame{}};
 				case Help:
-					menuMask.set(Menus::Help);
-					currentMenu = Menus::Help;
-					pda.replace(menu::HelpFrame{});
-					return Switch;
+					return {PDAAction::Replace, menu::HelpFrame{}};
 				case Quit:
 					Global::event_queue.push(event::Quit{0});
 					Input::interrupt();
-					return NoChange;
+					return {PDAAction::NoChange};
 			}
 		}
 		else if (is_in(key, "down", "tab", "mouse_scroll_down", "j")) {
@@ -1254,10 +1248,10 @@ namespace Menu {
 			if (--selected < 0) selected = 2;
 		}
 		else {
-			retval = NoChange;
+			did_render = false;
 		}
 
-		if (retval == Changed) {
+		if (did_render) {
 			auto& out = Global::overlay;
 			out = pda.bg() + Fx::reset + Fx::b;
 			auto cy = y + 7;
@@ -1273,11 +1267,10 @@ namespace Menu {
 			out += Fx::reset;
 		}
 
-		return (redraw ? Changed : retval);
+		return {PDAAction::NoChange, {}, did_render || redraw};
 	}
 
-static int optionsMenu(const string& key) {
-		auto& frame = std::get<menu::OptionsFrame>(pda.top());
+static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 		auto& y = frame.y;
 		auto& x = frame.x;
 		auto& height = frame.height;
@@ -1326,7 +1319,7 @@ static int optionsMenu(const string& key) {
 				if ((int)cat.size() > max_items) max_items = cat.size();
 			}
 		}
-		int retval = Changed;
+		bool did_render = true;
 		bool recollect{};
 		bool screen_redraw{};
 		bool theme_refresh{};
@@ -1351,7 +1344,7 @@ static int optionsMenu(const string& key) {
 			pda.set_bg(std::move(local_bg));
 		}
 		else if (not warnings.empty() and not key.empty()) {
-			auto ret = messageBox.input(key);
+			auto ret = messageBox.input(std::string(key));
 			if (ret == msgBox::msgReturn::Ok_Yes or ret == msgBox::msgReturn::No_Esc) {
 				warnings.clear();
 				messageBox.clear();
@@ -1391,12 +1384,12 @@ static int optionsMenu(const string& key) {
 				editing = false;
 			}
 			else if (not editor.command(key))
-				retval = NoChange;
+				did_render = false;
 		}
 		else if (key == "mouse_click") {
 			const auto [mouse_x, mouse_y] = Input::mouse_pos;
 			if (mouse_x < x or mouse_x > x + 80 or mouse_y < y + 6 or mouse_y > y + 6 + height) {
-				return Closed;
+				return {PDAAction::Pop};
 			}
 			else if (mouse_x < x + 30 and mouse_y > y + 8) {
 				auto m_select = ceil((double)(mouse_y - y - 8) / 2) - 1;
@@ -1404,7 +1397,7 @@ static int optionsMenu(const string& key) {
 					selected = m_select;
 				else if (selPred.test(isEditable))
 					goto mouseEnter;
-				else retval = NoChange;
+				else did_render = false;
 			}
 		}
 		else if (is_in(key, "enter", "e", "E") and selPred.test(isEditable)) {
@@ -1415,7 +1408,7 @@ static int optionsMenu(const string& key) {
 			frame.mouse_mappings.clear();
 		}
 		else if (is_in(key, "escape", "q", "o", "backspace")) {
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (is_in(key, "down", "mouse_scroll_down") or (vim_keys and key == "j")) {
 			if (++selected > select_max or selected >= item_height) {
@@ -1531,14 +1524,14 @@ static int optionsMenu(const string& key) {
 					Config::current_preset.reset();
 			}
 			else
-				retval = NoChange;
+				did_render = false;
 		}
 		else {
-			retval = NoChange;
+			did_render = false;
 		}
 
 		//? Draw the menu
-		if (retval == Changed) {
+		if (did_render) {
 			Config::unlock();
 			auto& out = Global::overlay;
 			out = pda.bg();
@@ -1654,7 +1647,7 @@ static int optionsMenu(const string& key) {
 			Draw::banner_gen(0, 0, false, true);
 			screen_redraw = true;
 			redraw = true;
-			optionsMenu("");
+			optionsMenu("", frame);
 		}
 		if (screen_redraw) {
 			auto overlay_bkp = std::move(Global::overlay);
@@ -1666,21 +1659,20 @@ static int optionsMenu(const string& key) {
 		}
 		if (recollect) {
 			Runner::run("all", false, true);
-			retval = NoChange;
+			did_render = false;
 		}
 
-		return (redraw ? Changed : retval);
+		return {PDAAction::NoChange, {}, did_render || redraw};
 	}
 
-	static int helpMenu(const string& key) {
-		auto& frame = std::get<menu::HelpFrame>(pda.top());
+	static PDAResult helpMenu(std::string_view key, menu::HelpFrame& frame) {
 		auto& y = frame.y;
 		auto& x = frame.x;
 		auto& height = frame.height;
 		auto& page = frame.page;
 		auto& pages = frame.pages;
 
-		int retval = Changed;
+		bool did_render = true;
 
 		if (redraw) {
 			y = max(1, Term::height/2 - 4 - (int)(help_text.size() / 2));
@@ -1693,7 +1685,7 @@ static int optionsMenu(const string& key) {
 			pda.set_bg(std::move(local_bg));
 		}
 		else if (is_in(key, "escape", "q", "h", "backspace", "space", "enter", "mouse_click")) {
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (pages > 1 and is_in(key, "down", "j", "page_down", "tab", "mouse_scroll_down")) {
 			if (++page >= pages) page = 0;
@@ -1702,11 +1694,11 @@ static int optionsMenu(const string& key) {
 			if (--page < 0) page = pages - 1;
 		}
 		else {
-			retval = NoChange;
+			did_render = false;
 		}
 
 
-		if (retval == Changed) {
+		if (did_render) {
 			auto& out = Global::overlay;
 			out = pda.bg();
 			if (pages > 1) {
@@ -1723,11 +1715,10 @@ static int optionsMenu(const string& key) {
 		}
 
 
-		return (redraw ? Changed : retval);
+		return {PDAAction::NoChange, {}, did_render || redraw};
 	}
 
-	static int reniceMenu(const string& key) {
-		auto& frame = std::get<menu::ReniceFrame>(pda.top());
+	static PDAResult reniceMenu(std::string_view key, menu::ReniceFrame& frame) {
 		auto& x = frame.x;
 		auto& y = frame.y;
 		auto& selected_nice = frame.selected_nice;
@@ -1735,7 +1726,7 @@ static int optionsMenu(const string& key) {
 
 		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		auto& out = Global::overlay;
-		int retval = Changed;
+		bool did_render = true;
 
 		if (redraw) {
 			x = Term::width/2 - 25;
@@ -1746,7 +1737,7 @@ static int optionsMenu(const string& key) {
 			pda.set_bg(std::move(local_bg));
 		}
 		else if (is_in(key, "escape", "q")) {
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (is_in(key, "enter", "space")) {
 			if (s_pid > 0) {
@@ -1760,7 +1751,7 @@ static int optionsMenu(const string& key) {
 					// TODO: show error message
 				}
 			}
-			return Closed;
+			return {PDAAction::Pop};
 		}
 		else if (key.size() == 1 and (isdigit(key.at(0)) or (key.at(0) == '-' and nice_edit.empty()))) {
 			nice_edit += key;
@@ -1785,10 +1776,10 @@ static int optionsMenu(const string& key) {
 			nice_edit.clear();
 		}
 		else {
-			retval = NoChange;
+			did_render = false;
 		}
 
-		if (retval == Changed) {
+		if (did_render) {
 			int cy = y+4;
 			if (not nice_edit.empty()) {
 				try {
@@ -1809,20 +1800,72 @@ static int optionsMenu(const string& key) {
 			out += Fx::reset;
 		}
 
-		return (redraw ? Changed : retval);
+		return {PDAAction::NoChange, {}, did_render || redraw};
 	}
 
-	//* Add menus here and update enum Menus in header
-	const auto menuFunc = vector{
-		ref(sizeError),
-		ref(signalChoose),
-		ref(signalSend),
-		ref(signalReturn),
-		ref(optionsMenu),
-		ref(helpMenu),
-		ref(reniceMenu),
-		ref(mainMenu),
+	// ========================================================================
+	// MenuVisitor — dispatches std::visit to all 8 handler functions.
+	// Each operator() accepts a typed frame reference and forwards to the handler.
+	// ========================================================================
+
+	struct MenuVisitor {
+		std::string_view key;
+
+		PDAResult operator()(menu::MainFrame& frame) const { return mainMenu(key, frame); }
+		PDAResult operator()(menu::OptionsFrame& frame) const { return optionsMenu(key, frame); }
+		PDAResult operator()(menu::HelpFrame& frame) const { return helpMenu(key, frame); }
+		PDAResult operator()(menu::SizeErrorFrame& frame) const { return sizeError(key, frame); }
+		PDAResult operator()(menu::SignalChooseFrame& frame) const { return signalChoose(key, frame); }
+		PDAResult operator()(menu::SignalSendFrame& frame) const { return signalSend(key, frame); }
+		PDAResult operator()(menu::SignalReturnFrame& frame) const { return signalReturn(key, frame); }
+		PDAResult operator()(menu::ReniceFrame& frame) const { return reniceMenu(key, frame); }
 	};
+
+	// ========================================================================
+	// dispatch_legacy — compatibility bridge that converts PDAResult back to
+	// legacy int return codes for process(). Deleted in Plan 02 when process()
+	// switches to direct PDAResult handling.
+	// ========================================================================
+
+	static int dispatch_legacy(std::string_view key) {
+		auto result = std::visit(MenuVisitor{key}, pda.top());
+
+		// Handle Replace: apply it now and signal Switch to process()
+		if (result.action == PDAAction::Replace) {
+			assert(result.next_frame.has_value());
+			int new_menu = std::visit([](const auto& f) -> int {
+				using T = std::decay_t<decltype(f)>;
+				if constexpr (std::is_same_v<T, menu::MainFrame>) return Main;
+				else if constexpr (std::is_same_v<T, menu::OptionsFrame>) return Options;
+				else if constexpr (std::is_same_v<T, menu::HelpFrame>) return Help;
+				else if constexpr (std::is_same_v<T, menu::SizeErrorFrame>) return SizeError;
+				else if constexpr (std::is_same_v<T, menu::SignalChooseFrame>) return SignalChoose;
+				else if constexpr (std::is_same_v<T, menu::SignalSendFrame>) return SignalSend;
+				else if constexpr (std::is_same_v<T, menu::SignalReturnFrame>) return SignalReturn;
+				else if constexpr (std::is_same_v<T, menu::ReniceFrame>) return Renice;
+				else return -1;
+			}, *result.next_frame);
+
+			pda.replace(std::move(*result.next_frame));
+			menuMask.reset(currentMenu);
+			menuMask.set(new_menu);
+			currentMenu = new_menu;
+			return Switch;
+		}
+		// Handle Pop
+		if (result.action == PDAAction::Pop) {
+			return Closed;
+		}
+		// Handle Push (not used by any current handler, but future-proof)
+		if (result.action == PDAAction::Push) {
+			assert(result.next_frame.has_value());
+			pda.push(std::move(*result.next_frame));
+			return Switch;
+		}
+		// NoChange
+		return result.rendered ? Changed : NoChange;
+	}
+
 	bitset<8> menuMask;
 
 	//? Single-writer wrappers — keep menuMask and PDA stack in sync (Phase 21).
@@ -1888,7 +1931,7 @@ static int optionsMenu(const string& key) {
 			assert(!pda.empty());
 		}
 
-		auto retCode = menuFunc.at(currentMenu)(key.data());
+		auto retCode = dispatch_legacy(key);
 		if (retCode == Closed) {
 			menu_close_current(currentMenu);
 			mouse_mappings.clear();
