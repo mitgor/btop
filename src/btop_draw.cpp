@@ -2188,37 +2188,10 @@ namespace Proc {
 		return (not changed ? -1 : selected);
 	}
 
-	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
-		if (Runner::is_stopping()) return "";
-		auto proc_tree = Config::getB(BoolKey::proc_tree);
-		bool show_detailed = (Config::getB(BoolKey::show_detailed) and cmp_equal(Proc::detailed.last_pid, Config::getI(IntKey::detailed_pid)));
-		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor));
-		auto proc_colors = Config::getB(BoolKey::proc_colors);
-		auto tty_mode = Config::getB(BoolKey::tty_mode);
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_proc));
-		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
-		auto mem_bytes = Config::getB(BoolKey::proc_mem_bytes);
-		auto vim_keys = Config::getB(BoolKey::vim_keys);
-		auto show_graphs = Config::getB(BoolKey::proc_cpu_graphs);
-		const auto pause_proc_list = Config::getB(BoolKey::pause_proc_list);
-		auto follow_process = Config::getB(BoolKey::follow_process); 
-		int followed_pid = Config::getI(IntKey::followed_pid);
-		int followed = Config::getI(IntKey::proc_followed);
-		bool should_selection_return_to_followed = Config::getB(BoolKey::should_selection_return_to_followed);
-		auto proc_banner_shown = pause_proc_list or follow_process;
-		Config::set(BoolKey::proc_banner_shown, proc_banner_shown);
-		start = Config::getI(IntKey::proc_start);
-		selected = Config::getI(IntKey::proc_selected);
-		const int y = show_detailed ? Proc::y + 8 : Proc::y;
-		const int height = show_detailed ? Proc::height - 8 : Proc::height;
-		int select_max = show_detailed ? (proc_banner_shown ? Proc::select_max - 9 : Proc::select_max - 8) : 
-												(proc_banner_shown ? Proc::select_max - 1 : Proc::select_max);
-		auto totalMem = Mem::get_totalMem();
-		int numpids = Proc::numpids;
-		if (force_redraw) redraw = true;
-		string out;
-		out.reserve(width * height * 18);  // ~18 bytes/visible char: dense per-process rows with many color changes
-
+	//? Handle follow-process state, restore-detailed-pid, banner state changes, selection edge cases
+	void draw_proc_follow_logic(const vector<proc_info>& plist, bool proc_tree, int numpids, int select_max,
+		bool& follow_process, int& followed_pid, int& followed, bool& should_selection_return_to_followed,
+		bool pause_proc_list, bool& proc_banner_shown) {
 		//? Move current selection/view to the selected process when a process should be followed
 		//? Restore view and selection to the detailed view process when detailed view is closed
 		const int restore_detailed_pid = Config::getI(IntKey::restore_detailed_pid);
@@ -2276,264 +2249,264 @@ namespace Proc {
 				is_last_process_in_list = false;
 			}
 		}
+	}
 
-		//* Redraw elements not needed to be updated every cycle
-		if (redraw) {
-			out = box;
-			const string title_left = Theme::c(ColorKey::proc_box) + Symbols::title_left;
-			const string title_right = Theme::c(ColorKey::proc_box) + Symbols::title_right;
-			const string title_left_down = Theme::c(ColorKey::proc_box) + Symbols::title_left_down;
-			const string title_right_down = Theme::c(ColorKey::proc_box) + Symbols::title_right_down;
-			for (const auto& key : {"t", "K", "k", "s", "N", "F", "enter", "info_enter"})
-				if (Input::mouse_mappings.contains(key)) Input::mouse_mappings.erase(key);
+	//? Draw box outline, title buttons, filter bar, sorting controls, field column labels, detailed view chrome
+	void draw_proc_header(string& out, int y, int height, bool show_detailed, bool proc_tree,
+		bool follow_process, bool pause_proc_list, bool vim_keys, bool mem_bytes,
+		bool show_graphs, int followed_pid, bool should_selection_return_to_followed,
+		const string& graph_symbol, bool tty_mode) {
+		out = box;
+		const string title_left = Theme::c(ColorKey::proc_box) + Symbols::title_left;
+		const string title_right = Theme::c(ColorKey::proc_box) + Symbols::title_right;
+		const string title_left_down = Theme::c(ColorKey::proc_box) + Symbols::title_left_down;
+		const string title_right_down = Theme::c(ColorKey::proc_box) + Symbols::title_right_down;
+		for (const auto& key : {"t", "K", "k", "s", "N", "F", "enter", "info_enter"})
+			if (Input::mouse_mappings.contains(key)) Input::mouse_mappings.erase(key);
 
-			//? Adapt sizes of text fields
-			user_size = (width < 75 ? 5 : 10);
-			thread_size = (width < 75 ? - 1 : 4);
-			prog_size = (width > 70 ? 16 : ( width > 55 ? 8 : width - user_size - thread_size - 33));
-			cmd_size = (width > 55 ? width - prog_size - user_size - thread_size - 33 : -1);
-			tree_size = width - user_size - thread_size - 23;
-			if (not show_graphs) {
-				cmd_size += 5;
-				tree_size += 5;
-			}
-
-			//? Detailed box
-			if (show_detailed) {
-				bool alive = detailed.status != "Dead";
-				dgraph_x = x;
-				dgraph_width = max(width / 3, width - 121);
-				d_width = width - dgraph_width - 1;
-				d_x = x + dgraph_width + 1;
-				d_y = Proc::y;
-
-				//? Create cpu and mem graphs if process is alive
-				if (alive or pause_proc_list) {
-					detailed_cpu_graph = Draw::Graph{dgraph_width - 1, 7, GradientKey::cpu, detailed.cpu_percent, graph_symbol, false, true};
-					detailed_mem_graph = Draw::Graph{d_width / 3, 1, GradientKey::COUNT, detailed.mem_bytes, graph_symbol, false, false, detailed.first_mem};
-				}
-
-				//? Draw structure of details box
-				const string pid_str = to_string(detailed.entry.pid);
-				out += Mv::to(y, x) + Theme::c(ColorKey::proc_box) + Symbols::div_left + Symbols::h_line + title_left + Theme::c(ColorKey::hi_fg) + Fx::b
-				+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c(ColorKey::title) + "proc"
-					+ Fx::ub + title_right + Symbols::h_line * (width - 10) + Symbols::div_right
-					+ Mv::to(d_y, dgraph_x + 2) + title_left + Fx::b + Theme::c(ColorKey::title) + pid_str + Fx::ub + title_right
-					+ title_left + Fx::b + Theme::c(ColorKey::title) + uresize(detailed.entry.name, dgraph_width - pid_str.size() - 7, true) + Fx::ub + title_right;
-
-				out += Mv::to(d_y, d_x - 1) + Theme::c(ColorKey::proc_box) + Symbols::div_up + Mv::to(y, d_x - 1) + Symbols::div_down + Theme::c(ColorKey::div_line);
-				for (const int& i : iota(1, 8)) out += Mv::to(d_y + i, d_x - 1) + Symbols::v_line;
-
-				const string t_color = (not alive or selected > 0 ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::title));
-				const string hi_color = (not alive or selected > 0 ? t_color : Theme::c(ColorKey::hi_fg));
-				int mouse_x = d_x + 2;
-				out += Mv::to(d_y, d_x + 1);
-				if (width > 55) {
-					out += Fx::ub + title_left + hi_color + Fx::b + 't' + t_color + "erminate" + Fx::ub + title_right;
-					if (alive and selected == 0) Input::mouse_mappings["t"] = {d_y, mouse_x, 1, 9};
-					mouse_x += 11;
-				}
-				out += title_left + hi_color + Fx::b + (vim_keys ? 'K' : 'k') + t_color + "ill" + Fx::ub + title_right
-					+ title_left + hi_color + Fx::b + 's' + t_color + "ignals" + Fx::ub + title_right
-					+ title_left + hi_color + Fx::b + 'N' + t_color + "ice" + Fx::ub + title_right;
-				if (alive and selected == 0) {
-					Input::mouse_mappings[vim_keys ? "K" : "k"] = {d_y, mouse_x, 1, 4};
-					mouse_x += 6;
-					Input::mouse_mappings["s"] = {d_y, mouse_x, 1, 7};
-				    mouse_x += 9;
-					Input::mouse_mappings["N"] = {d_y, mouse_x, 1, 5};
-				    mouse_x += 7;
-				}
-				if (width > 77) {
-				    fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}",
-				    	title_left, follow_process ? Fx::b : "",
-				    	hi_color, 'F', t_color, "ollow",
-				    	Fx::ub, title_right);
-				    if (selected == 0) Input::mouse_mappings["F"] = {d_y, mouse_x, 1, 6};
-				}
-
-				//? Labels
-				const int item_fit = floor((double)(d_width - 2) / 10);
-				const int item_width = floor((double)(d_width - 2) / min(item_fit, 8));
-				out += Mv::to(d_y + 1, d_x + 1) + Fx::b + Theme::c(ColorKey::title)
-										+ cjust("Status:", item_width)
-										+ cjust("Elapsed:", item_width);
-				if (item_fit >= 3) out += cjust("IO/R:", item_width);
-				if (item_fit >= 4) out += cjust("IO/W:", item_width);
-				if (item_fit >= 5) out += cjust("Parent:", item_width);
-				if (item_fit >= 6) out += cjust("User:", item_width);
-				if (item_fit >= 7) out += cjust("Threads:", item_width);
-				if (item_fit >= 8) out += cjust("Nice:", item_width);
-
-
-				//? Command line
-				for (int i = 0; const auto& l : {'C', 'M', 'D'})
-				out += Mv::to(d_y + 5 + i++, d_x + 1) + l;
-
-				out += Theme::c(ColorKey::main_fg) + Fx::ub;
-				const auto san_cmd = replace_ascii_control(detailed.entry.cmd);
-				const int cmd_size = ulen(san_cmd, true);
-				for (int num_lines = min(3, (int)ceil((double)cmd_size / (d_width - 5))), i = 0; i < num_lines; i++) {
-					out += Mv::to(d_y + 5 + (num_lines == 1 ? 1 : i), d_x + 3)
-						+ cjust(luresize(san_cmd, cmd_size - (d_width - 5) * i, true), d_width - 5, true, true);
-				}
-
-			}
-
-			//? Filter
-			auto filtering = Config::getB(BoolKey::proc_filtering); // ? filter(20) : Config::getS(StringKey::proc_filter))
-			const auto filter_text = (filtering) ? filter(max(6, width - 66)) : uresize(Config::getS(StringKey::proc_filter), max(6, width - 66));
-			out += Mv::to(y, x+9) + title_left + (not filter_text.empty() ? Fx::b : "") + Theme::c(ColorKey::hi_fg) + 'f'
-				+ Theme::c(ColorKey::title) + (not filter_text.empty() ? ' ' + filter_text : "ilter")
-				+ (not filtering and not filter_text.empty() ? Theme::c(ColorKey::hi_fg) + " del" : "")
-				+ (filtering ? Theme::c(ColorKey::hi_fg) + ' ' + Symbols::enter : "") + Fx::ub + title_right;
-			if (not filtering) {
-				int f_len = (filter_text.empty() ? 6 : ulen(filter_text) + 2);
-				Input::mouse_mappings["f"] = {y, x + 10, 1, f_len};
-				if (filter_text.empty() and Input::mouse_mappings.contains("delete"))
-					Input::mouse_mappings.erase("delete");
-				else if (not filter_text.empty())
-					Input::mouse_mappings["delete"] = {y, x + 11 + f_len, 1, 3};
-			}
-
-			//? pause, per-core, reverse, tree and sorting
-			const auto& sorting = Config::getS(StringKey::proc_sorting);
-			const int sort_len = sorting.size();
-			const int sort_pos = x + width - sort_len - 8;
-
-			if (width > 60 + sort_len) {
-			    fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}{}{}{}",
-					Mv::to(y, sort_pos - 32), title_left, pause_proc_list ? Fx::b : "",
-					Theme::c(ColorKey::title), "pa", Theme::c(ColorKey::hi_fg), 'u', Theme::c(ColorKey::title), "se",
-			    	Fx::ub, title_right);
-			    Input::mouse_mappings["u"] = {y, sort_pos - 31, 1, 5};
-			}
-			if (width > 55 + sort_len) {
-				out += Mv::to(y, sort_pos - 25) + title_left + (Config::getB(BoolKey::proc_per_core) ? Fx::b : "") + Theme::c(ColorKey::title)
-					+ "per-" + Theme::c(ColorKey::hi_fg) + 'c' + Theme::c(ColorKey::title) + "ore" + Fx::ub + title_right;
-				Input::mouse_mappings["c"] = {y, sort_pos - 24, 1, 8};
-			}
-			if (width > 45 + sort_len) {
-				out += Mv::to(y, sort_pos - 15) + title_left + (Config::getB(BoolKey::proc_reversed) ? Fx::b : "") + Theme::c(ColorKey::hi_fg)
-					+ 'r' + Theme::c(ColorKey::title) + "everse" + Fx::ub + title_right;
-				Input::mouse_mappings["r"] = {y, sort_pos - 14, 1, 7};
-			}
-			if (width > 35 + sort_len) {
-				out += Mv::to(y, sort_pos - 6) + title_left + (Config::getB(BoolKey::proc_tree) ? Fx::b : "") + Theme::c(ColorKey::title) + "tre"
-					+ Theme::c(ColorKey::hi_fg) + 'e' + Fx::ub + title_right;
-				Input::mouse_mappings["e"] = {y, sort_pos - 5, 1, 4};
-			}
-			out += Mv::to(y, sort_pos) + title_left + Fx::b + Theme::c(ColorKey::hi_fg) + Symbols::left + " " + Theme::c(ColorKey::title) + sorting + " " + Theme::c(ColorKey::hi_fg)
-				+ Symbols::right + Fx::ub + title_right;
-				Input::mouse_mappings["left"] = {y, sort_pos + 1, 1, 2};
-				Input::mouse_mappings["right"] = {y, sort_pos + sort_len + 3, 1, 2};
-
-			//? select, info, signal, and follow buttons
-			const string down_button = (is_last_process_in_list ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::hi_fg)) + Symbols::down;
-			const bool is_up_button_highlighted = selected != 0 or (follow_process and followed_pid == Config::getI(IntKey::detailed_pid) and should_selection_return_to_followed);
-			const string up_button = (is_up_button_highlighted ? Theme::c(ColorKey::hi_fg) : Theme::c(ColorKey::inactive_fg)) + Symbols::up;
-			const string t_color = (selected == 0 ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::title));
-			const string hi_color = (selected == 0 ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::hi_fg));
-			int mouse_x = x + 14;
-			out += Mv::to(y + height - 1, x + 1) + title_left_down + Fx::b + hi_color + up_button + Theme::c(ColorKey::title) + " select " + down_button + Fx::ub + title_right_down
-				+ title_left_down + Fx::b + t_color + "info " + hi_color + Symbols::enter + Fx::ub + title_right_down;	
-				if (selected > 0) Input::mouse_mappings["info_enter"] = {y + height - 1, mouse_x, 1, 6};
-				mouse_x += 8;
-			if (width > 60) {
-				out += title_left_down + Fx::b + hi_color + 't' + t_color + "erminate" + Fx::ub + title_right_down;
-				if (selected > 0) Input::mouse_mappings["t"] = {y + height - 1, mouse_x, 1, 9};
-				mouse_x += 11;
-			}
-			if (width > 55) {
-				out += title_left_down + Fx::b + hi_color + (vim_keys ? 'K' : 'k') + t_color + "ill" + Fx::ub + title_right_down;
-				if (selected > 0) Input::mouse_mappings[vim_keys ? "K" : "k"] = {y + height - 1, mouse_x, 1, 4};
-				mouse_x += 6;
-			}
-			out += title_left_down + Fx::b + hi_color + 's' + t_color + "ignals" + Fx::ub + title_right_down;
-			if (selected > 0) Input::mouse_mappings["s"] = {y + height - 1, mouse_x, 1, 7};
-		    mouse_x += 9;
-		    out += title_left_down + Fx::b + hi_color + 'N' + t_color + "ice" + Fx::ub + title_right_down;
-		    if (selected > 0) Input::mouse_mappings["N"] = {y + height -1, mouse_x, 1, 5};
-			mouse_x += 6;
-			if (width > 72) {
-			    fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}",
-			    	title_left_down, follow_process ? Fx::b : "",
-			    	hi_color, 'F', t_color, "ollow",
-			    	Fx::ub, title_right_down);
-			    if (selected > 0) Input::mouse_mappings["F"] = {y + height - 1, mouse_x, 1, 6};
-			}
-
-			//? Labels for fields in list
-			if (not proc_tree)
-				out += Mv::to(y+1, x+1) + Theme::c(ColorKey::title) + Fx::b
-					+ rjust("Pid:", 8) + ' '
-					+ ljust("Program:", prog_size) + ' '
-					+ (cmd_size > 0 ? ljust("Command:", cmd_size) : "") + ' ';
-			else
-				out += Mv::to(y+1, x+1) + Theme::c(ColorKey::title) + Fx::b
-					+ ljust("Tree:", tree_size) + ' ';
-
-			out += (thread_size > 0 ? Mv::l(4) + "Threads: " : "")
-					+ ljust("User:", user_size) + ' '
-					+ rjust((mem_bytes ? "MemB" : "Mem%"), 5) + ' '
-					+ rjust("Cpu%", (show_graphs ? 10 : 5)) + Fx::ub;
+		//? Adapt sizes of text fields
+		user_size = (width < 75 ? 5 : 10);
+		thread_size = (width < 75 ? - 1 : 4);
+		prog_size = (width > 70 ? 16 : ( width > 55 ? 8 : width - user_size - thread_size - 33));
+		cmd_size = (width > 55 ? width - prog_size - user_size - thread_size - 33 : -1);
+		tree_size = width - user_size - thread_size - 23;
+		if (not show_graphs) {
+			cmd_size += 5;
+			tree_size += 5;
 		}
-		//* End of redraw block
 
-		//? Draw details box if shown
+		//? Detailed box
 		if (show_detailed) {
 			bool alive = detailed.status != "Dead";
+			dgraph_x = x;
+			dgraph_width = max(width / 3, width - 121);
+			d_width = width - dgraph_width - 1;
+			d_x = x + dgraph_width + 1;
+			d_y = Proc::y;
+
+			//? Create cpu and mem graphs if process is alive
+			if (alive or pause_proc_list) {
+				detailed_cpu_graph = Draw::Graph{dgraph_width - 1, 7, GradientKey::cpu, detailed.cpu_percent, graph_symbol, false, true};
+				detailed_mem_graph = Draw::Graph{d_width / 3, 1, GradientKey::COUNT, detailed.mem_bytes, graph_symbol, false, false, detailed.first_mem};
+			}
+
+			//? Draw structure of details box
+			const string pid_str = to_string(detailed.entry.pid);
+			out += Mv::to(y, x) + Theme::c(ColorKey::proc_box) + Symbols::div_left + Symbols::h_line + title_left + Theme::c(ColorKey::hi_fg) + Fx::b
+			+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c(ColorKey::title) + "proc"
+				+ Fx::ub + title_right + Symbols::h_line * (width - 10) + Symbols::div_right
+				+ Mv::to(d_y, dgraph_x + 2) + title_left + Fx::b + Theme::c(ColorKey::title) + pid_str + Fx::ub + title_right
+				+ title_left + Fx::b + Theme::c(ColorKey::title) + uresize(detailed.entry.name, dgraph_width - pid_str.size() - 7, true) + Fx::ub + title_right;
+
+			out += Mv::to(d_y, d_x - 1) + Theme::c(ColorKey::proc_box) + Symbols::div_up + Mv::to(y, d_x - 1) + Symbols::div_down + Theme::c(ColorKey::div_line);
+			for (const int& i : iota(1, 8)) out += Mv::to(d_y + i, d_x - 1) + Symbols::v_line;
+
+			const string t_color = (not alive or selected > 0 ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::title));
+			const string hi_color = (not alive or selected > 0 ? t_color : Theme::c(ColorKey::hi_fg));
+			int mouse_x = d_x + 2;
+			out += Mv::to(d_y, d_x + 1);
+			if (width > 55) {
+				out += Fx::ub + title_left + hi_color + Fx::b + 't' + t_color + "erminate" + Fx::ub + title_right;
+				if (alive and selected == 0) Input::mouse_mappings["t"] = {d_y, mouse_x, 1, 9};
+				mouse_x += 11;
+			}
+			out += title_left + hi_color + Fx::b + (vim_keys ? 'K' : 'k') + t_color + "ill" + Fx::ub + title_right
+				+ title_left + hi_color + Fx::b + 's' + t_color + "ignals" + Fx::ub + title_right
+				+ title_left + hi_color + Fx::b + 'N' + t_color + "ice" + Fx::ub + title_right;
+			if (alive and selected == 0) {
+				Input::mouse_mappings[vim_keys ? "K" : "k"] = {d_y, mouse_x, 1, 4};
+				mouse_x += 6;
+				Input::mouse_mappings["s"] = {d_y, mouse_x, 1, 7};
+			    mouse_x += 9;
+				Input::mouse_mappings["N"] = {d_y, mouse_x, 1, 5};
+			    mouse_x += 7;
+			}
+			if (width > 77) {
+			    fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}",
+			    	title_left, follow_process ? Fx::b : "",
+			    	hi_color, 'F', t_color, "ollow",
+			    	Fx::ub, title_right);
+			    if (selected == 0) Input::mouse_mappings["F"] = {d_y, mouse_x, 1, 6};
+			}
+
+			//? Labels
 			const int item_fit = floor((double)(d_width - 2) / 10);
 			const int item_width = floor((double)(d_width - 2) / min(item_fit, 8));
+			out += Mv::to(d_y + 1, d_x + 1) + Fx::b + Theme::c(ColorKey::title)
+									+ cjust("Status:", item_width)
+									+ cjust("Elapsed:", item_width);
+			if (item_fit >= 3) out += cjust("IO/R:", item_width);
+			if (item_fit >= 4) out += cjust("IO/W:", item_width);
+			if (item_fit >= 5) out += cjust("Parent:", item_width);
+			if (item_fit >= 6) out += cjust("User:", item_width);
+			if (item_fit >= 7) out += cjust("Threads:", item_width);
+			if (item_fit >= 8) out += cjust("Nice:", item_width);
 
-			//? Graph part of box
-			string cpu_str_val;
-			if (alive or pause_proc_list) {
-				fmt::format_to(std::back_inserter(cpu_str_val), "{:>4.{}f}", detailed.entry.cpu_p, detailed.entry.cpu_p < 9.995f ? 2 : detailed.entry.cpu_p < 99.95f ? 1 : 0);
+
+			//? Command line
+			for (int i = 0; const auto& l : {'C', 'M', 'D'})
+			out += Mv::to(d_y + 5 + i++, d_x + 1) + l;
+
+			out += Theme::c(ColorKey::main_fg) + Fx::ub;
+			const auto san_cmd = replace_ascii_control(detailed.entry.cmd);
+			const int cmd_size = ulen(san_cmd, true);
+			for (int num_lines = min(3, (int)ceil((double)cmd_size / (d_width - 5))), i = 0; i < num_lines; i++) {
+				out += Mv::to(d_y + 5 + (num_lines == 1 ? 1 : i), d_x + 3)
+					+ cjust(luresize(san_cmd, cmd_size - (d_width - 5) * i, true), d_width - 5, true, true);
 			}
-			fmt::format_to(std::back_inserter(out), "{move}{unbold}{graph}{move}{fg_color}{bold}{cpu_str}%",
-				"move"_a = Mv::to(d_y + 1, dgraph_x + 1), "bold"_a = Fx::b, "unbold"_a = Fx::ub, "fg_color"_a = Theme::c(ColorKey::title),
-				"graph"_a = detailed_cpu_graph(detailed.cpu_percent, (redraw or data_same or not alive)),
-				"cpu_str"_a = cpu_str_val);
-			for (int i = 0; const auto& l : {'C', 'P', 'U'})
-				fmt::format_to(std::back_inserter(out), "{}{}", Mv::to(d_y + 3 + i++, dgraph_x + 1), l);
 
-			//? Info part of box
-			const string stat_color = (not alive ? Theme::c(ColorKey::inactive_fg) : (detailed.status == "Running" ? Theme::c(ColorKey::proc_misc) : Theme::c(ColorKey::main_fg)));
-			out += Mv::to(d_y + 2, d_x + 1) + stat_color + Fx::ub
-									+ cjust(detailed.status, item_width) + Theme::c(ColorKey::main_fg)
-									+ cjust(detailed.elapsed, item_width);
-			if (item_fit >= 3) out += cjust(detailed.io_read, item_width);
-			if (item_fit >= 4) out += cjust(detailed.io_write, item_width);
-			if (item_fit >= 5) out += cjust(detailed.parent, item_width, true);
-			if (item_fit >= 6) out += cjust(detailed.entry.user, item_width, true);
-			if (item_fit >= 7) out += cjust(to_string(detailed.entry.threads), item_width);
-			if (item_fit >= 8) out += cjust(to_string(detailed.entry.p_nice), item_width);
-
-
-			const double mem_p = detailed.mem_bytes.back() * 100.0 / totalMem;
-			string mem_str;
-			fmt::format_to(std::back_inserter(mem_str), "{:.2f}", mem_p);
-			mem_str.resize(4);
-			if (mem_str.ends_with('.')) mem_str.pop_back();
-			out += Mv::to(d_y + 4, d_x + 1) + Theme::c(ColorKey::title) + Fx::b + rjust((item_fit > 4 ? "Memory: " : "M:") + rjust(mem_str, 4) + "% ", (d_width / 3) - 2)
-				+ Theme::c(ColorKey::inactive_fg) + Fx::ub + graph_bg * (d_width / 3) + Mv::l(d_width / 3)
-				+ Theme::c(ColorKey::proc_misc) + detailed_mem_graph(detailed.mem_bytes, (redraw or data_same or not alive)) + ' '
-				+ Theme::c(ColorKey::title) + Fx::b + detailed.memory;
 		}
 
-		//? Check bounds of current selection and view
-		if (start > 0 and numpids <= select_max)
-			start = 0;
-		if (start > numpids - select_max)
-			start = max(0, numpids - select_max);
-		if (selected > select_max)
-			selected = select_max;
-		if (selected > numpids)
-			selected = numpids;
+		//? Filter
+		auto filtering = Config::getB(BoolKey::proc_filtering); // ? filter(20) : Config::getS(StringKey::proc_filter))
+		const auto filter_text = (filtering) ? filter(max(6, width - 66)) : uresize(Config::getS(StringKey::proc_filter), max(6, width - 66));
+		out += Mv::to(y, x+9) + title_left + (not filter_text.empty() ? Fx::b : "") + Theme::c(ColorKey::hi_fg) + 'f'
+			+ Theme::c(ColorKey::title) + (not filter_text.empty() ? ' ' + filter_text : "ilter")
+			+ (not filtering and not filter_text.empty() ? Theme::c(ColorKey::hi_fg) + " del" : "")
+			+ (filtering ? Theme::c(ColorKey::hi_fg) + ' ' + Symbols::enter : "") + Fx::ub + title_right;
+		if (not filtering) {
+			int f_len = (filter_text.empty() ? 6 : ulen(filter_text) + 2);
+			Input::mouse_mappings["f"] = {y, x + 10, 1, f_len};
+			if (filter_text.empty() and Input::mouse_mappings.contains("delete"))
+				Input::mouse_mappings.erase("delete");
+			else if (not filter_text.empty())
+				Input::mouse_mappings["delete"] = {y, x + 11 + f_len, 1, 3};
+		}
 
-		//* Iteration over processes
-		int lc = 0;
+		//? pause, per-core, reverse, tree and sorting
+		const auto& sorting = Config::getS(StringKey::proc_sorting);
+		const int sort_len = sorting.size();
+		const int sort_pos = x + width - sort_len - 8;
+
+		if (width > 60 + sort_len) {
+		    fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}{}{}{}",
+				Mv::to(y, sort_pos - 32), title_left, pause_proc_list ? Fx::b : "",
+				Theme::c(ColorKey::title), "pa", Theme::c(ColorKey::hi_fg), 'u', Theme::c(ColorKey::title), "se",
+		    	Fx::ub, title_right);
+		    Input::mouse_mappings["u"] = {y, sort_pos - 31, 1, 5};
+		}
+		if (width > 55 + sort_len) {
+			out += Mv::to(y, sort_pos - 25) + title_left + (Config::getB(BoolKey::proc_per_core) ? Fx::b : "") + Theme::c(ColorKey::title)
+				+ "per-" + Theme::c(ColorKey::hi_fg) + 'c' + Theme::c(ColorKey::title) + "ore" + Fx::ub + title_right;
+			Input::mouse_mappings["c"] = {y, sort_pos - 24, 1, 8};
+		}
+		if (width > 45 + sort_len) {
+			out += Mv::to(y, sort_pos - 15) + title_left + (Config::getB(BoolKey::proc_reversed) ? Fx::b : "") + Theme::c(ColorKey::hi_fg)
+				+ 'r' + Theme::c(ColorKey::title) + "everse" + Fx::ub + title_right;
+			Input::mouse_mappings["r"] = {y, sort_pos - 14, 1, 7};
+		}
+		if (width > 35 + sort_len) {
+			out += Mv::to(y, sort_pos - 6) + title_left + (Config::getB(BoolKey::proc_tree) ? Fx::b : "") + Theme::c(ColorKey::title) + "tre"
+				+ Theme::c(ColorKey::hi_fg) + 'e' + Fx::ub + title_right;
+			Input::mouse_mappings["e"] = {y, sort_pos - 5, 1, 4};
+		}
+		out += Mv::to(y, sort_pos) + title_left + Fx::b + Theme::c(ColorKey::hi_fg) + Symbols::left + " " + Theme::c(ColorKey::title) + sorting + " " + Theme::c(ColorKey::hi_fg)
+			+ Symbols::right + Fx::ub + title_right;
+			Input::mouse_mappings["left"] = {y, sort_pos + 1, 1, 2};
+			Input::mouse_mappings["right"] = {y, sort_pos + sort_len + 3, 1, 2};
+
+		//? select, info, signal, and follow buttons
+		const string down_button = (is_last_process_in_list ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::hi_fg)) + Symbols::down;
+		const bool is_up_button_highlighted = selected != 0 or (follow_process and followed_pid == Config::getI(IntKey::detailed_pid) and should_selection_return_to_followed);
+		const string up_button = (is_up_button_highlighted ? Theme::c(ColorKey::hi_fg) : Theme::c(ColorKey::inactive_fg)) + Symbols::up;
+		const string t_color = (selected == 0 ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::title));
+		const string hi_color = (selected == 0 ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::hi_fg));
+		int mouse_x = x + 14;
+		out += Mv::to(y + height - 1, x + 1) + title_left_down + Fx::b + hi_color + up_button + Theme::c(ColorKey::title) + " select " + down_button + Fx::ub + title_right_down
+			+ title_left_down + Fx::b + t_color + "info " + hi_color + Symbols::enter + Fx::ub + title_right_down;
+			if (selected > 0) Input::mouse_mappings["info_enter"] = {y + height - 1, mouse_x, 1, 6};
+			mouse_x += 8;
+		if (width > 60) {
+			out += title_left_down + Fx::b + hi_color + 't' + t_color + "erminate" + Fx::ub + title_right_down;
+			if (selected > 0) Input::mouse_mappings["t"] = {y + height - 1, mouse_x, 1, 9};
+			mouse_x += 11;
+		}
+		if (width > 55) {
+			out += title_left_down + Fx::b + hi_color + (vim_keys ? 'K' : 'k') + t_color + "ill" + Fx::ub + title_right_down;
+			if (selected > 0) Input::mouse_mappings[vim_keys ? "K" : "k"] = {y + height - 1, mouse_x, 1, 4};
+			mouse_x += 6;
+		}
+		out += title_left_down + Fx::b + hi_color + 's' + t_color + "ignals" + Fx::ub + title_right_down;
+		if (selected > 0) Input::mouse_mappings["s"] = {y + height - 1, mouse_x, 1, 7};
+	    mouse_x += 9;
+	    out += title_left_down + Fx::b + hi_color + 'N' + t_color + "ice" + Fx::ub + title_right_down;
+	    if (selected > 0) Input::mouse_mappings["N"] = {y + height -1, mouse_x, 1, 5};
+		mouse_x += 6;
+		if (width > 72) {
+		    fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}",
+		    	title_left_down, follow_process ? Fx::b : "",
+		    	hi_color, 'F', t_color, "ollow",
+		    	Fx::ub, title_right_down);
+		    if (selected > 0) Input::mouse_mappings["F"] = {y + height - 1, mouse_x, 1, 6};
+		}
+
+		//? Labels for fields in list
+		if (not proc_tree)
+			out += Mv::to(y+1, x+1) + Theme::c(ColorKey::title) + Fx::b
+				+ rjust("Pid:", 8) + ' '
+				+ ljust("Program:", prog_size) + ' '
+				+ (cmd_size > 0 ? ljust("Command:", cmd_size) : "") + ' ';
+		else
+			out += Mv::to(y+1, x+1) + Theme::c(ColorKey::title) + Fx::b
+				+ ljust("Tree:", tree_size) + ' ';
+
+		out += (thread_size > 0 ? Mv::l(4) + "Threads: " : "")
+				+ ljust("User:", user_size) + ' '
+				+ rjust((mem_bytes ? "MemB" : "Mem%"), 5) + ' '
+				+ rjust("Cpu%", (show_graphs ? 10 : 5)) + Fx::ub;
+	}
+
+	//? Render the detailed process info section (CPU graph, status, memory, etc.)
+	void draw_proc_detailed(string& out, bool show_detailed, bool data_same, uint64_t totalMem,
+		bool pause_proc_list, const string& graph_bg) {
+		if (not show_detailed) return;
+
+		bool alive = detailed.status != "Dead";
+		const int item_fit = floor((double)(d_width - 2) / 10);
+		const int item_width = floor((double)(d_width - 2) / min(item_fit, 8));
+
+		//? Graph part of box
+		string cpu_str_val;
+		if (alive or pause_proc_list) {
+			fmt::format_to(std::back_inserter(cpu_str_val), "{:>4.{}f}", detailed.entry.cpu_p, detailed.entry.cpu_p < 9.995f ? 2 : detailed.entry.cpu_p < 99.95f ? 1 : 0);
+		}
+		fmt::format_to(std::back_inserter(out), "{move}{unbold}{graph}{move}{fg_color}{bold}{cpu_str}%",
+			"move"_a = Mv::to(d_y + 1, dgraph_x + 1), "bold"_a = Fx::b, "unbold"_a = Fx::ub, "fg_color"_a = Theme::c(ColorKey::title),
+			"graph"_a = detailed_cpu_graph(detailed.cpu_percent, (redraw or data_same or not alive)),
+			"cpu_str"_a = cpu_str_val);
+		for (int i = 0; const auto& l : {'C', 'P', 'U'})
+			fmt::format_to(std::back_inserter(out), "{}{}", Mv::to(d_y + 3 + i++, dgraph_x + 1), l);
+
+		//? Info part of box
+		const string stat_color = (not alive ? Theme::c(ColorKey::inactive_fg) : (detailed.status == "Running" ? Theme::c(ColorKey::proc_misc) : Theme::c(ColorKey::main_fg)));
+		out += Mv::to(d_y + 2, d_x + 1) + stat_color + Fx::ub
+								+ cjust(detailed.status, item_width) + Theme::c(ColorKey::main_fg)
+								+ cjust(detailed.elapsed, item_width);
+		if (item_fit >= 3) out += cjust(detailed.io_read, item_width);
+		if (item_fit >= 4) out += cjust(detailed.io_write, item_width);
+		if (item_fit >= 5) out += cjust(detailed.parent, item_width, true);
+		if (item_fit >= 6) out += cjust(detailed.entry.user, item_width, true);
+		if (item_fit >= 7) out += cjust(to_string(detailed.entry.threads), item_width);
+		if (item_fit >= 8) out += cjust(to_string(detailed.entry.p_nice), item_width);
+
+
+		const double mem_p = detailed.mem_bytes.back() * 100.0 / totalMem;
+		string mem_str;
+		fmt::format_to(std::back_inserter(mem_str), "{:.2f}", mem_p);
+		mem_str.resize(4);
+		if (mem_str.ends_with('.')) mem_str.pop_back();
+		out += Mv::to(d_y + 4, d_x + 1) + Theme::c(ColorKey::title) + Fx::b + rjust((item_fit > 4 ? "Memory: " : "M:") + rjust(mem_str, 4) + "% ", (d_width / 3) - 2)
+			+ Theme::c(ColorKey::inactive_fg) + Fx::ub + graph_bg * (d_width / 3) + Mv::l(d_width / 3)
+			+ Theme::c(ColorKey::proc_misc) + detailed_mem_graph(detailed.mem_bytes, (redraw or data_same or not alive)) + ' '
+			+ Theme::c(ColorKey::title) + Fx::b + detailed.memory;
+	}
+
+	//? Render the per-process row list; returns the line count (lc) via output parameter
+	void draw_proc_list(string& out, const vector<proc_info>& plist, int y, int height, int select_max,
+		bool proc_tree, bool proc_gradient, bool proc_colors, bool show_graphs, bool mem_bytes,
+		bool data_same, int followed_pid, uint64_t totalMem,
+		const string& graph_symbol, const string& graph_bg, bool proc_banner_shown, int& lc) {
+		lc = 0;
 		for (int n=0; auto& p : plist) {
 			if (p.filtered or (proc_tree and p.tree_index == plist.size()) or n++ < start) continue;
 			bool is_selected = (lc + 1 == selected);
@@ -2672,7 +2645,12 @@ namespace Proc {
 			if (lc++ > height - 5) break;
 			else if (lc > height - 5 and proc_banner_shown) break;
 		}
+	}
 
+	//? Blank remaining lines, banner bar, scrollbar, location counter, dead-process graph cleanup, hide button
+	void draw_proc_footer(string& out, const vector<proc_info>& plist, int y, int height, int lc, int numpids,
+		int select_max, bool proc_banner_shown, bool pause_proc_list, bool follow_process,
+		int followed, bool show_detailed, bool data_same) {
 		out += Fx::reset;
 		while (lc++ < height - 3) out += Mv::to(y+lc+1, x+1) + string(width - 2, ' ');
 		if (proc_banner_shown) {
@@ -2680,7 +2658,7 @@ namespace Proc {
 				Mv::to(y + height - 2, x + 1),
 				(pause_proc_list and follow_process) ? Theme::c(ColorKey::proc_banner_bg)
 					: pause_proc_list ? Theme::c(ColorKey::proc_pause_bg)
-					: Theme::c(ColorKey::proc_follow_bg), 
+					: Theme::c(ColorKey::proc_follow_bg),
 				Theme::c(ColorKey::proc_banner_fg), Fx::b,
 				(pause_proc_list and follow_process) ? "Paused list and Following process"
 					: pause_proc_list ? "Process list paused"
@@ -2724,9 +2702,9 @@ namespace Proc {
 
 		//? Draw hide button if detailed view is shown
 		if (show_detailed) {
-			const bool greyed_out = selected_pid != Config::getI(IntKey::detailed_pid) && selected > 0; 
+			const bool greyed_out = selected_pid != Config::getI(IntKey::detailed_pid) && selected > 0;
 			fmt::format_to(std::back_inserter(out), "{}{}{}{}{}{}{}{}{}{}{}",
-				Mv::to(d_y, d_x + d_width - 10), 
+				Mv::to(d_y, d_x + d_width - 10),
 				Theme::c(ColorKey::proc_box), Symbols::title_left, Fx::b,
 				greyed_out ? Theme::c(ColorKey::inactive_fg) : Theme::c(ColorKey::title), "hide ",
 				greyed_out ? "" : Theme::c(ColorKey::hi_fg), Symbols::enter,
@@ -2734,6 +2712,75 @@ namespace Proc {
 			if (not greyed_out) Input::mouse_mappings["enter"] = {d_y, d_x + d_width - 9, 1, 6};
 			else Input::mouse_mappings.erase("enter");
 		}
+	}
+
+	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
+		if (Runner::is_stopping()) return "";
+		auto proc_tree = Config::getB(BoolKey::proc_tree);
+		bool show_detailed = (Config::getB(BoolKey::show_detailed) and cmp_equal(Proc::detailed.last_pid, Config::getI(IntKey::detailed_pid)));
+		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor));
+		auto proc_colors = Config::getB(BoolKey::proc_colors);
+		auto tty_mode = Config::getB(BoolKey::tty_mode);
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_proc));
+		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
+		auto mem_bytes = Config::getB(BoolKey::proc_mem_bytes);
+		auto vim_keys = Config::getB(BoolKey::vim_keys);
+		auto show_graphs = Config::getB(BoolKey::proc_cpu_graphs);
+		const auto pause_proc_list = Config::getB(BoolKey::pause_proc_list);
+		auto follow_process = Config::getB(BoolKey::follow_process);
+		int followed_pid = Config::getI(IntKey::followed_pid);
+		int followed = Config::getI(IntKey::proc_followed);
+		bool should_selection_return_to_followed = Config::getB(BoolKey::should_selection_return_to_followed);
+		auto proc_banner_shown = pause_proc_list or follow_process;
+		Config::set(BoolKey::proc_banner_shown, proc_banner_shown);
+		start = Config::getI(IntKey::proc_start);
+		selected = Config::getI(IntKey::proc_selected);
+		const int y = show_detailed ? Proc::y + 8 : Proc::y;
+		const int height = show_detailed ? Proc::height - 8 : Proc::height;
+		int select_max = show_detailed ? (proc_banner_shown ? Proc::select_max - 9 : Proc::select_max - 8) :
+												(proc_banner_shown ? Proc::select_max - 1 : Proc::select_max);
+		auto totalMem = Mem::get_totalMem();
+		int numpids = Proc::numpids;
+		if (force_redraw) redraw = true;
+		string out;
+		out.reserve(width * height * 18);  // ~18 bytes/visible char: dense per-process rows with many color changes
+
+		//? Follow logic, banner state, selection edge cases
+		draw_proc_follow_logic(plist, proc_tree, numpids, select_max,
+			follow_process, followed_pid, followed, should_selection_return_to_followed,
+			pause_proc_list, proc_banner_shown);
+
+		//* Redraw elements not needed to be updated every cycle
+		if (redraw) {
+			draw_proc_header(out, y, height, show_detailed, proc_tree,
+				follow_process, pause_proc_list, vim_keys, mem_bytes,
+				show_graphs, followed_pid, should_selection_return_to_followed,
+				graph_symbol, tty_mode);
+		}
+		//* End of redraw block
+
+		//? Draw details box if shown
+		draw_proc_detailed(out, show_detailed, data_same, totalMem, pause_proc_list, graph_bg);
+
+		//? Check bounds of current selection and view
+		if (start > 0 and numpids <= select_max)
+			start = 0;
+		if (start > numpids - select_max)
+			start = max(0, numpids - select_max);
+		if (selected > select_max)
+			selected = select_max;
+		if (selected > numpids)
+			selected = numpids;
+
+		//* Iteration over processes
+		int lc = 0;
+		draw_proc_list(out, plist, y, height, select_max, proc_tree, proc_gradient,
+			proc_colors, show_graphs, mem_bytes, data_same, followed_pid,
+			totalMem, graph_symbol, graph_bg, proc_banner_shown, lc);
+
+		//? Footer: blank lines, banner, scrollbar, location, cleanup, hide button
+		draw_proc_footer(out, plist, y, height, lc, numpids, select_max, proc_banner_shown,
+			pause_proc_list, follow_process, followed, show_detailed, data_same);
 
 		if (selected == 0 and selected_pid != 0) {
 			selected_pid = 0;
