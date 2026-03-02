@@ -57,7 +57,6 @@ namespace fs = std::filesystem;
 
 namespace Menu {
 
-   atomic<bool> active (false);
    bool redraw{true};
    msgBox messageBox;
    int signalToSend{};
@@ -1825,7 +1824,6 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 		while (true) {
 			// ---- Empty stack: no menu active ----
 			if (pda.empty()) {
-				Menu::active = false;
 				Global::overlay.clear();
 				Global::overlay.shrink_to_fit();
 				Runner::pause_output.store(false);
@@ -1834,8 +1832,6 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 				Runner::run("all", true, true);
 				return;
 			}
-
-			Menu::active = true;
 
 			// ---- SizeError override on first entry ----
 			if (first_call) {
@@ -1926,5 +1922,9 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 			case Renice: pda.push(menu::ReniceFrame{}); break;
 		}
 		process();
+	}
+
+	void invalidate_layout() {
+		pda.invalidate_layout();
 	}
 }

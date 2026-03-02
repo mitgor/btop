@@ -18,20 +18,17 @@ tab-size = 4
 
 #pragma once
 
-#include <atomic>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "btop_input.hpp"
 
-using std::atomic;
 using std::string;
 using std::vector;
 
 namespace Menu {
 
-	extern atomic<bool> active;
 	extern int signalToSend;
 	extern bool redraw;
 
@@ -92,5 +89,8 @@ namespace Menu {
 
 	//* Show a menu from enum Menu::Menus
 	void show(int menu, int signal=-1);
+
+	//* Invalidate cached layout on the active PDA frame (e.g. after resize)
+	void invalidate_layout();
 
 }
