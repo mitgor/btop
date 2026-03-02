@@ -43,7 +43,6 @@ using std::array;
 using std::ceil;
 using std::max;
 using std::min;
-using std::ref;
 using std::views::iota;
 
 using namespace Tools;
@@ -60,7 +59,6 @@ namespace Menu {
 
    atomic<bool> active (false);
    bool redraw{true};
-   int currentMenu = -1;
    msgBox messageBox;
    int signalToSend{};
    int signalKillRet{};
@@ -981,13 +979,6 @@ namespace Menu {
 		mouse_mappings.erase("button2");
 	}
 
-	enum menuReturnCodes {
-		NoChange,
-		Changed,
-		Closed,
-		Switch
-	};
-
 	static PDAResult signalChoose(std::string_view key, menu::SignalChooseFrame& frame) {
 		auto& x = frame.x;
 		auto& y = frame.y;
@@ -1822,150 +1813,118 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 	};
 
 	// ========================================================================
-	// dispatch_legacy — compatibility bridge that converts PDAResult back to
-	// legacy int return codes for process(). Deleted in Plan 02 when process()
-	// switches to direct PDAResult handling.
+	// process() — non-recursive PDA dispatch loop.
+	// Dispatches via std::visit on the top frame, then applies the returned
+	// PDAAction (Pop/Replace/Push/NoChange) iteratively.
 	// ========================================================================
 
-	static int dispatch_legacy(std::string_view key) {
-		auto result = std::visit(MenuVisitor{key}, pda.top());
-
-		// Handle Replace: apply it now and signal Switch to process()
-		if (result.action == PDAAction::Replace) {
-			assert(result.next_frame.has_value());
-			int new_menu = std::visit([](const auto& f) -> int {
-				using T = std::decay_t<decltype(f)>;
-				if constexpr (std::is_same_v<T, menu::MainFrame>) return Main;
-				else if constexpr (std::is_same_v<T, menu::OptionsFrame>) return Options;
-				else if constexpr (std::is_same_v<T, menu::HelpFrame>) return Help;
-				else if constexpr (std::is_same_v<T, menu::SizeErrorFrame>) return SizeError;
-				else if constexpr (std::is_same_v<T, menu::SignalChooseFrame>) return SignalChoose;
-				else if constexpr (std::is_same_v<T, menu::SignalSendFrame>) return SignalSend;
-				else if constexpr (std::is_same_v<T, menu::SignalReturnFrame>) return SignalReturn;
-				else if constexpr (std::is_same_v<T, menu::ReniceFrame>) return Renice;
-				else return -1;
-			}, *result.next_frame);
-
-			pda.replace(std::move(*result.next_frame));
-			menuMask.reset(currentMenu);
-			menuMask.set(new_menu);
-			currentMenu = new_menu;
-			return Switch;
-		}
-		// Handle Pop
-		if (result.action == PDAAction::Pop) {
-			return Closed;
-		}
-		// Handle Push (not used by any current handler, but future-proof)
-		if (result.action == PDAAction::Push) {
-			assert(result.next_frame.has_value());
-			pda.push(std::move(*result.next_frame));
-			return Switch;
-		}
-		// NoChange
-		return result.rendered ? Changed : NoChange;
-	}
-
-	bitset<8> menuMask;
-
-	//? Single-writer wrappers — keep menuMask and PDA stack in sync (Phase 21).
-	static void menu_open(int menu_enum, menu::MenuFrameVar frame) {
-		menuMask.set(menu_enum);
-		pda.push(std::move(frame));
-		assert(menuMask.none() == pda.empty());
-	}
-
-	static void menu_close_current(int menu_enum) {
-		menuMask.reset(menu_enum);
-		if (!pda.empty()) pda.pop();
-		// Note: do NOT assert here -- process() may close and reopen in sequence
-	}
-
-	static void menu_clear_all() {
-		menuMask.reset();
-		while (!pda.empty()) pda.pop();
-		assert(menuMask.none() == pda.empty());
-	}
-
 	void process(const std::string_view key) {
-		if (menuMask.none()) {
-			Menu::active = false;
-			Global::overlay.clear();
-			Global::overlay.shrink_to_fit();
-			Runner::pause_output.store(false);
-			pda.clear_bg();
-			while (!pda.empty()) pda.pop();
-			currentMenu = -1;
-			Runner::run("all", true, true);
-			mouse_mappings.clear();
-			assert(pda.empty());
-			return;
-		}
+		bool first_call = true;
+		std::string_view current_key = key;
 
-		if (currentMenu < 0 or not menuMask.test(currentMenu)) {
-			Menu::active = true;
-			redraw = true;
-			if (((menuMask.test(Main) or menuMask.test(Options) or menuMask.test(Help) or menuMask.test(SignalChoose))
-			and (Term::width < 80 or Term::height < 24))
-			or (Term::width < 50 or Term::height < 20)) {
-				menu_clear_all();
-				menu_open(SizeError, menu::SizeErrorFrame{});
-			}
-
-			for (const auto& i : iota(0, (int)menuMask.size())) {
-				if (menuMask.test(i)) currentMenu = i;
-			}
-
+		while (true) {
+			// ---- Empty stack: no menu active ----
 			if (pda.empty()) {
-				switch (currentMenu) {
-					case Main: pda.push(menu::MainFrame{}); break;
-					case Options: pda.push(menu::OptionsFrame{}); break;
-					case Help: pda.push(menu::HelpFrame{}); break;
-					case SizeError: pda.push(menu::SizeErrorFrame{}); break;
-					case SignalChoose: pda.push(menu::SignalChooseFrame{}); break;
-					case SignalSend: pda.push(menu::SignalSendFrame{}); break;
-					case SignalReturn: pda.push(menu::SignalReturnFrame{}); break;
-					case Renice: pda.push(menu::ReniceFrame{}); break;
+				Menu::active = false;
+				Global::overlay.clear();
+				Global::overlay.shrink_to_fit();
+				Runner::pause_output.store(false);
+				pda.clear_bg();
+				mouse_mappings.clear();
+				Runner::run("all", true, true);
+				return;
+			}
+
+			Menu::active = true;
+
+			// ---- SizeError override on first entry ----
+			if (first_call) {
+				bool needs_large = std::visit([](const auto& f) -> bool {
+					using T = std::decay_t<decltype(f)>;
+					return std::is_same_v<T, menu::MainFrame>
+						|| std::is_same_v<T, menu::OptionsFrame>
+						|| std::is_same_v<T, menu::HelpFrame>
+						|| std::is_same_v<T, menu::SignalChooseFrame>;
+				}, pda.top());
+
+				if ((needs_large && (Term::width < 80 || Term::height < 24))
+					|| (Term::width < 50 || Term::height < 20)) {
+					while (!pda.empty()) pda.pop();
+					pda.push(menu::SizeErrorFrame{});
+					redraw = true;
 				}
 			}
-			assert(!pda.empty());
-		}
 
-		auto retCode = dispatch_legacy(key);
-		if (retCode == Closed) {
-			menu_close_current(currentMenu);
-			mouse_mappings.clear();
-			pda.clear_bg();
-			Runner::pause_output.store(false);
-			process();
-		}
-		else if (redraw) {
-			redraw = false;
-			Runner::run("all", true, true);
-		}
-		else if (retCode == Changed)
-			Runner::run("overlay");
-		else if (retCode == Switch) {
-			Runner::pause_output.store(false);
-			pda.clear_bg();
-			redraw = true;
-			mouse_mappings.clear();
-			process();
+			// ---- Dispatch to active handler via visitor ----
+			auto result = std::visit(MenuVisitor{current_key}, pda.top());
+
+			// ---- Apply PDAAction ----
+			switch (result.action) {
+				case PDAAction::NoChange:
+					// Copy active frame's mouse mappings to global
+					std::visit([](const auto& f) {
+						mouse_mappings = f.mouse_mappings;
+					}, pda.top());
+
+					if (redraw) {
+						redraw = false;
+						Runner::run("all", true, true);
+					}
+					else if (result.rendered) {
+						Runner::run("overlay");
+					}
+					return;
+
+				case PDAAction::Pop:
+					pda.pop();
+					mouse_mappings.clear();
+					pda.clear_bg();
+					Runner::pause_output.store(false);
+					// Continue loop: check if stack is now empty or dispatch to frame underneath
+					current_key = "";
+					first_call = false;
+					redraw = true;
+					continue;
+
+				case PDAAction::Replace:
+					assert(result.next_frame.has_value());
+					pda.replace(std::move(*result.next_frame));
+					pda.clear_bg();
+					Runner::pause_output.store(false);
+					mouse_mappings.clear();
+					current_key = "";
+					first_call = false;
+					redraw = true;
+					continue;
+
+				case PDAAction::Push:
+					assert(result.next_frame.has_value());
+					pda.push(std::move(*result.next_frame));
+					current_key = "";
+					first_call = false;
+					redraw = true;
+					continue;
+			}
 		}
 	}
 
+	// ========================================================================
+	// show() — push a frame onto the PDA and call process().
+	// The Menus enum maps int values to frame types for external callers.
+	// ========================================================================
+
 	void show(int menu, int signal) {
-		switch (menu) {
-			case Main: menu_open(menu, menu::MainFrame{}); break;
-			case Options: menu_open(menu, menu::OptionsFrame{}); break;
-			case Help: menu_open(menu, menu::HelpFrame{}); break;
-			case SizeError: menu_open(menu, menu::SizeErrorFrame{}); break;
-			case SignalChoose: menu_open(menu, menu::SignalChooseFrame{}); break;
-			case SignalSend: menu_open(menu, menu::SignalSendFrame{}); break;
-			case SignalReturn: menu_open(menu, menu::SignalReturnFrame{}); break;
-			case Renice: menu_open(menu, menu::ReniceFrame{}); break;
-		}
 		signalToSend = signal;
+		switch (menu) {
+			case Main: pda.push(menu::MainFrame{}); break;
+			case Options: pda.push(menu::OptionsFrame{}); break;
+			case Help: pda.push(menu::HelpFrame{}); break;
+			case SizeError: pda.push(menu::SizeErrorFrame{}); break;
+			case SignalChoose: pda.push(menu::SignalChooseFrame{}); break;
+			case SignalSend: pda.push(menu::SignalSendFrame{}); break;
+			case SignalReturn: pda.push(menu::SignalReturnFrame{}); break;
+			case Renice: pda.push(menu::ReniceFrame{}); break;
+		}
 		process();
 	}
 }
