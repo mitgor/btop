@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Render & Collect Completion
-status: unknown
-last_updated: "2026-03-02T22:01:53.017Z"
+status: phase-complete
+last_updated: "2026-03-02T22:35:30Z"
 progress:
   total_phases: 10
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -18,21 +18,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 28 complete - ready for Phase 29
+**Current focus:** Phase 29 complete - ready for Phase 30
 
 ## Current Position
 
 Phase: 29 of 30 (Draw Decomposition)
-Plan: 1 of 2 complete in current phase
-Status: Executing Phase 29
-Last activity: 2026-03-02 — Completed 29-01 (Proc::draw() decomposition)
+Plan: 2 of 2 complete in current phase
+Status: Phase 29 Complete
+Last activity: 2026-03-02 — Completed 29-02 (Cpu::draw() decomposition)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v1.5)
+- Total plans completed: 4 (v1.5)
 
 **Cumulative (v1.0-v1.4):**
 - v1.0: 9 phases, 20 plans
@@ -58,6 +58,7 @@ Recent decisions affecting current work:
 - [Phase 27] CpuOldField enum with 12 entries in shared header; cpu_old_to_field constexpr mapping bridges CpuOldField to CpuField
 - [Phase 26] Two-enum design: ColorKey (50 entries) for individual colors, GradientKey (11 entries) for gradient base names
 - [Phase 29]: Decomposed Proc::draw() into 5 namespace-scoped sub-functions accessing shared state directly; parameters only for locals computed before extracted blocks
+- [Phase 29]: Decomposed 454-line Cpu::draw() into 5 sub-functions (redraw, battery, graphs, cores, gpu_info) with 93-line orchestrator; bat_pos/bat_len elevated to namespace scope
 
 ### Pending Todos
 
@@ -70,5 +71,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 29-01-PLAN.md
+Stopped at: Completed 29-02-PLAN.md (Phase 29 complete)
 Resume file: None

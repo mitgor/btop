@@ -85,7 +85,7 @@ Full details: `milestones/v1.4-ROADMAP.md` | `milestones/v1.4-REQUIREMENTS.md`
 **Phase Numbering:** Phases 28-30 (continued from v1.4). Decimal phases (e.g., 28.1) reserved for urgent insertions.
 
 - [x] **Phase 28: Hot-Path POSIX I/O** - Convert Cpu::collect and Mem::collect ifstream reads to read_proc_file() on Linux (completed 2026-03-02)
-- [ ] **Phase 29: Draw Decomposition** - Split Proc::draw() and Cpu::draw() god functions into focused sub-functions
+- [x] **Phase 29: Draw Decomposition** - Split Proc::draw() and Cpu::draw() god functions into focused sub-functions (completed 2026-03-02)
 - [ ] **Phase 30: Unified Redraw** - Consolidate scattered redraw booleans into a single mechanism with all trigger sites wired through it
 
 ## Phase Details
@@ -148,5 +148,5 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25-27 | v1.4 | 5/5 | Complete | 2026-03-02 |
 | 28. Hot-Path POSIX I/O | 2/2 | Complete    | 2026-03-02 | - |
-| 29. Draw Decomposition | 1/2 | In Progress|  | - |
+| 29. Draw Decomposition | 2/2 | Complete   | 2026-03-02 | - |
 | 30. Unified Redraw | v1.5 | 0/2 | Not started | - |
