@@ -391,31 +391,7 @@ namespace Cpu {
 	bool has_battery = true;
 	tuple<int, float, long, string> current_bat;
 
-	const array time_names {
-		"user"s, "nice"s, "system"s, "idle"s, "iowait"s,
-		"irq"s, "softirq"s, "steal"s, "guest"s, "guest_nice"s
-	};
-
-	constexpr std::array<CpuField, 10> linux_time_fields = {
-		CpuField::user, CpuField::nice, CpuField::system, CpuField::idle,
-		CpuField::iowait, CpuField::irq, CpuField::softirq, CpuField::steal,
-		CpuField::guest, CpuField::guest_nice
-	};
-
-	std::unordered_map<string, long long> cpu_old = {
-			{"totals", 0},
-			{"idles", 0},
-			{"user", 0},
-			{"nice", 0},
-			{"system", 0},
-			{"idle", 0},
-			{"iowait", 0},
-			{"irq", 0},
-			{"softirq", 0},
-			{"steal", 0},
-			{"guest", 0},
-			{"guest_nice", 0}
-	};
+	std::array<long long, static_cast<size_t>(CpuOldField::COUNT)> cpu_old{};
 
 	string get_cpuName() {
 		string name;
@@ -1130,10 +1106,10 @@ namespace Cpu {
 
 					//? Calculate values for totals from first line of stat
 					if (i == 0) {
-						const long long calc_totals = max(1ll, totals - cpu_old.at("totals"));
-						const long long calc_idles = max(0ll, idles - cpu_old.at("idles"));
-						cpu_old.at("totals") = totals;
-						cpu_old.at("idles") = idles;
+						const long long calc_totals = max(1ll, totals - cpu_old[std::to_underlying(CpuOldField::totals)]);
+						const long long calc_idles = max(0ll, idles - cpu_old[std::to_underlying(CpuOldField::idles)]);
+						cpu_old[std::to_underlying(CpuOldField::totals)] = totals;
+						cpu_old[std::to_underlying(CpuOldField::idles)] = idles;
 
 						//? Total usage of cpu
 						cpu.cpu_percent[std::to_underlying(CpuField::total)].push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
@@ -1143,11 +1119,12 @@ namespace Cpu {
 
 						//? Populate cpu.cpu_percent with all fields from stat
 						for (int ii = 0; const auto& val : times) {
-							cpu.cpu_percent[std::to_underlying(linux_time_fields[ii])].push_back(clamp((long long)round((double)(val - cpu_old.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
-							cpu_old.at(time_names.at(ii)) = val;
+							const auto old_idx = static_cast<size_t>(CpuOldField::user) + ii;
+							cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].push_back(clamp((long long)round((double)(val - cpu_old[old_idx]) * 100 / calc_totals), 0ll, 100ll));
+							cpu_old[old_idx] = val;
 
 							//? Reduce size if there are more values than needed for graph
-							if (cpu.cpu_percent[std::to_underlying(linux_time_fields[ii])].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(linux_time_fields[ii])].resize(width * 2);
+							if (cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].resize(width * 2);
 
 							if (++ii == 10) break;
 						}

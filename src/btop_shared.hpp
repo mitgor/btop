@@ -318,6 +318,24 @@ enum class CpuField : size_t {
 	COUNT  // = 11
 };
 
+// CPU old-value fields for delta calculations in collect()
+// Indexes the cpu_old std::array that tracks previous-cycle values.
+// "totals" and "idles" are aggregate sums; the rest match /proc/stat time columns.
+enum class CpuOldField : size_t {
+	totals, idles,
+	user, nice, system, idle,
+	iowait, irq, softirq, steal, guest, guest_nice,
+	COUNT  // = 12
+};
+
+// Maps CpuOldField time indices (user..guest_nice) to CpuField for cpu_percent indexing
+// Used in Linux collect() loop: cpu_old uses CpuOldField, cpu_percent uses CpuField
+inline constexpr std::array<CpuField, 10> cpu_old_to_field = {
+	CpuField::user, CpuField::nice, CpuField::system, CpuField::idle,
+	CpuField::iowait, CpuField::irq, CpuField::softirq, CpuField::steal,
+	CpuField::guest, CpuField::guest_nice
+};
+
 // Memory stat/percent fields
 enum class MemField : size_t {
 	used, available, cached, free,
