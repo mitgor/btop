@@ -29,6 +29,7 @@ tab-size = 4
 #include <vector>
 
 #include "btop_shared.hpp"
+#include "btop_theme.hpp"
 
 using std::array;
 using std::string;
@@ -112,6 +113,9 @@ namespace Draw {
 		void clear_current();  // Reset all current cells to default
 	};
 
+	//? Update cached fg/bg from Fx::reset (call after theme change)
+	void update_reset_colors();
+
 	//? Parse an escape-sequence string and render it into the ScreenBuffer
 	void render_to_buffer(ScreenBuffer& buf, const std::string& escape_str);
 
@@ -176,12 +180,12 @@ namespace Draw {
 	//* Class holding a percentage meter
 	class Meter {
 		int width;
-		string color_gradient;
+		Theme::GradientKey color_gradient;
 		bool invert;
 		array<string, 101> cache;
 	public:
 		Meter();
-		Meter(const int width, string color_gradient, bool invert = false);
+		Meter(const int width, Theme::GradientKey color_gradient, bool invert = false);
 
 		//* Return a string representation of the meter with given value
 		string operator()(int value);
@@ -190,7 +194,8 @@ namespace Draw {
 	//* Class holding a percentage graph
 	class Graph {
 		int width, height;
-		string color_gradient;
+		Theme::GradientKey color_gradient;
+		bool use_gradient = true;
 		string out, symbol = "default";
 		bool invert, no_zero;
 		long long offset;
@@ -205,7 +210,7 @@ namespace Draw {
 	public:
 		Graph();
 		Graph(int width, int height,
-			const string& color_gradient,
+			Theme::GradientKey color_gradient,
 			const RingBuffer<long long>& data,
 			const string& symbol="default",
 			bool invert=false, bool no_zero=false,

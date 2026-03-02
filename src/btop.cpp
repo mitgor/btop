@@ -87,6 +87,8 @@ using namespace Tools;
 using Config::BoolKey;
 using Config::IntKey;
 using Config::StringKey;
+using Theme::ColorKey;
+using Theme::GradientKey;
 using namespace std::chrono_literals;
 using namespace std::literals;
 
@@ -753,7 +755,7 @@ namespace Runner {
 						"{mv7}{hiFg}esc {mainFg}| Show menu"
 						"{mv8}{hiFg}q {mainFg}| Quit",
 						"banner"_a = Draw::banner_gen(y, 0, true),
-						"titleFg"_a = Theme::c("title"), "b"_a = Fx::b, "hiFg"_a = Theme::c("hi_fg"), "mainFg"_a = Theme::c("main_fg"),
+						"titleFg"_a = Theme::c(ColorKey::title), "b"_a = Fx::b, "hiFg"_a = Theme::c(ColorKey::hi_fg), "mainFg"_a = Theme::c(ColorKey::main_fg),
 						"mv1"_a = Mv::to(y+6, x),
 						"mv2"_a = Mv::to(y+8, x),
 						"mv3"_a = Mv::to(y+9, x),
@@ -770,9 +772,9 @@ namespace Runner {
 			//! DEBUG stats -->
 			if (Global::debug and not Input::is_menu_active()) {
 				output += fmt::format("{pre}{box:5.5} {collect:>12.12} {draw:>12.12}{post}",
-					"pre"_a = debug_bg + Theme::c("title") + Fx::b,
+					"pre"_a = debug_bg + Theme::c(ColorKey::title) + Fx::b,
 					"box"_a = "box", "collect"_a = "collect", "draw"_a = "draw",
-					"post"_a = Theme::c("main_fg") + Fx::ub
+					"post"_a = Theme::c(ColorKey::main_fg) + Fx::ub
 				);
 				static auto loc = std::locale(std::locale::classic(), new MyNumPunct);
 			#ifdef GPU_SUPPORT
@@ -804,7 +806,7 @@ namespace Runner {
 						static thread_local string overlay_buf;
 						overlay_buf.clear();
 						overlay_buf += Fx::ub;
-						overlay_buf += Theme::c("inactive_fg");
+						overlay_buf += Theme::c(ColorKey::inactive_fg);
 						overlay_buf += Fx::uncolor(output);
 						Draw::render_to_buffer(screen_buffer, overlay_buf);
 					}
