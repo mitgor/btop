@@ -9,20 +9,20 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 
 ### Menu PDA Infrastructure
 
-- [ ] **PDA-01**: MenuFrameVar std::variant defined with alternatives for all 8 menus (Main, Options, Help, SizeError, SignalChoose, SignalSend, SignalReturn, Renice)
-- [ ] **PDA-02**: MenuPDA class provides push(), pop(), replace(), top(), empty() operations on std::stack<MenuFrameVar, std::vector<MenuFrameVar>>
-- [ ] **PDA-03**: Frame handlers return PDAAction enum (Push/Pop/Replace/NoChange) instead of modifying stack during std::visit
+- [x] **PDA-01**: MenuFrameVar std::variant defined with alternatives for all 8 menus (Main, Options, Help, SizeError, SignalChoose, SignalSend, SignalReturn, Renice)
+- [x] **PDA-02**: MenuPDA class provides push(), pop(), replace(), top(), empty() operations on std::stack<MenuFrameVar, std::vector<MenuFrameVar>>
+- [x] **PDA-03**: Frame handlers return PDAAction enum (Push/Pop/Replace/NoChange) instead of modifying stack during std::visit
 - [ ] **PDA-04**: PDA dispatch replaces menuMask bitset + currentMenu int + menuFunc dispatch vector
-- [ ] **PDA-05**: bg string lifecycle tied to stack depth (captured on first push, cleared on final pop)
+- [x] **PDA-05**: bg string lifecycle tied to stack depth (captured on first push, cleared on final pop)
 - [ ] **PDA-06**: replace() operation handles Main→Options and Main→Help transitions (ESC returns to Normal, not Main)
 
 ### Frame Data
 
 - [ ] **FRAME-01**: Each frame struct carries per-frame state as members (replacing function-static locals)
-- [ ] **FRAME-02**: Frame structs split into layout fields (x, y, width, height) and interaction fields (selected, page, entered text)
+- [x] **FRAME-02**: Frame structs split into layout fields (x, y, width, height) and interaction fields (selected, page, entered text)
 - [ ] **FRAME-03**: invalidate_layout() zeros layout fields while preserving interaction fields
-- [ ] **FRAME-04**: Frame constructors unconditionally initialize all fields (eliminating bg.empty() reset sentinel)
-- [ ] **FRAME-05**: Per-frame mouse_mappings owned by frame struct (only top frame's mappings active)
+- [x] **FRAME-04**: Frame constructors unconditionally initialize all fields (eliminating bg.empty() reset sentinel)
+- [x] **FRAME-05**: Per-frame mouse_mappings owned by frame struct (only top frame's mappings active)
 
 ### Input FSM
 
@@ -80,17 +80,17 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PDA-01 | Phase 20 | Pending |
-| PDA-02 | Phase 20 | Pending |
-| PDA-03 | Phase 20 | Pending |
+| PDA-01 | Phase 20 | Complete |
+| PDA-02 | Phase 20 | Complete |
+| PDA-03 | Phase 20 | Complete |
 | PDA-04 | Phase 22 | Pending |
-| PDA-05 | Phase 20 | Pending |
+| PDA-05 | Phase 20 | Complete |
 | PDA-06 | Phase 22 | Pending |
 | FRAME-01 | Phase 21 | Pending |
-| FRAME-02 | Phase 20 | Pending |
+| FRAME-02 | Phase 20 | Complete |
 | FRAME-03 | Phase 21 | Pending |
-| FRAME-04 | Phase 20 | Pending |
-| FRAME-05 | Phase 20 | Pending |
+| FRAME-04 | Phase 20 | Complete |
+| FRAME-05 | Phase 20 | Complete |
 | INPUT-01 | Phase 23 | Pending |
 | INPUT-02 | Phase 23 | Pending |
 | INPUT-03 | Phase 23 | Pending |

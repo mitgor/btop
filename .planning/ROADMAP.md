@@ -58,7 +58,7 @@ Full details: `milestones/v1.2-ROADMAP.md`
 
 **Phase Numbering:** Integer phases 20-25. Decimal phases (e.g., 20.1) reserved for urgent insertions.
 
-- [ ] **Phase 20: PDA Types + Skeleton** - Define MenuFrameVar variant, frame structs, PDAAction enum, and MenuPDA class with push/pop/replace/top/empty operations
+- [x] **Phase 20: PDA Types + Skeleton** - Define MenuFrameVar variant, frame structs, PDAAction enum, and MenuPDA class with push/pop/replace/top/empty operations (completed 2026-03-02)
 - [ ] **Phase 21: Static Local Migration** - Refactor all 8 menu functions to receive frame data by reference, replacing function-static locals with frame struct members
 - [ ] **Phase 22: PDA Dispatch** - Replace menuMask/currentMenu/menuFunc with std::visit dispatch on PDA top frame; eliminate Switch re-entrant call pattern
 - [ ] **Phase 23: Input FSM** - Define InputStateVar variant, wire all transitions, replace if(filtering)/if(Menu::active) routing with FSM dispatch, integrate with App FSM resize path
@@ -169,7 +169,7 @@ Phases execute in numeric order: 20 -> 20.1 (if inserted) -> 21 -> ... -> 25
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
-| 20. PDA Types + Skeleton | v1.3 | 0/1 | Not started | - |
+| 20. PDA Types + Skeleton | 1/1 | Complete   | 2026-03-02 | - |
 | 21. Static Local Migration | v1.3 | 0/2 | Not started | - |
 | 22. PDA Dispatch | v1.3 | 0/2 | Not started | - |
 | 23. Input FSM | v1.3 | 0/3 | Not started | - |
