@@ -50,10 +50,9 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Migrate all 8 menus to PDA frames with per-frame state — v1.3
 - ✓ Refactor input routing into typed Input FSM (Normal/Filtering/MenuActive) — v1.3
 - ✓ Comprehensive tests for menu PDA and input FSM — v1.3 (330/330 pass)
+- ✓ Fix stale static const in calcSizes() (freq_range/hasCpuHz baked at first call) — v1.4 Phase 25
 
 ### Active
-
-- [ ] Fix stale static const in calcSizes() (freq_range/hasCpuHz baked at first call) — v1.4
 - [ ] Replace theme string-keyed maps with ThemeKey enum + std::array — v1.4
 - [ ] Convert cpu_old string-keyed unordered_map to std::array on all platforms — v1.4
 - [ ] Convert hot-path ifstream reads to POSIX I/O (Cpu::collect, Mem::collect) — v1.4
@@ -115,4 +114,4 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-02 after v1.4 milestone start*
+*Last updated: 2026-03-02 after Phase 25*

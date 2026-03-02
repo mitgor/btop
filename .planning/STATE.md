@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 26 - Theme Enum Arrays (next after completed Phase 25)
+**Current focus:** Phase 26 - Theme Enum Arrays
 
 ## Current Position
 
@@ -76,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 25-01-PLAN.md (stale static const fix)
+Stopped at: Phase 25 complete, ready to plan Phase 26
 Resume file: None
