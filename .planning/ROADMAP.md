@@ -148,5 +148,5 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25-27 | v1.4 | 5/5 | Complete | 2026-03-02 |
 | 28. Hot-Path POSIX I/O | 2/2 | Complete    | 2026-03-02 | - |
-| 29. Draw Decomposition | v1.5 | 0/2 | Not started | - |
+| 29. Draw Decomposition | 1/2 | In Progress|  | - |
 | 30. Unified Redraw | v1.5 | 0/2 | Not started | - |

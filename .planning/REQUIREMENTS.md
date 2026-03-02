@@ -14,9 +14,9 @@ Requirements for v1.5 Render & Collect Completion. Carried forward from v1.4 pha
 
 ### Draw Decomposition
 
-- [ ] **DRAW-01**: Proc::draw() split into focused sub-functions (detailed view, list rendering, filter display)
+- [x] **DRAW-01**: Proc::draw() split into focused sub-functions (detailed view, list rendering, filter display)
 - [ ] **DRAW-02**: Cpu::draw() split with battery state tracking extracted into separate function
-- [ ] **DRAW-03**: No regression in rendered output -- visual diff confirms identical terminal output
+- [x] **DRAW-03**: No regression in rendered output -- visual diff confirms identical terminal output
 
 ### Render Architecture
 
@@ -63,9 +63,9 @@ Which phases cover which requirements. Carried forward from v1.4.
 |-------------|-------|--------|
 | PERF-04 | Phase 28 | Complete |
 | PERF-05 | Phase 28 | Complete |
-| DRAW-01 | Phase 29 | Pending |
+| DRAW-01 | Phase 29 | Complete |
 | DRAW-02 | Phase 29 | Pending |
-| DRAW-03 | Phase 29 | Pending |
+| DRAW-03 | Phase 29 | Complete |
 | REND-01 | Phase 30 | Pending |
 | REND-02 | Phase 30 | Pending |
 
