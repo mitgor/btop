@@ -138,11 +138,11 @@ Plans:
   3. SizeError override test passes (push SizeError over existing menu, pop returns to previous menu)
   4. SignalSend->SignalReturn sequence test passes (post-pop push pattern works correctly)
   5. Resize-with-menu-open preserves interaction fields and invalidates layout fields; all Filtering exit paths tested (ESC, mouse click, enter)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 24-01: TBD
-- [ ] 24-02: TBD
+- [ ] 24-01-PLAN.md — PDA invariant tests (frame isolation, reopen-fresh, SizeError override, signal sequence, resize) + Input FSM tests (transitions, filtering exit paths)
+- [ ] 24-02-PLAN.md — ASan+UBSan and TSan sanitizer builds with full test suite
 
 ### Phase 25: Cleanup
 **Goal**: All migration scaffolding, dead declarations, and superseded globals are removed — the codebase contains only the final PDA + Input FSM representation
