@@ -106,11 +106,11 @@ Plans:
   2. Main-to-Options and Main-to-Help transitions use replace() (ESC returns to Normal, not Main)
   3. bg string lifecycle is tied to stack depth: captured on first push, cleared on final pop
   4. The Switch return-code re-entrant call pattern is eliminated — all frame transitions return PDAAction values applied by the caller after the visitor completes
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 22-01: TBD
-- [ ] 22-02: TBD
+- [ ] 22-01-PLAN.md — PDAResult struct, handler signature conversion, MenuVisitor, dispatch_legacy bridge
+- [ ] 22-02-PLAN.md — Non-recursive process() loop, show() rewrite, legacy dispatch deletion, header cleanup
 
 ### Phase 23: Input FSM
 **Goal**: Input routing is governed by a typed InputStateVar FSM that delegates to PDA when in MenuActive state, replacing all boolean-flag-based routing
