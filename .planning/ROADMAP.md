@@ -119,11 +119,11 @@ Plans:
   2. On macOS, the equivalent cpu_old structure uses enum-indexed array with platform-appropriate field names
   3. On FreeBSD, the equivalent cpu_old structure uses enum-indexed array with platform-appropriate field names
   4. CPU usage percentages displayed in btop match pre-change values (delta calculations produce identical results)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 27-01: TBD
-- [ ] 27-02: TBD
+- [ ] 27-01: Define CpuOldField Enum and Convert Linux cpu_old
+- [ ] 27-02: Convert macOS/FreeBSD/OpenBSD/NetBSD cpu_old
 
 ### Phase 28: Hot-Path POSIX I/O
 **Goal**: Linux hot-path proc file reads in Cpu::collect and Mem::collect use zero-allocation POSIX read() via read_proc_file() instead of ifstream
