@@ -2,15 +2,23 @@
 
 ## What This Is
 
-An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests.
+An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM).
 
 ## Core Value
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## Current State
+## Current Milestone: v1.3 Menu PDA + Input FSM
 
-v1.0, v1.1, and v1.2 milestones shipped. No active milestone — ready for `/gsd:new-milestone` to start next cycle.
+**Goal:** Replace the menu system's implicit bitset-driven state with an explicit pushdown automaton (typed stack frames, push/pop), and refactor input handling into a typed finite state machine (Normal/Filtering/MenuActive).
+
+**Target features:**
+- Pushdown automaton for all 8 menus with typed stack frames (std::variant)
+- Clean push/pop semantics replacing menuMask bitset + currentMenu int
+- Per-frame state replacing function-static locals
+- Input FSM with typed states (Normal, Filtering, MenuActive)
+- Comprehensive tests for both state machines
+- Zero regression in user-visible behavior
 
 ## Requirements
 
@@ -39,7 +47,10 @@ v1.0, v1.1, and v1.2 milestones shipped. No active milestone — ready for `/gsd
 
 ### Active
 
-(None — start next milestone with `/gsd:new-milestone`)
+- [ ] Replace menuMask + currentMenu with pushdown automaton (typed stack) — v1.3
+- [ ] Migrate all 8 menus to PDA frames with per-frame state — v1.3
+- [ ] Refactor input routing into typed Input FSM (Normal/Filtering/MenuActive) — v1.3
+- [ ] Comprehensive tests for menu PDA and input FSM — v1.3
 
 ### Out of Scope
 
@@ -48,9 +59,7 @@ v1.0, v1.1, and v1.2 milestones shipped. No active milestone — ready for `/gsd
 - Dropping platform support (Linux, macOS, FreeBSD all stay)
 - Rewriting in another language — this is C++ optimization, not a port
 - Adding new dependencies solely for performance (prefer zero-cost or header-only if needed)
-- Menu system refactor to pushdown automaton — defer to v1.3+ (working, complex)
-- Input state machine refactor — defer to v1.3+ (lower priority)
-- New features or architectural additions — this milestone is cleanup only
+- New features or UI/UX additions — architecture only, no user-facing changes
 
 ## Context
 
@@ -65,6 +74,8 @@ v1.0, v1.1, and v1.2 milestones shipped. No active milestone — ready for `/gsd
 - Benchmark infrastructure: nanobench microbenchmarks, --benchmark CLI mode, CI regression detection
 - PGO build pipeline available (1.1% gain — I/O-bound ceiling); mimalloc evaluated (1.6% gain)
 - v1.2 shipped: All tech debt resolved — single-writer invariant for app_state, 266/266 tests pass, -4.4% wall time cumulative
+- Menu system: 8 menus, state in menuMask bitset + currentMenu int + function-static locals + scattered globals
+- Input routing: implicit Menu::active check splits keys between Menu::process() and Input::process()
 
 ## Constraints
 
@@ -95,4 +106,4 @@ v1.0, v1.1, and v1.2 milestones shipped. No active milestone — ready for `/gsd
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-02 after v1.2 milestone completion*
+*Last updated: 2026-03-02 after v1.3 milestone start*
