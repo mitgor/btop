@@ -1,169 +1,214 @@
 # Pitfalls Research
 
-**Domain:** C++ terminal system monitor performance optimization (btop++)
-**Researched:** 2026-02-27
-**Confidence:** HIGH -- based on codebase analysis, C++ performance literature, and TUI optimization best practices
+**Domain:** C++ terminal UI — pushdown automaton menu system + input FSM added to existing explicit-FSM architecture (btop++ v1.3)
+**Researched:** 2026-03-02
+**Confidence:** HIGH — based on direct btop++ source analysis, established C++ FSM literature, and lessons from v1.1/v1.2 milestones
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Optimizing Without Profiling Data (Guessing at Bottlenecks)
+### Pitfall 1: Variant Self-Modification During std::visit (Dangling Reference UB)
 
 **What goes wrong:**
-Developers assume they know what is slow -- typically fixating on micro-optimizations like loop unrolling or branch prediction -- while the real bottleneck is elsewhere entirely. In btop's case, the actual hot path is likely the per-PID `/proc` iteration (which opens 3-4 files per process via `ifstream` for hundreds of processes every update cycle) and the draw functions that build multi-kilobyte output strings via 162+ `+=` / `.append()` operations per frame. Optimizing the wrong thing wastes weeks and produces no measurable improvement.
+A visitor lambda takes the current state by reference (e.g., `const MenuFrame& top_frame`), then modifies the stack or PDA variant from inside that lambda. The modification destroys the old variant contents. The reference the lambda holds now points to freed memory. Accessing it is undefined behavior — no compiler warning, no sanitizer catch in all paths, silent data corruption or crash.
+
+This is especially dangerous in the PDA because `process(key)` needs to pop the top frame, which destroys the old frame while still in the call chain derived from inspecting it.
 
 **Why it happens:**
-Developers trust intuition over data. C++ makes everything *look* potentially slow (templates, virtual dispatch, allocations), so developers scatter-optimize instead of focusing on measured hotspots. btop already has `DebugTimer` infrastructure but it measures wall-clock time per subsystem, not instruction-level hotspots.
+The pattern feels natural: visit the current state, decide what to do based on it, then do it. In simple FSMs where the state never has pointers into itself this is safe. Once the variant is reallocated or destroyed during the visit, any captured references go dangling. The v1.1 App FSM avoided this because `dispatch_event` returns a new `AppStateVar` rather than mutating in place — the same discipline must apply to the PDA.
 
 **How to avoid:**
-- Profile with `perf record` / `perf report` (Linux), Instruments (macOS) before writing any optimization code
-- Use `perf stat` to measure IPC (instructions per cycle), cache miss rates, and branch misprediction rates
-- Establish a reproducible benchmark: fixed terminal size, fixed number of processes, fixed update interval
-- Set quantitative targets (e.g., "reduce CPU::collect from 8ms to 4ms") before starting work
-- Re-profile after every change to confirm improvement
+- Never mutate the PDA stack from inside a `std::visit` call on that same stack's top frame
+- Follow the v1.1 pattern exactly: `process(key)` returns a new `MenuPDAVar` (or `std::optional<MenuPDAFrame>`) and the caller applies it after the visit completes
+- If the logic requires inspecting the top frame to decide whether to pop, extract the decision as a pure function returning a `PDAAction` enum (Push/Pop/Replace/NoChange), then apply the action outside the visitor
+- Run with `-fsanitize=address,undefined` and test rapid menu open/close/open sequences
 
 **Warning signs:**
-- "I think this is slow because..." without profiling data
-- Optimizing code that runs once per frame when the real cost is per-process-per-frame
-- Spending time on code paths that profile data shows are <1% of total runtime
-- Changes that show no measurable improvement in end-to-end benchmarks
+- Crash only under certain frame sequences (signal choose → signal send → escape)
+- Heisenbugs that disappear under ASan (allocator padding changes addresses)
+- Valgrind reports use-after-free in `Menu::process`
 
 **Phase to address:**
-Phase 1 (Profiling & Benchmarking Setup). This must be the first phase -- all subsequent optimization phases depend on its output.
+PDA frame data structure phase (earliest menu design phase). The visitor pattern must be settled before any menu frame is implemented.
 
 ---
 
-### Pitfall 2: Death by String Allocation in the Render Path
+### Pitfall 2: Static Local State Survives Re-Entry — The Hidden Persistent Menu Bug
 
 **What goes wrong:**
-btop's draw functions (`Cpu::draw`, `Mem::draw`, `Net::draw`, `Proc::draw` in `btop_draw.cpp`) build the entire frame output by concatenating strings with `out += ...` -- 162+ concatenation operations in `btop_draw.cpp` alone. Each `+=` may trigger a reallocation and copy of the entire accumulated string. The `Mv::to()`, `Mv::r()`, `Mv::d()` cursor functions in `btop_tools.hpp` each call `to_string()` (98 calls across the codebase) which allocates. The `fmt::format()` calls (88 in `btop_draw.cpp`) also allocate intermediate strings. The final `output` string in the runner loop concatenates all box outputs together. This pattern creates hundreds of heap allocations per frame.
+The current `signalChoose`, `optionsMenu`, `helpMenu`, `reniceMenu`, and `mainMenu` functions each carry `static int x`, `static int y`, `static int selected_signal`, `static int page`, `static vector<string> colors_selected`, and similar locals that persist between calls. The existing code resets them when `bg.empty()` (a proxy for "first call of this menu activation"). When these statics are migrated to per-frame struct members, the reset logic must be replicated exactly. If even one field is missed, the menu reopens in a stale visual state — wrong scroll position, wrong selection highlight, wrong page number.
+
+The specific risk: the PDA push-on-show path calls the constructor for the new frame struct, which zero-initializes POD members. But any non-POD member with a non-trivial default constructor (e.g., a `std::string nice_edit`) must be explicitly reset. If a frame struct is ever recycled (stored in a pool or re-pushed from a closed state), old string values survive.
 
 **Why it happens:**
-String concatenation is the most natural way to build terminal output in C++. The code reads clearly and works correctly. The cost is invisible -- each `+=` is O(1) amortized for a single string, but the cumulative reallocation cost across hundreds of operations per frame becomes significant. The existing `out.reserve(width * height)` calls help but underestimate the true size because they do not account for escape code bytes.
+Static locals are reset by condition (`if (bg.empty())`) rather than by construction. When rewriting to struct-based frames, developers frequently translate the condition-based reset into the constructor but miss non-obvious reset points: `signalChoose` resets `selected_signal = -1` in the `bg.empty()` branch, but that branch also rebuilds `bg` — so missing the bg rebuild is equivalent to missing the reset. The two concerns are tangled in the original code.
 
 **How to avoid:**
-- Measure allocation count per frame using `perf record -e malloc` or a custom allocator wrapper before optimizing
-- Pre-calculate accurate buffer sizes including escape code overhead (each color escape is 10-20 bytes)
-- Use `reserve()` with accurate estimates rather than `width * height` (actual output includes escape codes, cursor movements, and formatting that typically 3-5x the visible character count)
-- Consider `fmt::format_to(std::back_inserter(buffer), ...)` to append directly into a pre-allocated buffer instead of creating intermediate strings
-- Convert `Mv::to()`, `Mv::r()`, `Mv::d()` to write directly into an output buffer rather than returning new strings
-- Profile before and after to confirm allocations actually decreased
+- Audit every `static` local in every menu function before writing any frame struct. Record each field, its type, its initial value, and when it is reset. This produces the authoritative field list for the frame struct.
+- Implement frame struct constructors that unconditionally initialize every field to its "fresh open" value — not conditionally
+- Delete the `bg.empty()` reset pattern entirely; replace it with construction semantics: "a new frame is always fresh"
+- Treat `bg` (the box drawing string) as a renderable output computed on the first call, not as a state-reset flag
+- Write a test for each menu that: opens the menu, interacts with it (changes selected item, page, etc.), closes it, reopens it — and asserts the reopened state matches a fresh open
 
 **Warning signs:**
-- `perf` shows significant time in `malloc`/`free`/`operator new`/`operator delete`
-- Frame render time scales non-linearly with terminal size
-- Heap profiler shows hundreds of small allocations (20-200 bytes) per frame
+- Menu reopens on wrong page or with previous selection highlighted
+- Signal choose dialog shows last signal number instead of -1 after reopening
+- Renice menu shows previous nice value after reopening with a different process selected
+- Options menu opens at last scroll position instead of top
 
 **Phase to address:**
-Phase 2 or 3 (String/Allocation Optimization). Must come after profiling confirms this is actually a bottleneck. Do not assume -- measure first.
+The static-locals audit must happen in the first PDA implementation phase, before any frame struct is coded. The test for each menu's fresh-open state must be in the test phase.
 
 ---
 
-### Pitfall 3: std::regex on the Hot Path
+### Pitfall 3: Dual Menu State — Variant and Bitset Desync During Incremental Migration
 
 **What goes wrong:**
-`std::regex` is notoriously slow across all major C++ standard library implementations. libc++ is approximately 10x slower than libstdc++, and even libstdc++ is slow compared to alternatives. btop uses `std::regex` in several places:
-- `Fx::escape_regex` and `Fx::color_regex` are compiled as global `const` objects (good -- compiled once) but `Fx::uncolor()` calls `std::regex_replace` which is called in the runner loop output path (`btop.cpp:730`) when an overlay is active
-- Process filtering via `std::regex_search` / `std::regex_match` in `btop_shared.cpp:183-185` runs against every visible process when a regex filter is active
-- `Fx::uncolor()` is called to strip all color codes from the entire frame output -- a multi-kilobyte string -- every frame when the overlay is visible
+The migration from `menuMask` + `currentMenu` to a PDA stack will be incremental — some menus converted, others not. During the transition, both systems may be live simultaneously. The existing `Menu::process()` reads `menuMask` and `currentMenu` to determine what to display. If the PDA stack says "Options is active" but `menuMask` has been cleared, `Menu::process` sees no active menu and exits. If `menuMask` is set but the PDA stack is empty, `Menu::active` may be set while the PDA has nothing to display.
 
-Replacing these with hand-written parsers or a faster regex library could yield significant speedups in these code paths.
+This is structurally identical to the v1.2 shadow-atomic desync bug (variant and `app_state` atomic diverging), which caused hard-to-reproduce failures before `transition_to()` enforced single-writer invariant. The v1.1 retrospective explicitly flagged this: "shadow atomics create consistency debt."
 
 **Why it happens:**
-`std::regex` is the standard library solution and appears correct and simple. Its poor performance is a well-documented issue in the C++ community but not obvious to developers who have not benchmarked it. The regex patterns used (`\033\[\d+;\d?;\d*;\d*;\d*(m){1}`) are simple enough that manual parsing would be straightforward and dramatically faster.
+Incremental migration requires both old and new representations to be maintained simultaneously. Any code path that writes one but not the other creates a window of inconsistency. In the v1.2 case it was the runner error path writing the shadow atomic directly. Here the risk is any call site that calls `menuMask.set()` without also pushing a PDA frame, or that pops a PDA frame without clearing the corresponding `menuMask` bit.
 
 **How to avoid:**
-- Profile to confirm regex is actually a bottleneck before replacing it
-- For `Fx::uncolor()`: write a simple state machine that scans for `\033[` and skips to the next `m` -- this is trivial for ANSI escape codes and will be 10-100x faster than regex
-- For process filtering: `std::regex` is user-facing and harder to replace, but consider compiling the regex once and reusing it (already done), and consider `std::string::find` for non-regex filters (already done -- regex is only used when filter starts with `!`)
-- If a regex library is needed, Google RE2 is fast, safe, and thread-friendly, but adding it as a dependency conflicts with the project constraint of no new heavy dependencies
+- Apply the single-writer invariant immediately: at the start of the migration, wrap all `menuMask` mutations and `currentMenu` assignments inside a single function (`menu_show()` / `menu_close()`) that updates both representations atomically
+- Never let PDA push/pop calls exist without a corresponding `menuMask` update in the same function, or vice versa
+- After each menu is migrated, remove the `menuMask.set()` call for that menu and replace it with PDA push only — do not run both in parallel longer than one phase
+- Add an assertion at the top of `Menu::process()` that verifies: `menuMask.none() == pda_stack.empty()` during the transition period
 
 **Warning signs:**
-- `perf` shows time in `std::regex_search`, `std::regex_replace`, or `std::regex_match`
-- Frame render time spikes when overlay is active (due to `Fx::uncolor` on full output)
-- Process list rendering slows when a regex filter is set with many processes
+- `Menu::active` is false but PDA stack is non-empty (or vice versa)
+- Menu appears briefly then immediately closes without user input
+- Escape from a menu puts the system in a partially-active state where background renders incorrectly
 
 **Phase to address:**
-Phase 2 (Hot Path Optimization) for `Fx::uncolor()`. Phase 3 or later for process filter regex, since it only applies when user has set a regex filter.
+First migration phase. The wrapper function must be written before the first menu is migrated, not after.
 
 ---
 
-### Pitfall 4: Filesystem Syscall Storm in Process Collection
+### Pitfall 4: Mouse Mapping Ownership Ambiguity Between Menu PDA and Input FSM
 
 **What goes wrong:**
-The Linux process collection loop (`linux/btop_collect.cpp:3002`) iterates over every PID directory in `/proc` and opens 3-4 files per process (`comm`, `cmdline`, `status`, `stat`) using `std::ifstream`. On a system with 500 processes, this means 1500-2000 `open()`/`read()`/`close()` syscall triplets per update cycle. Each `ifstream` construction also involves C++ runtime overhead (locale, stream state initialization). The `readfile()` utility function (`btop_tools.cpp:561`) additionally calls `fs::exists()` before opening -- adding an extra `stat()` syscall for every call. The macOS and FreeBSD collectors have similar patterns with their respective APIs.
+The current code has two `mouse_mappings` maps: `Menu::mouse_mappings` (used when `Menu::active` is true) and `Input::mouse_mappings` (used otherwise). The dispatching in `Input::get()` at line 182 reads:
+
+```cpp
+for (const auto& [mapped_key, pos] : (Menu::active ? Menu::mouse_mappings : mouse_mappings))
+```
+
+This binary choice will not scale to a PDA stack with multiple frames that each have their own mouse regions. If a modal dialog (SignalSend) is open on top of the Main Menu, the input system must consult only `SignalSend`'s mouse mappings — not the underlying Main Menu's mappings, and not the global input mappings.
+
+If the PDA frame's mouse mappings are merged into a single flat map for efficiency, a key collision between frames (e.g., both Main Menu and Options define a "button1" mapping) silently overwrites one with the other, creating incorrect click targets.
+
+If the Input FSM introduces a `MenuActive` state that holds a reference to the top-frame's mappings, but the PDA stack is modified between key parsing and click dispatch, the reference goes stale.
 
 **Why it happens:**
-`/proc` is the standard Linux interface for process information. Reading individual files is the documented and correct approach. The overhead is per-syscall, not per-byte, so the bottleneck is the number of file operations rather than the amount of data read. `ifstream` is the idiomatic C++ approach but carries more overhead than raw `open()`/`read()`/`close()`.
+The original code assumes at most one active menu, making the binary `Menu::active` check sufficient. The PDA introduces a hierarchy — the top frame is what the user sees, lower frames are hidden. The input system needs to be aware of this hierarchy without coupling directly to PDA internals. Developers tend to resolve this by passing a pointer or reference to the top frame's mappings, which creates a lifetime issue when the stack is modified.
 
 **How to avoid:**
-- Profile first -- measure how much time is actually spent in syscalls vs. parsing vs. string operations
-- Consider using raw `open()`/`read()`/`close()` with stack-allocated buffers instead of `ifstream` for hot-path `/proc` reads -- this eliminates C++ stream initialization overhead
-- Remove the redundant `fs::exists()` check in `readfile()` -- just try to open the file and handle failure
-- Combine reads where possible: `/proc/[pid]/stat` already contains most needed fields; avoid opening `comm` and `status` separately for cached processes
-- Cache file descriptors for `/proc/stat` and other global files that are read every cycle (use `lseek` + `read` instead of `close` + `open`)
-- Consider reading `/proc/[pid]/stat` with a single `read()` into a stack buffer and parsing in-place rather than using `getline()` with heap-allocated strings
+- Each PDA frame struct owns its mouse mappings as a value member (`std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings`)
+- `Menu::process()` returns (or sets) a single `const std::unordered_map<string, Mouse_loc>*` pointing to the top frame's mappings after each transition
+- `Input::get()` reads this pointer exactly once per input event, before any state modification
+- The Input FSM's `MenuActive` state stores a pointer to the stable mappings; the pointer is refreshed by `Menu::process()` after every PDA transition, not during input parsing
+- No merging of mouse mappings across frames: only the topmost frame's mappings are ever active
 
 **Warning signs:**
-- `strace -c` shows thousands of `openat()`/`read()`/`close()` syscalls per update
-- CPU time in `Proc::collect` dominates total collection time
-- Collection time scales linearly with process count (expected, but the constant factor matters)
-- `perf` shows significant time in kernel `vfs_read`, `proc_pid_read_map`, or related proc filesystem functions
+- Clicking a button in a modal dialog triggers an action in the underlying menu
+- Mouse regions don't update after pushing/popping a PDA frame
+- Click coordinates map to the wrong action after terminal resize with menu open
 
 **Phase to address:**
-Phase 2 or 3 (Data Collection Optimization). This is likely the single largest optimization opportunity on Linux, but must be confirmed by profiling.
+Input FSM design phase. The mappings ownership model must be settled before implementing any Input FSM state struct.
 
 ---
 
-### Pitfall 5: Breaking Cross-Platform Behavior While Optimizing
+### Pitfall 5: Input FSM `proc_filtering` State Encoded in Config, Not FSM
 
 **What goes wrong:**
-An optimization that works brilliantly on Linux (e.g., replacing `ifstream` with raw `read()` on `/proc`) has no equivalent on macOS (which uses `sysctl`, `proc_pidinfo`, IOKit) or FreeBSD (which uses `kvm_getprocs`, `sysctl`). Developers optimize the Linux path, test on Linux, and break macOS/FreeBSD builds or introduce behavioral differences. The platform-specific collectors (`linux/btop_collect.cpp`, `osx/btop_collect.cpp`, `freebsd/btop_collect.cpp`) share the same interface but have entirely different implementations -- an optimization strategy that assumes Linux internals will not transfer.
+The current `Input::process()` checks `Config::getB(BoolKey::proc_filtering)` at the top to decide whether to enter filter-editing logic. This boolean lives in the config system, not in an FSM state. When the Input FSM is introduced with a `Filtering` state, there will be two representations of the same fact: the FSM state and the config value. If the FSM transitions to `Filtering` but `proc_filtering` is not set, or vice versa, the behavior diverges.
+
+Further: `Input::process()` calls `Config::set(BoolKey::proc_filtering, false)` to exit filtering mode. After the Input FSM exists, this write must also trigger an FSM transition to `Normal`. If the write happens but the transition does not (or happens in the wrong order), the FSM is in `Filtering` state while the config says `false` — the next key press will be handled by `Normal` handlers but the filtering UI is still visible.
 
 **Why it happens:**
-Developers typically develop and test on one platform. Linux is the most common development target and has the most optimization opportunities (procfs is well-understood). macOS and FreeBSD have different performance characteristics and bottlenecks. The shared header (`btop_shared.hpp`) defines the interface but the implementations diverge significantly.
+The config system is the original source of truth for all stateful toggles in btop. Introducing a separate FSM that tracks the same fact creates dual-write responsibility. Developers tend to add FSM transitions in some code paths but miss others (keyboard shortcut, mouse click, escape, programmatic config set). The v1.2 milestone had the same issue: `runner_var` was a dead variant because all writes went through the shadow atomic, leaving the variant stale.
 
 **How to avoid:**
-- Test on all three platforms (Linux, macOS, FreeBSD) before merging any optimization, or at minimum ensure CI covers all platforms
-- Keep optimizations in platform-specific files when they involve platform-specific APIs
-- Shared-code optimizations (string handling, draw path, data structures) are safer -- they benefit all platforms equally
-- When optimizing the Linux collector, identify the *equivalent* optimization for macOS/FreeBSD rather than leaving those platforms unoptimized
-- Use `#ifdef` blocks only for platform-specific code; prefer portable C++ for shared logic
+- Decide before coding: is `proc_filtering` a config value or an FSM state? Recommendation: make it an FSM state (`InputFSM::Filtering`) that is the authoritative source; remove the `proc_filtering` config key or make it a read-only view of the FSM state at save time
+- All code paths that previously called `Config::set(BoolKey::proc_filtering, true/false)` must be replaced with FSM transitions
+- Grep for every read of `proc_filtering` and verify each one is replaced by FSM state check
+- Run the full test suite after migration to verify all entry/exit points to filtering mode are correct
 
 **Warning signs:**
-- Optimization only touches `linux/btop_collect.cpp` without considering `osx/` and `freebsd/`
-- CI builds fail on non-Linux platforms after optimization changes
-- Performance improves on Linux but regresses or stays flat on macOS
-- New platform-specific code paths without corresponding test coverage
+- Entering filter mode and pressing escape leaves the filter text box visible but the FSM in `Normal` state
+- Typing characters after pressing 'f' does nothing (FSM thinks it's in `Normal` state)
+- `proc_filtering` config file entry is written as `true` after program exit despite filter not being active
 
 **Phase to address:**
-Every phase. This is a cross-cutting concern. Each optimization must be validated on all supported platforms.
+Input FSM implementation phase. The config key removal or aliasing must happen in the same phase as the FSM introduction, not deferred.
 
 ---
 
-### Pitfall 6: Introducing Data Races in the Collect/Draw Pipeline
+### Pitfall 6: Existing App FSM Resize Handling Calls `Menu::process()` Without PDA Awareness
 
 **What goes wrong:**
-btop uses a secondary runner thread (`Runner::_runner` in `btop.cpp`) that runs collect and draw functions, while the main thread handles input and signals. These threads communicate through `atomic<bool>` flags (`Runner::active`, `Runner::stopping`, `Runner::redraw`, `Global::resized`). Global mutable state is pervasive: `Cpu::box`, `Mem::box`, `Net::box`, `Proc::box` are all global strings; `current_procs` is a global vector. The `atomic_lock` class provides coarse-grained synchronization, but optimizations that introduce new shared state or change access patterns can easily create data races. For example, adding a cache that is written by the collect thread and read by the draw thread without synchronization.
+The `on_enter(state::Resizing&, ...)` function in `btop.cpp` line 1009 calls:
+
+```cpp
+if (Menu::active) Menu::process();
+```
+
+This call is designed to re-render the current menu after a resize. It works with the current bitset model because `menuMask` and `currentMenu` survive the resize. With a PDA, the same call must re-render the top frame. But the PDA frame structs store absolute screen coordinates (`x`, `y`, `height`, `width`) computed at push time from `Term::width` and `Term::height`. After a resize, these stored coordinates are stale — they reference a terminal size that no longer exists.
+
+If the frame struct is re-rendered using stale coordinates but the frame is not reconstructed (re-pushed), the menu appears at wrong coordinates or overflows the terminal boundary.
+
+If the frame is reconstructed on resize (coordinates recomputed), the frame's non-coordinate state (current page, current selection, signal being chosen) must be preserved. The existing static-local approach handles this naturally because the statics survive. Frame struct-based PDA must explicitly separate "layout state" (coordinates, renderable strings) from "interaction state" (selection, page, entered values).
 
 **Why it happens:**
-Performance optimizations often involve caching, buffering, or parallelizing work -- all of which introduce shared mutable state. The existing code has carefully-placed atomic operations, but the synchronization model is implicit (not documented) and relies on the runner thread being the only thread that accesses most data structures. Any optimization that breaks this implicit contract creates subtle, intermittent bugs.
+Coordinates are convenient to precompute and store in the frame because they are used on every render. But computing them at push time means they are only valid for the terminal size at the time of the push. The existing code treats `redraw = true` on resize as a cue to recompute, and `bg.empty()` as the trigger to reinitialize all layout state. PDA frames will not have a `bg.empty()` signal by design.
 
 **How to avoid:**
-- Understand the existing threading model before modifying it: the runner thread owns all collect/draw data; the main thread owns input; communication is via atomic flags
-- Do not introduce new shared mutable state without explicit synchronization
-- Use ThreadSanitizer (`-fsanitize=thread`) in CI and during development
-- Prefer immutable data or thread-local storage for optimization caches
-- If parallelizing collection (e.g., collecting CPU and MEM simultaneously), ensure no shared mutable state between collectors
-- Document any new synchronization requirements
+- Separate PDA frame data into two categories in the struct:
+  - `layout`: `x`, `y`, `width`, `height`, `bg` (the rendered box string) — all derived from terminal size
+  - `interaction`: selection index, page number, entered text, chosen signal — user interaction state
+- On resize, invalidate only `layout` fields (e.g., set `bg.clear()`, zero coordinates) while preserving `interaction` fields
+- Give each frame struct an `invalidate_layout()` method that `Menu::process()` calls when it detects a resize
+- Write a test that: opens SignalChoose, resizes terminal, verifies signal list redraws at correct coordinates but `selected_signal` is preserved
 
 **Warning signs:**
-- Intermittent crashes or incorrect data that cannot be reliably reproduced
-- Valgrind/TSan reports data race warnings
-- Optimization works in single-threaded testing but fails under real operation
-- New `static` variables in functions called from the runner thread
+- Menu appears at top-left corner (0,0) after resize
+- Menu overflows terminal boundary after resize to smaller terminal
+- Selection resets to default after resize
+- Resize while menu is open causes double-draw artifacts
 
 **Phase to address:**
-Every phase, but especially Phase 3+ when more aggressive optimizations are attempted (parallelization, caching, buffer reuse).
+PDA frame struct design phase. The layout/interaction separation must be in the initial struct definition, not added as a retrofit.
+
+---
+
+### Pitfall 7: `Menu::show()` Called from Input::process() Creates a Re-Entrant Call Chain
+
+**What goes wrong:**
+The existing call chain is: main loop → `Input::process(key)` → `Menu::show(Menu::Menus::SignalSend, SIGTERM)` → `menuMask.set(menu)` → `Menu::process()`. This is a re-entrant call into the menu system from inside the input processor. With a PDA, `Menu::show()` would push a frame onto the PDA stack. But `Input::process()` is called when `Menu::active` is false. If the Input FSM has a `Normal` state, the `Menu::show()` call transitions the menu PDA and sets `Menu::active = true`. On the next loop iteration, `Menu::process()` runs. This is coherent.
+
+The dangerous case: if `Menu::show()` is called from inside `Menu::process()` (e.g., Main Menu choosing Options pushes the Options frame directly via `menuMask.set(Menus::Options)` in `mainMenu()`). With a PDA, this becomes a push-inside-process call. If `Menu::process()` dispatches to the top frame via `std::visit`, and that visitor calls `Menu::show()` which pushes a new frame, the stack is modified during iteration. If `std::visit` holds a reference to the old top frame, it is now dangling (see Pitfall 1).
+
+**Why it happens:**
+The existing `Switch` return code from `menuFunc` triggers `Menu::process()` recursive call (lines 1866-1872). This is an undocumented re-entrant call pattern. The `mainMenu` function calls `menuMask.set(Menus::Options)` and `currentMenu = Menus::Options` directly (lines 1229-1234), then returns `Changed`. The `process()` function's response to `Switch` reinvokes `process()`. With a PDA, this must become a push action returned from the frame handler, applied after the visitor completes.
+
+**How to avoid:**
+- Frame handlers must never push/pop the PDA stack directly; they return a `PDAAction` (Push/Pop/Replace/NoChange) and the caller applies it
+- The `Switch` return code from v1 must be renamed to `Push(next_frame)` or `Replace(next_frame)` that carries the new frame as a value
+- `Menu::show()` must be called only from outside `Menu::process()` — from `Input::process()` or the main loop — never from inside a frame handler
+- In-menu navigation (Main → Options) must return `Push(OptionsFrame{})` not call `Menu::show()` directly
+
+**Warning signs:**
+- Opening Options from Main Menu crashes or shows blank overlay
+- Pressing Options in Main Menu has no effect
+- The PDA stack has two frames that both claim to be the current menu simultaneously
+
+**Phase to address:**
+PDA action design phase (concurrent with frame struct design). The action return type must be established before any frame handler is implemented.
 
 ---
 
@@ -173,38 +218,48 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Platform-specific optimization without portable fallback | Faster results on one OS | Maintenance burden, divergent behavior across platforms | Only in platform-specific files (`linux/`, `osx/`, `freebsd/`) with equivalent work planned for other platforms |
-| Replacing `std::string` with raw `char*` buffers | Eliminates allocation overhead | Loses memory safety, introduces buffer overflow risk, harder to maintain | Never in shared code; acceptable in hot-path platform collectors with careful bounds checking |
-| Adding compiler-specific intrinsics (`__builtin_expect`, SIMD) | Measurable speedup on GCC/Clang | Breaks portability to other compilers, obscures intent | Only behind `#ifdef` with standard fallback; only when profiling shows >5% improvement |
-| Removing safety checks (bounds checking, null checks) for speed | Avoids branch overhead | Crashes in edge cases (zombie processes, /proc race conditions, unexpected kernel changes) | Never -- `/proc` data is inherently unreliable; safety checks are mandatory |
-| Global pre-allocated buffers to avoid per-frame allocation | Zero allocation per frame | Thread safety issues, maximum size assumptions, memory waste when idle | Acceptable if thread-confined and sized to reasonable maximums with overflow fallback |
-| Skipping `shrink_to_fit()` calls to avoid reallocation | Avoids one reallocation | Unbounded memory growth for containers that spike in size | Acceptable for containers with bounded maximum size; review memory profile periodically |
+| Keep `menuMask` alive alongside PDA during migration | No big-bang change, safe fallback | Desync between bitset and PDA grows as more menus migrate; each desync is a latent bug | Only for a single phase; remove `menuMask` completely in the phase that completes the last menu migration |
+| Store mouse mappings in a global flat map instead of per-frame | No change to `Input::get()` dispatch | Frame boundaries are invisible to the input system; collision between frame keys is silently wrong | Never — per-frame ownership is required for PDA correctness |
+| Use `Config::proc_filtering` as the FSM's source of truth during migration | Avoids rewriting all filtering entry points at once | Two sources of truth; any path that writes one and not the other leaves them desynced | Acceptable for at most one phase, with a specific plan to remove the config key |
+| Leave `static` locals in unconverted menu functions | Reduced scope of each PR | Static locals persist across menu open/close cycles; incompatible with per-frame construction semantics | Only while that menu has not yet been migrated; must be fully removed when the frame is introduced |
+| Compute coordinates at push time and never invalidate | Simpler push logic | Stale coordinates on resize; menu renders at wrong position | Never — resize must invalidate layout state |
+
+## Integration Gotchas
+
+Common mistakes when connecting the new PDA + Input FSM to the existing btop systems.
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| App FSM Resizing entry action | Calling `Menu::process()` without invalidating PDA frame layout | `on_enter(Resizing)` calls `menu_pda.invalidate_layout()` before `Menu::process()` |
+| Runner `pause_output` flag | Set in `Menu::process()` but cleared in multiple paths; PDA pop must clear it | PDA pop action must always clear `pause_output` regardless of which frame was popped |
+| `Global::overlay` string | Currently set directly in each menu function; with PDA, the active frame owns the overlay | Only `Menu::process()` writes `Global::overlay`; frame handlers return rendered strings, not write globals |
+| `Input::get()` mouse dispatch | Reading `Menu::mouse_mappings` directly; must read top-frame mappings | `Input::get()` reads a stable pointer set by `Menu::process()` after each PDA transition |
+| `Runner::run("overlay")` call | Called with frame-specific logic; PDA must know whether to run overlay or all | Frame handlers return a render scope (`overlay` or `all`); `Menu::process()` calls `Runner::run(scope)` |
+| `Input::process()` calling `Menu::show()` | After Input FSM is introduced, `Menu::show()` must also transition the Input FSM | `Menu::show()` → push PDA frame AND transition Input FSM to `MenuActive` atomically |
 
 ## Performance Traps
 
-Patterns that work at small scale but fail under stress.
+Patterns that create measurable overhead in the menu-active render path.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Linear scan for PID lookup (`rng::find(current_procs, pid)` at line 3020) | Collection time grows quadratically with process count | Use a hash map (`unordered_map<size_t, size_t>`) for PID-to-index lookup | >500 processes (O(n) per PID * n PIDs = O(n^2) total) |
-| `deque<long long>` for time series data (used throughout for CPU/memory/network history) | Cache misses during graph rendering due to non-contiguous memory | Profile cache miss rate; consider circular buffer over `vector` if iteration dominates | When graph width exceeds deque chunk size (typically 512 bytes / 8 bytes = 64 elements) |
-| `unordered_map<string, ...>` for fixed small key sets (e.g., `cpu_percent` with 11 known keys) | Hash computation + heap allocation for every lookup by string key | Use `enum` keys with `array` or `flat_map` for fixed key sets; eliminates hashing and allocation | Always -- overhead is constant but unnecessary for known-at-compile-time keys |
-| Building full output string then calling `Fx::uncolor()` with regex on entire output | Frame time spikes proportional to output size when overlay is active | Track colored/uncolored output in parallel, or strip inline during construction | Terminal sizes >100x40 with overlay active |
-| `std::filesystem::directory_iterator` for `/proc` enumeration | Allocates per entry, slower than raw `opendir`/`readdir` | Profile; consider `opendir`/`readdir` if allocation overhead is significant | Systems with >1000 processes |
-| `fmt::format()` creating intermediate strings for cursor movement | Hundreds of small allocations per frame for escape sequences | Use `fmt::format_to()` with back_inserter, or pre-computed escape code tables | Every frame -- constant overhead but multiplied by number of UI elements |
+| Rebuilding full options menu string on every keypress (not just on `Changed`) | Options menu renders lag on slow terminals | Only rebuild `Global::overlay` when frame handler returns `Changed`, not on `NoChange` | Always — the options menu string is large (~4KB) |
+| `std::vector` for PDA stack with reserve-on-push | Reallocation invalidates all pointers to stack elements | Use a fixed-capacity stack (max depth is known: 8 menus) or `std::array<std::optional<Frame>>` | When OptionsMenu is pushed on top of MainMenu and the vector reallocates |
+| Per-keypress `mouse_mappings.clear()` and rebuild | Mouse regions flicker during rapid input | Only rebuild mouse mappings on `redraw`, not on `NoChange` returns | Fast input sequences (keyboard repeat) |
+| Copying frame structs on push | Unnecessary copy of `bg` string (~2KB for Options) | Use move semantics: `push(std::move(frame))` | Options menu push |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Profiling setup:** Often missing reproducible benchmark conditions -- verify fixed terminal size, fixed process count, fixed update interval, CPU frequency governor set to `performance`
-- [ ] **String optimization:** Often missing escape code size accounting -- verify `reserve()` calls include 3-5x overhead for ANSI escape codes, not just visible character count
-- [ ] **Allocation reduction:** Often missing measurement of *actual* allocation count -- verify with `perf record -e probe_libc:malloc` or custom allocator, not just wall-clock time
-- [ ] **Cache optimization:** Often missing cache invalidation -- verify cached data is properly refreshed when terminal is resized, theme changes, or config is reloaded
-- [ ] **Cross-platform testing:** Often missing FreeBSD/NetBSD/OpenBSD -- verify builds and runs on all five platform-specific collector implementations, not just Linux and macOS
-- [ ] **Thread safety:** Often missing TSan validation -- verify no data races with `clang++ -fsanitize=thread` under real operation (not just unit tests)
-- [ ] **Regression testing:** Often missing visual correctness -- verify output is byte-identical before and after optimization (capture terminal output to file and diff)
-- [ ] **Memory usage measurement:** Often missing RSS tracking -- verify memory usage did not increase as a side effect of performance optimization (pre-allocated buffers consume resident memory)
+- [ ] **PDA push/pop:** Often missing — verify that popping the last frame sets `Menu::active = false` and clears `Global::overlay` immediately, not on next loop iteration
+- [ ] **Static local audit:** Often missing fields — verify every `static` local in all 8 menu functions is accounted for in a frame struct member before removing it
+- [ ] **Resize with menu open:** Often skipped in testing — verify each menu renders correctly after terminal resize with no selection reset
+- [ ] **Input FSM Filtering exit paths:** Often missing the mouse_click exit — verify that `mouse_click` while filtering exits filtering mode (existing code path line 319 in `btop_input.cpp`)
+- [ ] **Re-entry clean state:** Often misses non-obvious resets — verify that reopening SignalChoose after a previous selection shows `selected_signal = -1` not the previous value
+- [ ] **`pause_output` cleared on all pop paths:** Often missed for error pop paths — verify that `Runner::pause_output` is always false after any PDA empty state
+- [ ] **Mouse mappings updated after resize:** Often missing — verify that clicking after a resize with menu open uses new screen coordinates
+- [ ] **Config save on Options close:** Often broken by FSM changes — verify that closing Options menu writes config to disk (existing behavior via `optionsMenu` Closed handler)
 
 ## Recovery Strategies
 
@@ -212,12 +267,13 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Optimized wrong bottleneck | LOW | Revert changes, re-profile, redirect effort to actual bottleneck. No harm done if changes were isolated. |
-| String allocation regression (slower after "optimization") | LOW | Revert, benchmark with allocation profiler, apply targeted fix only where allocations are confirmed expensive. |
-| Cross-platform build break | MEDIUM | Fix immediately; add platform-specific CI checks; review optimization for portability. May need platform-specific implementation paths. |
-| Data race introduced | HIGH | Extremely difficult to debug. Run TSan to identify. May require rethinking optimization approach. Revert to last known-good state and re-approach with explicit synchronization design. |
-| Visual regression (incorrect rendering) | MEDIUM | Capture reference output before optimization. Diff against post-optimization output. Regression is usually in escape code sequencing or string truncation. |
-| Memory growth from pre-allocated buffers | LOW | Add monitoring for resident memory; cap buffer sizes; add `shrink_to_fit()` on config change or terminal resize. |
+| Variant self-modification UB | HIGH | Run ASan — may not catch; run Valgrind with `--tool=memcheck`; restructure visitor to extract action type, apply outside visit; add regression test for the sequence that triggered it |
+| Static local state not reset | LOW | Add test for fresh-open invariant; patch frame struct constructor to explicitly set all fields; run test suite |
+| Bitset/PDA desync | MEDIUM | Introduce `assert(menuMask.none() == pda_stack.empty())` in `Menu::process()` to catch immediately; trace which code path set one without the other; add to single-writer wrapper |
+| Mouse mapping ownership confusion | MEDIUM | Add click-region test with deliberate overlap; trace which mapping table `Input::get()` reads; switch to per-frame ownership pattern |
+| Input FSM / proc_filtering desync | MEDIUM | Grep for all `proc_filtering` writes; ensure each one also transitions the Input FSM; add test that both agree after every mode change |
+| Resize with stale coordinates | LOW | Implement `invalidate_layout()` on frame structs; call from `on_enter(Resizing)`; test by resizing terminal while each menu is open |
+| Re-entrant push during std::visit | HIGH | If crash: use `PDAAction` return-value pattern instead of direct push; add test that covers Main→Options in-menu navigation |
 
 ## Pitfall-to-Phase Mapping
 
@@ -225,31 +281,25 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Optimizing without profiling | Phase 1: Profiling & Benchmarking | Profiling infrastructure exists; baseline measurements documented; no optimization code written without profile data |
-| String allocation in render path | Phase 2: String/Allocation Optimization | Allocation count per frame measured before and after; frame render time decreased |
-| std::regex on hot path | Phase 2: Hot Path Optimization | `Fx::uncolor()` replaced with manual parser; profile confirms regex is no longer in hot path |
-| Filesystem syscall storm | Phase 3: Data Collection Optimization | `strace -c` shows reduced syscall count; `Proc::collect` time decreased |
-| Cross-platform breakage | Every phase (CI enforcement) | CI builds pass on Linux, macOS, FreeBSD for every change |
-| Data races | Every phase (TSan enforcement) | TSan runs clean; no new global mutable state without synchronization |
-| Premature micro-optimization | Every phase (review discipline) | Every optimization PR includes before/after profile data and benchmark results |
+| Variant self-modification UB | PDA frame data structure design (Phase 1) | Visitor pattern established with PDAAction return type before any frame impl |
+| Static local state not reset | Static locals audit (Phase 1, before coding) | Each menu's fresh-open invariant documented and tested |
+| Bitset/PDA desync | First migration phase | `menuMask`/PDA wrapper function written; assertion added to `Menu::process()` |
+| Mouse mapping ambiguity | Input FSM design phase | Per-frame ownership model established; `Input::get()` reads stable pointer |
+| `proc_filtering` dual-truth | Input FSM implementation phase | Config key removed or aliased; all entry/exit paths go through FSM transitions |
+| Resize with stale coordinates | PDA frame struct design (layout/interaction split) | Resize test for each menu verifies coordinates and preserves selection |
+| Re-entrant push during process | PDA action design phase | Frame handlers return PDAAction; no direct push calls inside frame code |
+| App FSM integration (resize) | First phase that touches `on_enter(Resizing)` | `Menu::process()` resize call works correctly with PDA stack |
 
 ## Sources
 
-- [C++ Performance Optimization: Avoiding Common Pitfalls](https://medium.com/@threehappyer/c-performance-optimization-avoiding-common-pitfalls-and-best-practices-guide-81eee8e51467) -- MEDIUM confidence
-- [10 C++ Mistakes That Secretly Kill Your Performance](https://medium.com/codetodeploy/10-c-mistakes-that-secretly-kill-your-performance-i-was-guilty-of-4-for-years-9b4a6c5bf425) -- MEDIUM confidence
-- [String concatenation optimization patterns](https://cpp-optimizations.netlify.app/strings_concatenation/) -- HIGH confidence (established reference)
-- [clang-tidy performance-inefficient-string-concatenation](https://clang.llvm.org/extra/clang-tidy/checks/performance/inefficient-string-concatenation.html) -- HIGH confidence (official LLVM docs)
-- [libc++ std::regex 10x slower than libstdc++](https://github.com/llvm/llvm-project/issues/60991) -- HIGH confidence (LLVM bug tracker)
-- [Abseil Performance Tip: Regex Efficiency](https://abseil.io/fast/21) -- HIGH confidence (Google Abseil)
-- [How Fast is Procfs](https://avagin.github.io/how-fast-is-procfs.html) -- MEDIUM confidence (kernel developer blog)
-- [Algorithms for High Performance Terminal Apps (Textual)](https://textual.textualize.io/blog/2024/12/12/algorithms-for-high-performance-terminal-apps/) -- MEDIUM confidence (TUI framework author)
-- [flat_map & flat_set: Your New Performance Toolkit](https://medium.com/@sofiasondh/flat-map-flat-set-your-new-performance-toolkit-43fee046a08b) -- MEDIUM confidence
-- [Effortless Performance Improvements: std::unordered_map](https://julien.jorge.st/posts/en/effortless-performance-improvements-in-cpp-std-unordered_map/) -- MEDIUM confidence
-- [Agner Fog: Optimizing Software in C++](https://www.agner.org/optimize/optimizing_cpp.pdf) -- HIGH confidence (authoritative reference)
-- [Pitfalls of Premature Optimization](https://eshman.pro/2025/03/the-pitfalls-of-premature-code-optimization-lessons-from-experience/) -- MEDIUM confidence
-- [Profile-Guided Optimization (PGO) research](https://arxiv.org/html/2507.16649v1) -- HIGH confidence (academic paper)
-- btop++ source code analysis (direct codebase inspection) -- HIGH confidence
+- btop++ source code analysis: `btop_menu.cpp`, `btop_input.cpp`, `btop_state.hpp`, `btop_events.hpp`, `btop.cpp` (direct codebase inspection) — HIGH confidence
+- v1.1 Retrospective (`.planning/RETROSPECTIVE.md`): shadow atomic consistency debt, runner_var dead code, incremental migration lessons — HIGH confidence
+- v1.2 Retrospective: single-writer invariant enforcement as solution to desync bugs — HIGH confidence
+- [Finite State Machines with std::variant — C++ Stories (2023)](https://www.cppstories.com/2023/finite-state-machines-variant-cpp/): dangling reference from variant self-modification — HIGH confidence
+- [Space Game: std::variant-Based State Machine by Example — C++ Stories (2019)](https://www.cppstories.com/2019/06/fsm-variant-game/): visitor self-assignment pattern; optional return for conditional transitions — HIGH confidence
+- [std::visit — cppreference.com](https://en.cppreference.com/w/cpp/utility/variant/visit): behavior when variant is modified during visitation — HIGH confidence (official)
+- [QP State Machine: State-Local Storage Pattern](https://www.state-machine.com/doc/Pattern_SLS.pdf): per-state data ownership, separation of layout from interaction state — MEDIUM confidence
 
 ---
-*Pitfalls research for: C++ terminal system monitor performance optimization (btop++)*
-*Researched: 2026-02-27*
+*Pitfalls research for: btop++ v1.3 — Menu PDA + Input FSM*
+*Researched: 2026-03-02*

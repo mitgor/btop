@@ -1,501 +1,570 @@
 # Architecture Research
 
-**Domain:** C++ terminal system monitor -- performance optimization of btop++
-**Researched:** 2026-02-27
-**Confidence:** HIGH (based on direct source code analysis of the repository)
+**Domain:** C++ terminal system monitor — menu pushdown automaton + input FSM for btop++
+**Researched:** 2026-03-02
+**Confidence:** HIGH (direct source code analysis of the repository; existing FSM architecture verified)
 
-## System Overview
+---
+
+## Context: What Already Exists (v1.2 Baseline)
+
+v1.1/v1.2 shipped explicit FSMs for application lifecycle and runner thread. v1.3 extends the same
+pattern into the menu system and input handling. Understanding the baseline is essential before
+describing what changes.
+
+### Existing FSM Components
+
+**App FSM** (`btop_state.hpp`, `btop.cpp`)
+- `AppStateVar` = `std::variant<state::Running, state::Resizing, state::Reloading, state::Sleeping, state::Quitting, state::Error>`
+- `Global::app_state` atomic shadow tag for cross-thread reads
+- `dispatch_event(AppStateVar, AppEvent) -> AppStateVar` + typed `on_event()` overloads
+- `transition_to(current, next, ctx)` executes entry/exit actions, updates shadow
+
+**Runner FSM** (`btop_state.hpp`, `btop_shared.hpp`)
+- `Global::runner_state_tag` atomic shadow (`RunnerStateTag`: Idle/Collecting/Drawing/Stopping)
+- Runner thread is main-thread-only for the variant; shadow used cross-thread
+
+**Event Queue** (`btop_events.hpp`)
+- Lock-free SPSC `EventQueue<AppEvent, 32>`
+- `AppEvent` = `std::variant<TimerTick, Resize, Quit, Sleep, Resume, Reload, ThreadError, KeyInput>`
+- Signal handlers push; main loop pops and dispatches
+
+**Main loop input routing** (`btop.cpp:1572-1574`)
+```cpp
+if (Menu::active) Menu::process(key);
+else              Input::process(key);
+```
+This `if/else` is the integration seam that the Input FSM replaces.
+
+---
+
+## Current Menu + Input State (To Be Replaced)
+
+### Menu State Encoding (Implicit, Scattered)
+
+| Variable | Location | Purpose | Problem |
+|----------|----------|---------|---------|
+| `atomic<bool> Menu::active` | `btop_menu.hpp` | Cross-thread "menu is open" flag | Implicit — reader must know what "active" implies |
+| `bitset<8> menuMask` | `btop_menu.cpp` | Which menus are "live" | Bitset allows impossible combinations; ordering by iteration is fragile |
+| `int currentMenu` | `btop_menu.cpp` | Which menu function gets input | Derived from `menuMask` scan; can desync from mask |
+| Function-static locals | each menu function | Per-menu scroll/selection state | Lifetime tied to program; reset via sentinel (`bg.empty()`) |
+| `menuReturnCodes` | `btop_menu.cpp` | NoChange/Changed/Closed/Switch | Already a PDA return protocol — just not typed |
+
+**The 8 menus** (enum `Menu::Menus`): `SizeError`, `SignalChoose`, `SignalSend`, `SignalReturn`, `Options`, `Help`, `Renice`, `Main`
+
+**Push path**: `Menu::show(menu, signal=-1)` → `menuMask.set(menu)` → `Menu::process()`
+**Pop path**: `menuFunc[currentMenu](key)` returns `Closed` → `menuMask.reset(currentMenu)` → `process()` re-scans mask
+**Switch path** (Main menu only): returns `Switch` → sets next `menuMask` bit and `currentMenu` directly
+
+### Input State Encoding (Implicit, Flag-Driven)
+
+| Mechanism | Location | Represents |
+|-----------|----------|-----------|
+| `Menu::active` check | `btop.cpp:1572` | MenuActive vs Normal/Filtering routing |
+| `Config::proc_filtering` bool | `btop_input.cpp:221` | Filtering vs Normal input handling |
+| `Input::process()` structure | `btop_input.cpp:218-643` | First handles `!filtering` globals, then per-box |
+
+The implicit states are:
+1. **Normal**: `!Menu::active && !proc_filtering` — global + per-box key handling
+2. **Filtering**: `!Menu::active && proc_filtering` — text edit mode in proc box
+3. **MenuActive**: `Menu::active` — all input forwarded to `Menu::process()`
+
+---
+
+## Target Architecture: v1.3
+
+### System Overview
 
 ```
-+===================================================================+
-|                        MAIN THREAD (btop.cpp)                      |
-|  btop_main() -> init -> signal handlers -> MAIN LOOP              |
-|                                                                    |
-|  Main Loop:                                                        |
-|    - Check thread exceptions, quit/sleep signals                   |
-|    - Handle terminal resize (SIGWINCH)                             |
-|    - Trigger Runner at update_ms intervals                         |
-|    - Input::poll() with timeout until next update cycle            |
-+===================================================================+
++=====================================================================+
+|                    MAIN THREAD (btop.cpp)                           |
+|                                                                     |
+|  Signal EventQueue ──try_pop──► dispatch_event ──► transition_to   |
+|                                 (App FSM, unchanged)                |
+|                                                                     |
+|  Input Poll ─────────────────────────────────────────────────────  |
+|    Input::poll() → Input::get() → key string                        |
+|         │                                                           |
+|         ▼                                                           |
+|  [NEW] InputFSM::process(key, input_var)                            |
+|         │                                                           |
+|    ┌────┴──────────────┐                                            |
+|    │  InputStateVar    │ Normal / Filtering / MenuActive            |
+|    └────┬──────────────┘                                            |
+|         │ MenuActive branch                                         |
+|         ▼                                                           |
+|  [NEW] MenuPDA::process(key, pda_stack)                             |
+|         │                                                           |
+|    ┌────┴──────────────────────────────────────┐                    |
+|    │  PDA stack: vector<MenuFrameVar>           │                    |
+|    │                                            │                   |
+|    │  [Main] [Options] [Help] [SignalChoose]... │                   |
+|    │  top() = active frame; push/pop on events  │                   |
+|    └───────────────────────────────────────────┘                    |
++=====================================================================+
          |  thread_trigger()                  ^  Input::interrupt()
          v  (binary_semaphore)                |  (SIGUSR1)
-+===================================================================+
-|                    RUNNER THREAD (btop.cpp Runner::_runner)         |
-|  THREAD LOOP:                                                      |
-|    wait for trigger -> atomic_lock(active)                         |
-|    For each box in ["cpu","mem","net","proc","gpu"]:               |
-|      1. COLLECT: Xxx::collect(no_update) -> xxx_info&              |
-|      2. DRAW:    Xxx::draw(info, force_redraw, data_same) -> str   |
-|      3. APPEND:  output += draw_result                             |
-|    cout << output << flush                                         |
-+===================================================================+
-         |                                    |
-   +=====v=====+                        +=====v=====+
-   |  COLLECT   |                        |   DRAW    |
-   |  (platform)|                        | (btop_    |
-   |            |                        |  draw.cpp)|
-   | linux/     |                        |           |
-   |  btop_     |   xxx_info structs     | Graph     |
-   |  collect   | --------------------> | Meter     |
-   |  .cpp      |   (cpu_info,          | createBox |
-   |            |    mem_info,          | fmt::     |
-   | osx/       |    net_info,          |  format   |
-   |  btop_     |    proc_info[],       |           |
-   |  collect   |    gpu_info[])        | Terminal  |
-   |  .cpp      |                        | escape    |
-   |            |                        | sequences |
-   | freebsd/   |                        |           |
-   |  btop_     |                        | String    |
-   |  collect   |                        | concat    |
-   |  .cpp      |                        | to output |
-   +============+                        +===========+
-         |                                    |
-   +=====v=====+                        +=====v=====+
-   | OS APIs    |                        | SUPPORT   |
-   |            |                        |           |
-   | /proc/stat |                        | Theme     |
-   | /proc/pid  |                        | (colors,  |
-   | sysctl     |                        |  grads)   |
-   | IOKit      |                        |           |
-   | getifaddrs |                        | Tools     |
-   | /sys/class |                        | (string   |
-   |            |                        |  utils)   |
-   +============+                        +===========+
++=====================================================================+
+|                    RUNNER THREAD                                     |
+|  RunnerStateTag shadow (Idle/Collecting/Drawing/Stopping)            |
+|  Unchanged from v1.2                                                 |
++=====================================================================+
 ```
 
-### Component Responsibilities
+### New Components
 
-| Component | Responsibility | Key Files | Lines |
-|-----------|----------------|-----------|-------|
-| **Main/Init** | CLI parsing, config init, signal handling, main event loop, thread coordination | `btop.cpp` (1207L), `btop_cli.cpp` (272L), `main.cpp` (13L) | ~1,500 |
-| **Runner** | Secondary thread that sequences collection and drawing; manages thread lifecycle | `btop.cpp` (Runner namespace, ~460L) | ~460 |
-| **Config** | Configuration parsing, read/write, lock/unlock for thread safety, typed getters | `btop_config.cpp` (873L), `btop_config.hpp` (141L) | ~1,000 |
-| **Data Collection** | Platform-specific system metric gathering (CPU, Mem, Net, Proc, GPU) | `linux/btop_collect.cpp` (3341L), `osx/btop_collect.cpp` (1981L), `freebsd/btop_collect.cpp`, etc. | ~3,300 per platform |
-| **Drawing/Rendering** | Convert collected data into terminal escape-sequence strings; Graph/Meter classes; box layout | `btop_draw.cpp` (2517L), `btop_draw.hpp` (141L) | ~2,660 |
-| **Menu** | Interactive menu overlay (settings, help, etc.) | `btop_menu.cpp` (1872L), `btop_menu.hpp` (99L) | ~1,970 |
-| **Input** | Keyboard/mouse polling via pselect/ppoll, key decoding, action dispatch | `btop_input.cpp` (638L), `btop_input.hpp` (78L) | ~716 |
-| **Theme** | Color/gradient generation, theme file loading, escape sequence caching | `btop_theme.cpp` (465L), `btop_theme.hpp` (70L) | ~535 |
-| **Tools** | String manipulation (UTF-8 resize, justify, replace), terminal init, time functions, atomic helpers | `btop_tools.cpp` (669L), `btop_tools.hpp` (425L) | ~1,094 |
-| **Shared** | Cross-platform data structures (cpu_info, mem_info, etc.), process sorting, tree generation | `btop_shared.cpp` (292L), `btop_shared.hpp` (470L) | ~762 |
-
-## Recommended Project Structure
+#### 1. Menu PDA (`btop_menu_pda.hpp`)
 
 ```
-src/
-+-- main.cpp                # Entry point (trivial)
-+-- btop.cpp / btop.hpp     # btop_main(), Runner thread, signal handlers, main loop
-+-- btop_cli.cpp/hpp        # CLI argument parsing
-+-- btop_config.cpp/hpp     # Configuration management
-+-- btop_draw.cpp/hpp       # Drawing pipeline: Graph, Meter, createBox, calcSizes, per-box draw()
-+-- btop_input.cpp/hpp      # Input polling and action processing
-+-- btop_menu.cpp/hpp       # Menu overlay rendering
-+-- btop_shared.cpp/hpp     # Shared data structures, process sorting, tree generation
-+-- btop_theme.cpp/hpp      # Theme/color management
-+-- btop_tools.cpp/hpp      # Utility functions (string, time, terminal)
-+-- btop_log.cpp/hpp        # Logging infrastructure
-+-- config.h.in             # Build-time configuration template
-+-- linux/
-|   +-- btop_collect.cpp    # Linux data collection (3341L -- largest single file)
-+-- osx/
-|   +-- btop_collect.cpp    # macOS data collection (1981L)
-|   +-- sensors.cpp/hpp     # macOS sensor reading
-|   +-- smc.cpp/hpp         # macOS SMC interface
-+-- freebsd/
-|   +-- btop_collect.cpp    # FreeBSD data collection
-+-- openbsd/
-|   +-- btop_collect.cpp    # OpenBSD data collection
-|   +-- sysctlbyname.cpp    # OpenBSD sysctl compatibility
-+-- netbsd/
-    +-- btop_collect.cpp    # NetBSD data collection
-include/
-+-- fmt/                    # Bundled fmt library (header-only via FMT_HEADER_ONLY)
-+-- widechar_width.hpp      # Unicode character width tables
+MenuFrameVar = std::variant<
+    menu_frame::Main,
+    menu_frame::Options,
+    menu_frame::Help,
+    menu_frame::SignalChoose,
+    menu_frame::SignalSend,
+    menu_frame::SignalReturn,
+    menu_frame::SizeError,
+    menu_frame::Renice
+>
 ```
 
-### Structure Rationale
-
-- **Platform collectors isolated per directory:** Each OS has its own `btop_collect.cpp` implementing the same namespace interfaces (`Cpu::collect`, `Mem::collect`, etc.). This is the only platform-varying code; everything else is shared.
-- **Flat core structure:** All core modules are siblings in `src/`. No abstraction layers, no interface classes, no virtual dispatch. Communication is via namespace-scoped global state and direct function calls.
-- **Namespace-as-module pattern:** Each functional area is a C++ namespace (`Cpu`, `Mem`, `Net`, `Proc`, `Gpu`, `Draw`, `Config`, etc.). State is stored in namespace-scoped variables (effectively globals).
-
-## Data Flow
-
-### Per-Refresh-Cycle Data Flow (the Hot Path)
+Each frame struct carries what was previously function-static locals:
 
 ```
-Timer expires (update_ms)
-    |
-    v
-Main thread: Runner::run("all")
-    |
-    v  Config::unlock() -> Config::lock() -> copy config to runner_conf
-    |  thread_trigger() (semaphore release)
-    v
-Runner thread wakes:
-    |
-    +---> Gpu::collect(no_update) -> reads GPU driver APIs -> vector<gpu_info>&
-    |
-    +---> Cpu::collect(no_update)
-    |       +-- reads /proc/stat (Linux) or host_processor_info (macOS)
-    |       +-- reads temperature sensors (/sys/class/hwmon or IOKit)
-    |       +-- reads battery info (/sys/class/power_supply)
-    |       +-- reads CPU frequency
-    |       +-- returns cpu_info& (static, reused across cycles)
-    |
-    +---> Cpu::draw(cpu_info, gpus, force_redraw, data_same)
-    |       +-- updates Graph objects (shifts data, generates braille/block chars)
-    |       +-- generates colored escape sequences via Theme::g(), Theme::c()
-    |       +-- builds string via fmt::format and string concatenation
-    |       +-- appends to Runner::output
-    |
-    +---> Mem::collect(no_update)
-    |       +-- reads /proc/meminfo (Linux) or host_statistics64 (macOS)
-    |       +-- reads disk info (statvfs, /proc/diskstats)
-    |       +-- returns mem_info& (static)
-    |
-    +---> Mem::draw(mem_info, ...) -> appends to Runner::output
-    |
-    +---> Net::collect(no_update)
-    |       +-- reads /sys/class/net or getifaddrs()
-    |       +-- returns net_info& (static)
-    |
-    +---> Net::draw(net_info, ...) -> appends to Runner::output
-    |
-    +---> Proc::collect(no_update)
-    |       +-- iterates /proc/[pid]/ (Linux) or sysctl KERN_PROC (macOS)
-    |       +-- for each process: reads /proc/[pid]/stat, /proc/[pid]/comm, /proc/[pid]/cmdline, /proc/[pid]/status
-    |       +-- sorts processes (stable_sort)
-    |       +-- optionally generates tree view (recursive tree_gen + tree_sort + prefix collection)
-    |       +-- returns vector<proc_info>& (static, reused)
-    |
-    +---> Proc::draw(proc_info[], ...) -> appends to Runner::output
-    |
-    v
-cout << output << flush  (single write to terminal)
-    |
-    v
-Runner::active = false (notify main thread)
+menu_frame::Options {
+    int y, x, height, page, pages;
+    int selected, select_max, item_height, selected_cat, max_items, last_sel;
+    bool editing;
+    Draw::TextEdit editor;
+    std::string warnings;
+    std::bitset<8> selPred;   // internal to Options only, not global menuMask
+}
+
+menu_frame::Help {
+    int y, x, height, page, pages;
+}
+
+menu_frame::SignalChoose {
+    int x, y, selected_signal;
+}
+
+menu_frame::SignalSend {
+    // stateless — s_pid read from Config each call
+}
+
+menu_frame::SignalReturn {
+    // stateless — signalKillRet read from outer scope
+}
+
+menu_frame::SizeError {
+    // stateless
+}
+
+menu_frame::Renice {
+    int x, y, selected_nice;
+    std::string nice_edit;
+}
+
+menu_frame::Main {
+    int y, selected;
+    std::vector<std::string> colors_selected, colors_normal;
+}
 ```
 
-### Key Data Structures
-
-| Structure | Defined In | Contents | Usage Pattern |
-|-----------|-----------|----------|---------------|
-| `Cpu::cpu_info` | `btop_shared.hpp` | `unordered_map<string, deque<long long>>` for percent fields, `vector<deque<long long>>` for cores/temps, load_avg | Static instance, reused each cycle. Deques grow to `width * 2` then pop_front. |
-| `Mem::mem_info` | `btop_shared.hpp` | `unordered_map<string, uint64_t>` for stats, `unordered_map<string, deque<long long>>` for percent, `unordered_map<string, disk_info>` for disks | Static instance, reused each cycle. |
-| `Net::net_info` | `btop_shared.hpp` | `unordered_map<string, deque<long long>>` bandwidth, `unordered_map<string, net_stat>` stat, ipv4/ipv6 strings | Static per-interface instances in `current_net` map. |
-| `Proc::proc_info` | `btop_shared.hpp` | pid, name, cmd, short_cmd, threads, user, mem, cpu_p, cpu_c, state, ppid, tree fields | `vector<proc_info>` -- the full process list. Potentially thousands of entries. |
-| `Draw::Graph` | `btop_draw.hpp` | width, height, `unordered_map<bool, vector<string>>` for double-buffered graph lines, color gradient | Created per graph instance. `operator()` called each cycle to append new data point. |
-| `Draw::Meter` | `btop_draw.hpp` | width, `array<string, 101>` cache | 101-entry cache of pre-rendered meter strings. |
-
-### State Management
-
+The PDA itself:
 ```
-Global namespace variables (btop.cpp)
-    |
-    +-- Global::quitting, Global::resized, Global::overlay, Global::clock (atomics + strings)
-    |
-Config namespace (btop_config.cpp)
-    |
-    +-- Three unordered_maps: strings, bools, ints
-    +-- Lock/unlock mechanism: when locked, writes go to *Tmp maps; unlock merges
-    +-- Thread safety via Config::lock()/unlock() around Runner cycles
-    |
-Per-box namespace state (btop_shared.hpp, btop_draw.cpp)
-    |
-    +-- Cpu::x, y, width, height, box (string), shown, redraw
-    +-- Mem::x, y, width, height, box, shown, redraw
-    +-- Net::x, y, width, height, box, shown, redraw
-    +-- Proc::x, y, width, height, box, shown, redraw, p_graphs, p_counters
-    |
-Runner state
-    |
-    +-- Runner::active (atomic<bool>), Runner::stopping, Runner::output (string)
-    +-- Runner::current_conf (copied from Config each cycle)
-    +-- Binary semaphore for triggering work
+struct MenuPDA {
+    std::vector<MenuFrameVar> stack;   // top() = active menu
+
+    bool empty() const;
+    void push(MenuFrameVar frame);
+    void pop();                        // pop active frame
+    MenuFrameVar& top();
+    const MenuFrameVar& top() const;
+
+    // Process key against top frame; returns whether stack changed
+    // Replaces menuFunc dispatch table
+    PDAResult process(const std::string_view key);
+};
 ```
 
-## Hot Paths (Code That Runs Every Refresh Cycle)
+`PDAResult` replaces `menuReturnCodes`:
+```
+enum class PDAResult { NoChange, Changed, Pop, Push };
+```
 
-### 1. Process Collection -- Proc::collect() [HIGHEST COST]
+#### 2. Input FSM (`btop_input_fsm.hpp`)
 
-**Location:** `src/linux/btop_collect.cpp:2915-3324` (Linux), `src/osx/btop_collect.cpp:1663+` (macOS)
+```
+InputStateVar = std::variant<
+    input_state::Normal,
+    input_state::Filtering,
+    input_state::MenuActive
+>
+```
 
-**What it does each cycle:**
-- Iterates every `/proc/[pid]/` directory via `fs::directory_iterator`
-- For each PID (potentially hundreds to thousands):
-  - Opens and reads `/proc/[pid]/comm` (new processes only)
-  - Opens and reads `/proc/[pid]/cmdline` (new processes only)
-  - Opens and reads `/proc/[pid]/status` for UID (new processes only)
-  - Opens and reads `/proc/[pid]/stat` **every cycle** -- parses specific fields with `ifstream` + `getline` + `stoull`
-  - Optionally reads `/proc/[pid]/statm` if RSS looks wrong
-- Uses `ifstream` for ALL file reads (heap allocation per open, buffered I/O overhead)
-- Searches `current_procs` vector with `rng::find` (linear scan) per PID
-- Calls `proc_sorter` which uses `rng::stable_sort`
-- If tree mode: recursive `_tree_gen`, `tree_sort`, `_collect_prefixes`, then final sort
+State structs:
+```
+input_state::Normal   {}           // no per-state data needed
+input_state::Filtering {
+    std::string old_filter;         // was file-scoped 'old_filter' in btop_input.cpp
+}
+input_state::MenuActive {}          // no per-state data; menu state lives in MenuPDA
+```
 
-**Why expensive:**
-- Hundreds/thousands of `ifstream` open/close per cycle (each involves heap allocation for internal buffer)
-- `fs::directory_iterator` has overhead vs raw `opendir`/`readdir`
-- Linear search in `current_procs` via `rng::find` for each PID
-- String allocation for every PID path, field parsing
-- `stoull`/`stoll` per field instead of direct numeric parsing
-- Multiple sorts of the full process vector
-- `std::regex` used in process filter matching (`matches_filter` calls `std::regex_search`)
+Typed dispatch replaces the `if/Menu::active` routing:
+```cpp
+InputStateVar on_input(const input_state::Normal&,    std::string_view key, MenuPDA& pda);
+InputStateVar on_input(const input_state::Filtering&, std::string_view key, MenuPDA& pda);
+InputStateVar on_input(const input_state::MenuActive&,std::string_view key, MenuPDA& pda);
+```
 
-### 2. Drawing Pipeline -- Xxx::draw() [HIGH COST]
+Transitions:
+- `Normal + "f"/"/"` → `Filtering{old_filter=current_filter}`
+- `Normal + "escape"/"m"` → push `menu_frame::Main{}` → `MenuActive`
+- `Normal + "f1"/"h"/"?"` → push `menu_frame::Help{}` → `MenuActive`
+- `Normal + "f2"/"o"` → push `menu_frame::Options{}` → `MenuActive`
+- `Filtering + "enter"/"escape"` → `Normal` (commit or discard filter)
+- `MenuActive` + PDA becomes empty → `Normal`
+- `MenuActive` + PDA push (Main→Options) → stay `MenuActive` (top changes)
 
-**Location:** `src/btop_draw.cpp` -- functions at lines 540 (Cpu), 996 (Gpu), 1188 (Mem), 1454 (Net), 1569 (Proc)
+### Modified Components
 
-**What it does each cycle:**
-- Reads many config values via `Config::getB()`/`Config::getS()` (unordered_map lookups)
-- Generates terminal output strings through heavy use of:
-  - `fmt::format()` with named arguments (allocates intermediate strings)
-  - String concatenation via `operator+=` (many small appends)
-  - `Theme::c()` and `Theme::g()` lookups (unordered_map access for colors)
-  - `Mv::to()`, `Mv::r()`, etc. (each creates a new string via `to_string`)
-- `Graph::operator()` called for each graph:
-  - Manipulates `vector<string>` graphs with `substr` and `erase` operations on each line
-  - Builds output string with color gradient lookups per character
-- For Proc::draw specifically:
-  - Iterates visible processes, formats each row with `ljust`/`rjust` (allocates strings)
-  - Creates per-process mini-graphs (`p_graphs` map)
-  - Uses `floating_humanizer` for memory display (string operations + `fmt::format`)
-  - Uses `uresize` for UTF-8 string truncation
+#### `btop_menu.hpp` / `btop_menu.cpp`
 
-**Why expensive:**
-- Massive string allocation/concatenation -- output string can be tens of KB per frame
-- `Mv::to(line, col)` creates a new string every call (escape sequence construction)
-- `fmt::format` with named arguments is slower than positional
-- `Theme::g(name).at(value)` -- double indirection through unordered_maps
-- Per-process graph creation in Proc involves `Graph` constructor (initializes vectors, does computation)
+**Removed:**
+- `atomic<bool> Menu::active` — replaced by `InputStateVar` holding `MenuActive`
+- `bitset<8> menuMask` — replaced by PDA stack
+- `int currentMenu` — replaced by `PDA::top()`
+- Function-static locals in each menu function — moved into frame structs
+- `menuFunc` dispatch vector — replaced by `std::visit` on `MenuFrameVar`
+- `void Menu::show(int menu, int signal)` — replaced by `MenuPDA::push(frame)`
 
-### 3. CPU Collection -- Cpu::collect() [MODERATE COST]
+**Retained:**
+- All rendering functions (the drawing logic stays the same, it just receives frame data instead of reading statics)
+- `msgBox` class — unchanged
+- `Menu::mouse_mappings` — unchanged, populated by active frame's render call
+- `Menu::output`, `Menu::redraw`, `Menu::signalToSend`, `Menu::signalKillRet` — migrate as PDA fields or keep as file-scope
 
-**Location:** `src/linux/btop_collect.cpp:1050-1179` (Linux)
+**Changed interface:**
+```cpp
+// OLD:
+namespace Menu {
+    extern atomic<bool> active;
+    extern bitset<8> menuMask;
+    void process(const std::string_view key = "");
+    void show(int menu, int signal = -1);
+}
 
-**What it does:**
-- Opens `/proc/stat` with `ifstream`, parses CPU times per core
-- Creates temporary `vector<long long>` for each core's times
-- Multiple `unordered_map` lookups into `cpu_percent`, `cpu_old`
-- Deque operations (push_back, pop_front) for time-series data
+// NEW:
+namespace Menu {
+    extern string output;   // retained
+    extern bool redraw;     // retained
+    // active, menuMask, currentMenu removed
+}
+```
 
-### 4. Memory/Disk Collection -- Mem::collect() [MODERATE COST]
+#### `btop_input.hpp` / `btop_input.cpp`
 
-**Location:** `src/linux/btop_collect.cpp:2042-2449` (Linux)
+**Removed:**
+- File-scoped `string old_filter` — moved into `input_state::Filtering`
+- Implicit `if (filtering)` branch at top of `Input::process()` — replaced by FSM dispatch
 
-**What it does:**
-- Reads `/proc/meminfo` via `ifstream`
-- Iterates mounted filesystems via `fs::directory_iterator` on `/proc/diskstats`
-- `statvfs` calls per disk
-- Multiple `unordered_map` operations
+**Retained:**
+- `Input::poll()`, `Input::get()`, `Input::wait()`, `Input::interrupt()`, `Input::clear()`
+- `Input::mouse_mappings`, `Input::mouse_pos`, `Input::polling`, `Input::history`
+- All per-box key handling logic within `Normal` state dispatch
 
-### 5. String Utilities (called from everywhere) [MODERATE AGGREGATE COST]
+**Changed:**
+- `Input::process(key)` becomes `Input::FSM::process(key, input_var, pda)` or equivalent
+- The function signature may stay the same externally with state passed as references
 
-**Location:** `src/btop_tools.cpp` and `src/btop_tools.hpp`
+#### `btop.cpp` Main Loop
 
-**Hot utility functions:**
-- `ulen()` -- counts UTF-8 characters via `ranges::count_if` (called hundreds of times per frame)
-- `uresize()` -- truncates UTF-8 strings (allocates new string each call, calls `shrink_to_fit`)
-- `ljust()`/`rjust()`/`cjust()` -- pad strings (allocates per call)
-- `s_replace()` -- creates new string, does in-place replacement loop
-- `floating_humanizer()` -- converts bytes to human readable (multiple allocations)
-- `trans()` -- replaces spaces with cursor-move escape codes
-- `Fx::uncolor()` -- **uses std::regex_replace** (extremely expensive, called when menu overlay is active)
+**Line 1572-1574 changes from:**
+```cpp
+if (Menu::active) Menu::process(key);
+else              Input::process(key);
+```
 
-### 6. Output Flush [VARIABLE COST]
+**To:**
+```cpp
+Input::FSM::process(key, input_var, menu_pda);
+// InputFSM internally routes to MenuPDA when in MenuActive state
+```
 
-**Location:** `btop.cpp:728-731`
+`input_var` (of type `InputStateVar`) replaces `Menu::active` and `proc_filtering` for routing decisions. These two pieces of state are now the Input FSM state, not separate booleans.
 
-- Single `cout << output << flush` per cycle
-- With `terminal_sync` enabled: wraps in `\e[?2026h` ... `\e[?2026l` (DEC private mode for synchronized output)
-- Output string can be 10-100+ KB of escape sequences per frame
+#### `btop_events.hpp`
+
+No changes expected. The event queue and `AppEvent` types serve App FSM signals (SIGWINCH, SIGTERM, etc.). Input events (keystrokes) are handled synchronously in the main loop's input poll block, not via the async event queue — this separation is correct and should be preserved.
+
+---
+
+## Data Flow: Menu Push
+
+```
+User presses "m" or "escape" (not in menu):
+
+1. Input::poll() returns true
+2. Input::get() → key = "m"
+3. InputFSM::process("m", input_var, pda):
+   - current input_var = Normal{}
+   - on_input(Normal{}, "m", pda):
+       pda.push(menu_frame::Main{y=0, selected=0, ...})
+       Menu::redraw = true
+       Runner::pause_output = true
+       return input_state::MenuActive{}
+   - input_var = MenuActive{}
+
+4. Next frame: input_var = MenuActive{}, so on_input(MenuActive{}, key, pda):
+   - pda.top() = menu_frame::Main{...}
+   - std::visit renders and processes key against Main frame
+   - If user presses "Options": pda.push(menu_frame::Options{...}); return NoChange
+   - If user presses "escape": pda.pop(); if pda.empty() → return input_state::Normal{}
+```
+
+## Data Flow: Menu Pop
+
+```
+User presses "escape" while in Options (inside Main):
+
+1. InputFSM::process("escape", input_var, pda):
+   - input_var = MenuActive{}
+   - pda.top() = menu_frame::Options{...}
+   - on_input(MenuActive{}, "escape", pda):
+       auto result = pda.top().handle("escape")
+       result == PDAResult::Pop → pda.pop()
+       pda.top() = menu_frame::Main{...}  // back to Main
+       pda is not empty → stay in MenuActive
+       return input_state::MenuActive{}
+
+2. Next keypress with Main on top:
+   - User presses "escape" again → pda.pop()
+   - pda.empty() → return input_state::Normal{}
+   - Runner::pause_output = false
+   - Runner::run("all", true, true)
+```
+
+## Data Flow: Filtering Entry/Exit
+
+```
+User presses "f" (Normal state, proc box shown):
+
+1. on_input(Normal{}, "f", pda):
+   - Config::flip(BoolKey::proc_filtering)  // retained for Config consumers
+   - Proc::filter = Draw::TextEdit{Config::getS(StringKey::proc_filter)}
+   - old_filter = Proc::filter.text
+   - return input_state::Filtering{old_filter}
+
+2. User presses "escape" while Filtering:
+   on_input(Filtering{old_filter}, "escape", pda):
+   - Config::set(StringKey::proc_filter, old_filter)
+   - Config::set(BoolKey::proc_filtering, false)
+   - return input_state::Normal{}
+```
+
+Note: `Config::proc_filtering` bool is retained as a Config value because the drawing pipeline and
+`Input::get()` mouse routing both read it. The Input FSM adds a typed wrapper; it does not eliminate
+the config value.
+
+---
+
+## Component Boundaries
+
+| Component | Owns | Communicates With | Notes |
+|-----------|------|-------------------|-------|
+| `MenuPDA` | stack of `MenuFrameVar`, per-frame state | `Menu::` rendering functions, `Input::mouse_mappings` | Main-thread only |
+| `InputStateVar` | current input mode (Normal/Filtering/MenuActive) | `MenuPDA` (when MenuActive) | Main-thread only |
+| `AppStateVar` | app lifecycle state (Running/Resizing/...) | Event queue, `transition_to()` | Independent of menu/input FSMs |
+| `RunnerStateTag` | runner thread phase | Shadow atomic for main-thread reads | Unchanged from v1.2 |
+| `Menu::output` | rendered menu overlay string | Runner writes to terminal overlay | Retained, written by frame render |
+| `Config::proc_filtering` | text filter mode flag | Drawing pipeline, `Input::get()` mouse logic | Retained as Config bool; set by Input FSM |
+
+---
+
+## Build Order (Phase Dependencies)
+
+The dependency graph follows the same "outside-in" principle as v1.1:
+
+```
+Phase A: MenuFrameVar types + PDA stack
+   (no UI changes, just data structures)
+         |
+         v
+Phase B: Migrate function-statics into frame structs
+   (behavior-preserving, renders using frame data)
+         |
+         v
+Phase C: Replace menuMask/currentMenu/menuFunc with PDA dispatch
+   (replaces bitset dispatch; menuMask removed)
+         |
+         v
+Phase D: Input FSM (InputStateVar)
+   (replaces if/Menu::active routing; depends on C because
+    MenuActive must be stable before InputFSM can delegate to PDA)
+         |
+         v
+Phase E: Tests (PDA transitions + Input FSM transitions)
+   (depends on D for testable interfaces)
+         |
+         v
+Phase F: Cleanup (remove Menu::active, old_filter, menuMask declarations)
+   (depends on E confirming correctness)
+```
+
+**Why this order:**
+1. **A before B**: Can't populate frame structs before they exist
+2. **B before C**: The rendering code must consume frame data before dispatch is switched
+3. **C before D**: InputFSM's MenuActive branch delegates to PDA; PDA must be the dispatch authority first
+4. **D before E**: Tests exercise the full InputFSM + PDA integration
+5. **E before F**: Cleanup only after tests confirm the old state variables are unused
+
+---
 
 ## Architectural Patterns
 
-### Pattern 1: Collect-Then-Draw Sequential Pipeline
+### Pattern 1: PDA via `std::variant` Stack
 
-**What:** Each box is processed sequentially in the Runner thread: collect data, then draw to string. All boxes append to a single `Runner::output` string, which is flushed to the terminal at the end.
-
+**What:** `std::vector<MenuFrameVar>` with push/pop. `std::visit` dispatches input to active frame.
+**When to use:** When the system must return to prior context (menu → submenu → menu).
 **Trade-offs:**
-- Simple, no race conditions between boxes
-- Serializes work that could be parallelized (CPU collection is independent of Mem collection)
-- The single output string means one big terminal write (good for synchronized output)
+- `std::visit` on variant is a switch/jump table — equivalent to `menuFunc.at(currentMenu)(key)`
+- Frame structs carry per-frame state; no function-static lifetime issues
+- Stack is heap-allocated (vector), but only modified on menu open/close (not hot path)
 
-### Pattern 2: Static-Return-Reference for Collection Data
-
-**What:** All `collect()` functions return references to static local data structures (e.g., `static cpu_info current_cpu`). Data is mutated in place and the reference is passed to `draw()`.
-
-**Trade-offs:**
-- Zero copy overhead -- no allocation per cycle for the data structures themselves
-- Data structures persist across cycles, which is intentional for time-series (deques maintain history)
-- Not thread-safe -- relies on Runner being the only caller
-
-### Pattern 3: Namespace-as-Module with Global State
-
-**What:** Each functional area (Cpu, Mem, Net, Proc, etc.) is a C++ namespace with file-scoped and namespace-scoped globals. No classes, no virtual dispatch, no dependency injection.
-
-**Trade-offs:**
-- Simple, direct, zero overhead
-- Makes testing hard (globals are implicit dependencies)
-- Makes profiling easier (clear function boundaries)
-
-### Pattern 4: Config Lock/Unlock for Thread Safety
-
-**What:** `Config::lock()` redirects all `Config::set()` calls to temporary maps. `Config::unlock()` merges temporaries back. This happens around each Runner cycle.
-
-**Trade-offs:**
-- Avoids mutex on every config read (reads go direct to main maps)
-- Two unordered_map copies per unlock is a small cost
-- Potential for stale reads during collection/draw (acceptable -- values change rarely)
-
-## Anti-Patterns (Optimization Targets)
-
-### Anti-Pattern 1: ifstream for /proc File Reading
-
-**What people do:** Use `std::ifstream` to read `/proc/[pid]/stat` and similar pseudo-files.
-**Why it's wrong for performance:** `ifstream` constructor allocates a heap buffer (~4KB). With 500+ processes, that is 2000+ `ifstream` open/close cycles per refresh, each with heap allocation. `/proc` files are tiny (< 1KB) and can be read with a single `read()` syscall.
-**Do this instead:** Use POSIX `open()`/`read()`/`close()` with a stack-allocated buffer. Or better, `openat()` with a pre-opened `/proc/[pid]` directory fd.
-
-### Anti-Pattern 2: std::regex for Escape Code Stripping
-
-**What people do:** `Fx::uncolor()` uses `std::regex_replace(s, color_regex, "")` to strip ANSI color codes.
-**Why it's wrong:** `std::regex` is notoriously slow in libstdc++ and libc++. This processes the entire output string (potentially 50+ KB) character by character through a regex engine.
-**Do this instead:** Hand-written state machine or simple loop that skips `\e[...m` sequences. (A commented-out version of this already exists in `btop_tools.cpp:189-210` but was disabled "due to issue when compiling with musl".)
-
-### Anti-Pattern 3: Excessive Small String Allocations in Draw
-
-**What people do:** Functions like `Mv::to(line, col)` create a new `std::string` each call via `Fx::e + to_string(line) + ';' + to_string(col) + 'f'`. This is called hundreds of times per frame.
-**Why it's wrong:** Each call involves multiple heap allocations (SSO may help for small strings, but concatenation chains defeat it).
-**Do this instead:** Write directly to the output buffer with `fmt::format_to(back_inserter)` or a pre-sized char buffer.
-
-### Anti-Pattern 4: unordered_map for Fixed-Key Lookups
-
-**What people do:** `cpu_info.cpu_percent` is `unordered_map<string, deque<long long>>` with fixed keys like "total", "user", "system". `Config` stores values in three `unordered_map`s.
-**Why it's wrong:** Hash map lookups require hashing the key string and indirection through buckets. For a fixed, small set of keys, this is slower than an array or struct with named fields.
-**Do this instead:** Use a struct with named fields, or an enum-indexed array. Eliminates hashing and pointer chasing.
-
-### Anti-Pattern 5: Linear Search in Process List
-
-**What people do:** For each PID during collection, `rng::find(current_procs, pid, &proc_info::pid)` does a linear scan of the entire process vector.
-**Why it's wrong:** With N processes, this is O(N^2) total for the collection phase. On a system with 1000+ processes, this adds up.
-**Do this instead:** Use a hash map (`unordered_map<size_t, size_t>` mapping PID to index) for O(1) lookup. Or keep the vector sorted by PID and use binary search.
-
-### Anti-Pattern 6: fs::directory_iterator for /proc
-
-**What people do:** `fs::directory_iterator(Shared::procPath)` to enumerate processes.
-**Why it's wrong:** `fs::directory_iterator` constructs `fs::directory_entry` objects with `fs::path` (which heap-allocates). For `/proc` with 1000+ entries, this is significant overhead vs raw `opendir`/`readdir`.
-**Do this instead:** Use POSIX `opendir`/`readdir` which returns `struct dirent` on the stack.
-
-## Scaling Considerations (Optimization Impact by System Load)
-
-| System Load | Primary Bottleneck | Optimization Priority |
-|-------------|--------------------|-----------------------|
-| Light (<100 processes) | Drawing pipeline (Graph, string building) | String allocation reduction, Graph optimization |
-| Medium (100-500 processes) | Proc::collect (I/O) + Drawing | File I/O optimization, string pooling |
-| Heavy (500-2000+ processes) | Proc::collect dominates (O(N^2) linear search, thousands of ifstream opens) | Replace ifstream with POSIX I/O, hash lookup for PIDs, reduce per-process allocations |
-| All loads | Aggregate string allocation in draw + Mv::to() overhead | Buffer reuse, write-to-buffer pattern, eliminate intermediate strings |
-
-### Scaling Priorities
-
-1. **First bottleneck: Proc::collect file I/O** -- On systems with many processes, this is the single largest cost. Each process requires 1-4 file opens/reads per cycle, all through ifstream.
-2. **Second bottleneck: Draw string allocation** -- The rendering pipeline generates enormous amounts of temporary strings. With 4-5 boxes, each with graphs, meters, and per-line formatting, the allocator is heavily exercised.
-3. **Third bottleneck: Graph::_create / Graph::operator()** -- String manipulation inside graphs (substr, erase, color gradient lookup) has non-trivial cost.
-
-## Suggested Optimization Order
-
-Based on the architecture analysis, optimizations should be ordered by:
-1. **Dependencies between components** -- changing data structures in btop_shared.hpp affects both collectors and drawing
-2. **Risk level** -- file I/O changes are lower risk than data structure changes
-3. **Impact breadth** -- string utility improvements affect all draw functions
-
-### Recommended Phase Ordering
-
-**Phase 1: Profiling Infrastructure**
-- Add benchmarking harness that can measure collect vs draw time per box
-- Establish baseline measurements before any changes
-- No architectural changes -- just instrumentation
-- *Dependency: None. Must come first.*
-
-**Phase 2: String/Memory Allocation Reduction**
-- Replace `Mv::to()` and similar with buffer-writing variants
-- Introduce output buffer reuse pattern (pre-sized string, clear+reuse instead of allocate)
-- Replace `Fx::uncolor()` regex with hand-written parser
-- Replace `uresize()` shrink_to_fit pattern with in-place operations
-- *Dependency: None. These are leaf-level utilities.*
-
-**Phase 3: File I/O Optimization (Proc::collect)**
-- Replace `ifstream` with POSIX `open`/`read`/`close` and stack buffers for `/proc` reading
-- Replace `fs::directory_iterator` with `opendir`/`readdir`
-- Replace linear PID lookup with hash-based lookup
-- Batch `/proc/[pid]/stat` parsing with a single read + manual field extraction
-- *Dependency: Phase 1 (profiling to measure improvement). Independent of Phase 2.*
-
-**Phase 4: Data Structure Optimization**
-- Replace `unordered_map<string, deque<long long>>` in cpu_info/mem_info with struct fields or enum-indexed arrays
-- Consider replacing `deque<long long>` with ring buffers (fixed-size circular buffer)
-- This touches `btop_shared.hpp` and ripples to ALL collectors and ALL draw functions
-- *Dependency: Phase 1 (to justify). Phase 3 should come first because it's less risky.*
-
-**Phase 5: Draw Pipeline Optimization**
-- Reduce `fmt::format` overhead (switch to positional args or format_to)
-- Reduce `Config::getB()`/`Config::getS()` lookups in draw functions (cache in local vars at start -- partly already done)
-- Investigate Graph class double-buffering overhead
-- Consider incremental/differential drawing (only redraw changed portions)
-- *Dependency: Phase 4 (data structures must be stable). Phase 2 (string utilities must be optimized first).*
-
-**Phase 6: Threading & Output**
-- Consider parallelizing independent collections (Cpu, Mem, Net can run simultaneously)
-- Investigate write batching / terminal output optimization
-- Profile `cout << flush` vs `write()` for large output strings
-- *Dependency: All prior phases. Highest risk, lowest certainty of gain.*
-
-### Phase Dependency Graph
-
+```cpp
+// Dispatch input to active frame
+PDAResult MenuPDA::process(std::string_view key) {
+    if (stack.empty()) return PDAResult::Pop;
+    return std::visit(
+        [&](auto& frame) { return frame.handle(key); },
+        stack.back()
+    );
+}
 ```
-Phase 1 (Profiling) ----+---> Phase 2 (String/Alloc) --+---> Phase 5 (Draw Pipeline)
-                        |                               |
-                        +---> Phase 3 (File I/O) -------+---> Phase 6 (Threading)
-                        |                               |
-                        +---> Phase 4 (Data Structs) ---+
+
+### Pattern 2: Input FSM Owns Mode, PDA Owns Stack
+
+**What:** `InputStateVar` holds the current input mode. When `MenuActive`, it delegates to `MenuPDA` but does not hold the PDA itself.
+**Why:** Separates "what kind of input are we doing" from "which menu is active". The Input FSM transition back to `Normal` happens when the PDA stack empties — this is the only coupling point.
+
+```cpp
+InputStateVar on_input(const input_state::MenuActive& s,
+                       std::string_view key, MenuPDA& pda) {
+    auto result = pda.process(key);
+    if (pda.empty()) {
+        // Exit menu mode: restore runner output, trigger redraw
+        Runner::pause_output.store(false);
+        Runner::run("all", true, true);
+        Menu::output.clear();
+        return input_state::Normal{};
+    }
+    return s;  // stay in MenuActive
+}
 ```
+
+### Pattern 3: Entry Actions on PDA Push
+
+**What:** Each `MenuFrameVar::push()` performs the frame's entry action inline (set `Menu::redraw = true`, clear `bg`, configure `Runner::pause_output`).
+**Why:** Mirrors the existing `Menu::show()` + `Menu::process()` flow where the first render cycle detects a new menu from `menuMask`. Makes state transitions explicit.
+
+### Pattern 4: Shadow Flag Retention
+
+**What:** `Menu::active` (atomic bool) is retained as a derived value updated whenever `input_var` changes state, OR it is removed and all cross-thread readers are identified and updated.
+**Trade-off:** Removing `Menu::active` is cleaner but requires auditing all readers. The main known cross-thread reader is none — `Menu::active` is only read on the main thread in `btop.cpp:1544` (`if (not Menu::active)` for clock update). This makes removal safe.
+**Recommendation:** Remove `Menu::active`; replace the `btop.cpp:1544` check with `!std::holds_alternative<input_state::MenuActive>(input_var)`.
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Keeping `menuMask` as Internal PDA State
+
+**What people do:** Wrap `bitset<8>` inside the PDA class, keeping bitset semantics.
+**Why it's wrong:** Defeats the purpose. The bitset allows multiple bits set simultaneously — the invalid-state problem being solved. A stack enforces exactly one active menu.
+**Do this instead:** `std::vector<MenuFrameVar>` stack. Only `top()` is active. Multiple menus are represented by depth, not simultaneous bits.
+
+### Anti-Pattern 2: Putting `old_filter` in Global Scope
+
+**What people do:** Leave `old_filter` as a file-scoped variable in `btop_input.cpp`.
+**Why it's wrong:** `old_filter` is per-filtering-session data — it belongs with the Filtering state.
+**Do this instead:** `input_state::Filtering{ std::string old_filter; }` carries it with the state.
+
+### Anti-Pattern 3: Bypassing the Input FSM for Menu Access
+
+**What people do:** Call `Menu::show(Menu::Help)` directly from places other than the Input FSM.
+**Why it's wrong:** Direct calls bypass the `InputStateVar` transition — `input_var` stays `Normal` while PDA has frames, corrupting the invariant that `MenuActive` iff `!pda.empty()`.
+**Do this instead:** All menu activations go through `InputFSM::push_menu(frame)` which atomically pushes and transitions `input_var` to `MenuActive`.
+
+### Anti-Pattern 4: Frame Render Functions Taking Raw `currentMenu` Int
+
+**What people do:** Pass `currentMenu` or enum int to render functions instead of frame data.
+**Why it's wrong:** Reverts to the implicit coupling the PDA eliminates.
+**Do this instead:** Each frame struct's `render(std::string& overlay)` method is called by the PDA; the frame knows its own data.
+
+### Anti-Pattern 5: Routing Menu Entry Through the Event Queue
+
+**What people do:** Push a `MenuOpen` event into `Global::event_queue` to trigger menu display.
+**Why it's wrong:** The event queue is for signal-handler-to-main-loop communication (async, signal-safe). Menu activation is synchronous main-thread work triggered by keystrokes; it does not cross thread or signal boundaries.
+**Do this instead:** Menu activation is a direct synchronous transition inside `InputFSM::process()`.
+
+---
 
 ## Integration Points
 
-### Internal Boundaries
+### Modified Internal Boundaries
 
-| Boundary | Communication | Optimization Notes |
-|----------|---------------|--------------------|
-| Main thread <-> Runner thread | `binary_semaphore` + `atomic<bool>` active/stopping | Low overhead, well-designed |
-| Config <-> All modules | `Config::getB/getI/getS` (unordered_map at()) | Called many times per cycle in draw; could cache locally |
-| Collectors <-> Draw functions | Return static reference to data structs | Zero copy, good pattern. Data struct layout matters for cache. |
-| Draw functions <-> Terminal | Single string concatenation, single `cout << flush` | Output string size is the main variable; terminal_sync wrapping helps |
-| Theme <-> Draw functions | `Theme::c()` (string lookup), `Theme::g()` (gradient array lookup) | Called per-character in graphs, per-element in boxes. Hot path. |
-| Tools (string utils) <-> All | `ulen()`, `uresize()`, `ljust()`, `rjust()`, `floating_humanizer()` | Called hundreds of times per frame. Allocation-heavy. |
+| Boundary | Before v1.3 | After v1.3 |
+|----------|-------------|------------|
+| Main loop → Input routing | `if (Menu::active) Menu::process(key); else Input::process(key)` | `InputFSM::process(key, input_var, pda)` |
+| Menu → Input | `Menu::active` atomic bool checked in `Input::get()` for mouse routing | `std::holds_alternative<input_state::MenuActive>(input_var)` |
+| Input → Menu activation | `Menu::show(int menu, int signal)` called from `Input::process()` | `pda.push(make_frame(menu, signal))` called from `on_input(Normal, key, pda)` |
+| Menu internal dispatch | `menuFunc.at(currentMenu)(key)` via function pointer vector | `std::visit([&](auto& f){ f.handle(key); }, pda.top())` |
+| Per-frame state lifetime | Function-static locals (program lifetime) | Frame struct fields (stack lifetime) |
 
-### External Services (OS Interfaces)
+### Unchanged Internal Boundaries
 
-| Service | Integration Pattern | Performance Notes |
-|---------|---------------------|-------------------|
-| `/proc` filesystem (Linux) | `ifstream` open/read/close per file | Main I/O bottleneck. Switch to POSIX read. |
-| `sysctl` (macOS/BSD) | Direct syscall | Low overhead, fast |
-| `IOKit` / `CoreFoundation` (macOS) | Framework calls for sensors, GPU | Moderate overhead, platform-specific |
-| `getifaddrs()` (all platforms) | Single call returns linked list of all interfaces | Efficient, single syscall |
-| GPU drivers (NVML, ROCm SMI) | Dynamic library loading, API calls | Moderate overhead, optional |
-| Terminal I/O | `cout << flush` / `write(STDOUT_FILENO)` | Single large write per cycle is optimal pattern |
+| Boundary | Notes |
+|----------|-------|
+| App FSM event queue | Signals → queue → `dispatch_event` → `transition_to`. No changes. |
+| Runner FSM | `RunnerStateTag` shadow, `pause_output`, semaphore. No changes. |
+| Config lock/unlock | Per-cycle around Runner. No changes. |
+| Drawing pipeline | `Xxx::draw()`, `Graph`, `Meter`. No changes. |
+| `Input::poll()` / `Input::get()` | Low-level I/O unchanged. `get()` checks `Config::proc_filtering` for mouse routing — this Config bool is retained. |
+
+---
+
+## Test Strategy
+
+Following the v1.1 pattern: tests exercise state machines in isolation without starting the terminal or runner thread.
+
+**PDA tests** (`tests/test_menu_pda.cpp`):
+- Push/pop invariants (push → `!empty()`, pop until empty → `empty()`)
+- Frame isolation (Options frame data does not bleed to Help frame)
+- SizeError detection and push on resize
+- SignalSend → SignalReturn push on kill failure
+- Main → Options → pop → Main frame data preserved
+
+**Input FSM tests** (`tests/test_input_fsm.cpp`):
+- `Normal + "f" → Filtering` with `old_filter` captured
+- `Filtering + "escape" → Normal` with filter restored
+- `Normal + "m" → MenuActive` (via PDA push)
+- `MenuActive + pda empties → Normal` (exit cleanup)
+- Mouse routing: `MenuActive` checks `pda.top()` mouse_mappings, not `Menu::active`
+
+**Both test suites** must run under ASan+UBSan and TSan (same CMake targets as v1.1).
+
+---
 
 ## Sources
 
-- Direct source code analysis of btop++ repository at `/Users/mit/Documents/GitHub/btop/`
-- `CMakeLists.txt` for build structure and platform conditionals
-- `src/btop.cpp` for main loop, Runner thread, and signal handling (lines 462-735 for Runner, 844-1207 for main)
-- `src/btop_draw.cpp` for rendering pipeline (2517 lines)
-- `src/linux/btop_collect.cpp` for Linux data collection (3341 lines, largest file)
-- `src/btop_tools.hpp/cpp` for string utility hot paths
-- `src/btop_shared.hpp` for data structure definitions
-- `src/btop_config.hpp` for configuration access patterns
-- `src/btop_theme.hpp` for color/gradient lookup patterns
+- Direct source code analysis: `src/btop_menu.hpp`, `src/btop_menu.cpp`, `src/btop_input.hpp`, `src/btop_input.cpp`
+- Existing FSM infrastructure: `src/btop_state.hpp`, `src/btop_events.hpp`, `src/btop.cpp`
+- Existing test patterns: `tests/test_app_state.cpp`, `tests/test_transitions.cpp`, `tests/test_events.cpp`
+- v1.2 PROJECT.md context: `.planning/PROJECT.md`
+- Prior research: `.planning/research/AUTOMATA-ARCHITECTURE.md`
 
 ---
-*Architecture research for: btop++ C++ terminal system monitor performance optimization*
-*Researched: 2026-02-27*
+*Architecture research for: btop++ v1.3 menu PDA + input FSM*
+*Researched: 2026-03-02*

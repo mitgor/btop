@@ -1,182 +1,294 @@
-# Feature Research: Performance Optimization Categories
+# Feature Research: Menu PDA + Input FSM
 
-**Domain:** C++ terminal system monitor (btop++) performance optimization
-**Researched:** 2026-02-27
-**Confidence:** HIGH (based on codebase analysis and established C++ optimization principles)
+**Domain:** Menu pushdown automaton and input finite state machine for btop++ C++ terminal monitor
+**Researched:** 2026-03-02
+**Confidence:** HIGH (codebase analysis + established TUI/game-state-machine literature)
+
+---
+
+## Context: What Exists and What Changes
+
+### Existing (keep, do not break)
+
+| Component | Current Encoding | Problem |
+|-----------|-----------------|---------|
+| 8 menus (Main, Options, Help, SizeError, SignalChoose, SignalSend, SignalReturn, Renice) | `bitset<8> menuMask` + `int currentMenu` | Multiple bits can be set simultaneously; `currentMenu` is the last set bit — implicit priority |
+| Menu per-frame state | `static` locals inside each `menuFuncN()` function | Survives across calls, not reset on re-entry, hidden lifetime |
+| Menu transitions | `menuReturnCodes`: NoChange / Changed / Closed / Switch | `Switch` replaces current; `Closed` pops via `menuMask.reset(currentMenu)` |
+| Input routing split | `Menu::active` bool checked in `Input::get()` mouse routing; `Input::process()` checks `Config::proc_filtering` bool | Two independent conditionals, not a typed FSM |
+| Filtering state | `Config::proc_filtering` bool + `old_filter` string | Global config bool used as mode flag |
+
+### Target (v1.3 goal)
+
+- `std::vector<MenuFrame>` stack where `MenuFrame = std::variant<frame::Main, frame::Options, frame::Help, ...>` — each frame carries its own per-frame data
+- `push(frame)` → enter menu; `pop()` → return to previous (or close all if stack empties)
+- Input FSM: `std::variant<input::Normal, input::Filtering, input::MenuActive>` replacing the `Menu::active` bool + `proc_filtering` bool pair
+- Zero user-visible behavior change
+
+---
 
 ## Feature Landscape
 
-### Table Stakes (Any Competent Optimizer Would Do These)
+### Table Stakes (Must Have for This Milestone)
 
-Foundational optimizations that eliminate waste. These are low-risk, high-confidence wins that any profiling session would reveal. Missing these would indicate the optimization effort is not serious.
+Features that the PDA and Input FSM must provide. Missing any one = the migration is incomplete, regression exists, or the architecture goal is unmet.
 
-| Feature | Why Expected | Complexity | Expected Impact | Notes |
-|---------|--------------|------------|-----------------|-------|
-| Replace `std::regex` with manual parsing or CTRE | `std::regex` is 10-100x slower than alternatives; used in hot paths (`Fx::uncolor`, `Fx::escape_regex`, proc filter matching in `btop_shared.cpp`) | LOW | 5-15% CPU reduction in draw path; process filter matching becomes near-instant | `Fx::uncolor()` is called per-frame via `Fx::uncolor(output)` in the runner thread output path (line 730 of `btop.cpp`). The disabled manual parser in `btop_tools.cpp:187-210` was the right idea -- just needs musl compatibility fix |
-| Eliminate unnecessary string copies | Functions like `uresize(string str, ...)` and `luresize(string str, ...)` take strings by value instead of `const string&` or `string_view`; `s_replace` copies input; `ljust/rjust/cjust` take by value | LOW | 3-8% CPU reduction overall; reduced heap allocations | `btop_tools.hpp:179-182` shows `uresize` and `luresize` taking `const string str` by value -- these are called thousands of times per frame in draw code |
-| Use `string::reserve()` in draw functions | Draw functions build output strings character-by-character with `+=`. `Proc::draw` does `out.reserve(width * height)` but most others do not | LOW | 2-5% reduction in draw time; fewer heap reallocations | `Cpu::draw`, `Mem::draw`, `Net::draw`, `Gpu::draw` all build large output strings without reserving. The output string in the runner thread (`output.clear()`) also never reserves |
-| Replace `std::to_string()` in hot loops with `std::to_chars()` | `to_string()` uses locale and allocates; `to_chars()` writes to a stack buffer with zero allocation | LOW | 1-3% CPU; measurable in per-process draw loops | Used extensively in `Mv::to()`, `Mv::r()`, `Mv::l()` etc. in `btop_tools.hpp:104-116` -- these are called thousands of times per frame |
-| Use `std::string_view` for config lookups | `Config::getS()` returns `const string&` which is fine, but many callers copy the result into `string` variables | LOW | 1-2% CPU; reduced temporary allocations | Throughout draw functions: `auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_proc"))` is good; but many other call sites copy |
-| Switch `/proc` file reads from `ifstream` to raw `open()/read()` | Process collection opens 3-5 files per PID using `ifstream`, which has constructor/destructor overhead and buffering overhead for tiny files (< 4KB) | MEDIUM | 10-25% reduction in Proc::collect time | `linux/btop_collect.cpp` lines 2935-3184: opens `comm`, `cmdline`, `status`, `stat`, and sometimes `statm` per process. Raw `read()` into a stack-allocated buffer avoids heap allocation entirely |
-| Replace `readfile()` with direct `read()` for small sysfs files | `readfile()` in `btop_tools.cpp:561-573` checks `fs::exists()` then opens `ifstream` and reads line-by-line -- 3 syscalls minimum for a file that's typically < 100 bytes | LOW | 5-10% reduction in sensor/battery/network collection time | Called dozens of times per update cycle for sensors, battery, network stats. A single `open()+read()+close()` with stack buffer would suffice |
-| Avoid `fs::exists()` before `open()` | `readfile()` calls `fs::exists()` which is an extra `stat()` syscall before the `open()` -- just try to open and handle failure | LOW | Minor syscall reduction (dozens per cycle) | TOCTOU issue too: file could disappear between exists() and open() |
-| Pre-compute static escape sequences | `Mv::to()`, `Mv::r()`, `Mv::l()` etc. dynamically build escape strings every call. For fixed positions (box corners, headers), these could be computed once | LOW | 1-3% draw time reduction | Box layouts change only on resize. Cache escape sequences in `calcSizes()` and reuse |
-| Use `fmt::format_to` with `std::back_inserter` instead of `fmt::format` | `fmt::format` returns a new string; `fmt::format_to` appends directly to an existing buffer, avoiding allocation | LOW | 2-4% in draw functions | Already used in a few places in `Proc::draw` (lines 1830, 1887) but not consistently throughout |
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Typed stack frames for all 8 menus | The entire point of the milestone; replaces `bitset<8>` + `currentMenu` | MEDIUM | Each frame variant alternative carries its own state (e.g., `frame::SignalChoose { int selected_signal; int x; int y; }`) replacing function-static locals |
+| `push(frame)` operation | Entering a menu from Normal or from another menu must put the new frame on top | LOW | Replace `menuMask.set(menu)` call sites; preserve caller frame below |
+| `pop()` operation | Closing a menu (ESC/q/Closed return code) must restore the frame beneath it | LOW | Replace `menuMask.reset(currentMenu)` + recursive `process()` call; if stack empties, transition input FSM back to Normal |
+| Clean per-frame state initialization | Frame state initializes when pushed, not from a prior static | MEDIUM | Current code uses `if (bg.empty()) selected = 0;` hacks to detect re-entry; frame constructor sets initial state cleanly |
+| Clean per-frame state destruction on pop | Frame state destroyed when popped — no dangling statics | LOW | RAII via variant destruction; function-static locals eliminated |
+| `peek()` / top-frame dispatch | `process(key)` must dispatch input to the top frame only | LOW | Replaces `menuFunc.at(currentMenu)(key)` dispatch |
+| Background capture on push (not per-frame) | `bg` string (the blurred background) is captured once when first menu opens, not re-captured per frame | LOW | Current: `bg` is a single module-level string; behavior unchanged — bg cleared only when stack fully empties |
+| `mouse_mappings` reset on frame transition | Mouse mappings belong to the active frame; must be cleared and rebuilt when pushing or popping | LOW | Current: `mouse_mappings.clear()` on Closed/Switch; must happen on push and pop |
+| `Switch` return code → replace frame, not push | Main→Options/Help does a replace (not a push-over-main), so going back to main after closing Options does NOT re-show Main | MEDIUM | Distinguish `push()` (depth increases) from `replace()` (depth unchanged) or model Main→Options as `pop(); push(Options)` — either way must match current behavior where ESC from Options goes to Normal, not Main |
+| Input FSM: `Normal` state | Keyboard goes to `Input::process()` for global + box-specific handlers | LOW | Replaces implicit "not filtering, not in menu" condition |
+| Input FSM: `Filtering` state | Keyboard routed to `Proc::filter.command(key)` + filter commit/cancel | LOW | Replaces `Config::proc_filtering` bool; carries `old_filter` string in state |
+| Input FSM: `MenuActive` state | Keyboard routed to `Menu::process(key)` only | LOW | Replaces `Menu::active` atomic bool; eliminates the bool from `Input::get()` mouse routing check |
+| Input FSM transition Normal → Filtering | `f` or `/` key from Normal state | LOW | Entry action: set `Proc::filter = Draw::TextEdit{...}`, save `old_filter` |
+| Input FSM transition Filtering → Normal | `enter`, `escape`, `mouse_click` from Filtering state | LOW | Entry/exit actions: commit or restore filter value |
+| Input FSM transition Normal ↔ MenuActive | `Menu::show()` / `Menu::process()` with empty stack triggers Normal | LOW | When PDA stack goes empty, input FSM pops to Normal |
+| Mouse routing uses Input FSM state | `Input::get()` checks input FSM state (not `Menu::active` bool) for which mouse_mappings to use | LOW | Single source of truth replaces `Menu::active` + config bool |
+| Comprehensive tests for PDA transitions | Push, pop, replace, empty-stack, size-error override all tested | HIGH | Following v1.1 pattern: 266+ passing tests, ASan+UBSan+TSan clean |
+| Comprehensive tests for Input FSM transitions | Normal→Filtering→Normal, Normal→MenuActive→Normal, key routing verified per state | MEDIUM | Unit-testable because state is a typed variant, not global bools |
+| Zero regression in user-visible behavior | Same menus, same keys, same flow, same visuals | HIGH (validation) | Verified by existing test suite + ASan/UBSan/TSan clean builds |
 
-### Differentiators (Advanced Techniques -- Competitive Advantage)
+### Differentiators (Architectural Improvements Enabled by PDA)
 
-These go beyond obvious fixes. They require deeper architectural understanding and yield compounding benefits. Implementing these would make btop++ demonstrably best-in-class in efficiency.
+Features that the PDA/FSM architecture makes possible or significantly cleaner — not strictly required for behavior parity, but are the architectural payoff of the migration.
 
-| Feature | Value Proposition | Complexity | Expected Impact | Notes |
-|---------|-------------------|------------|-----------------|-------|
-| Direct `/proc` parsing with `open()+read()` into fixed stack buffers | Eliminate all heap allocation in the process collection hot loop. Use `char buf[4096]` on the stack (page-aligned for /proc), parse in-place with `from_chars()` | MEDIUM | 20-40% reduction in Proc::collect CPU time | This is the single highest-impact optimization. The current code does ~5 `ifstream` open/close cycles per process, each involving heap allocation. On a system with 500 processes, that's 2500+ heap allocations per update. A fixed stack buffer with `read()` reduces this to zero heap allocations |
-| Differential/incremental terminal output | Instead of rebuilding the entire frame string each cycle, track what changed and emit only the delta escape sequences | HIGH | 30-50% reduction in draw time and terminal I/O | Currently the runner thread rebuilds the entire output string (~10-50KB) every cycle. Terminal emulators already handle cursor-addressed updates efficiently. Only redraw cells that actually changed (new value != old value) |
-| Process data structure optimization: `vector` with index lookup instead of `unordered_map` | Replace `unordered_map<string, deque<long long>>` in `cpu_info`, `mem_info`, `net_info`, `gpu_info` with flat `array` or `vector` indexed by enum | MEDIUM | 10-20% reduction in collection + draw time | `cpu_percent`, `mem.stats`, `mem.percent`, `net.bandwidth` all use `unordered_map<string, ...>` with string keys like `"total"`, `"user"`, `"idle"`. Replace with `enum class CpuField { Total, User, Idle, ... }` and `array<deque<long long>, N>`. Eliminates hashing + string comparison on every access |
-| Ring buffer instead of `deque<long long>` for time-series data | `deque` allocates in chunks and has poor cache locality. A fixed-size ring buffer (`array<long long, N>`) is contiguous and avoids all heap allocation | MEDIUM | 5-15% reduction in graph data management | Used everywhere: `cpu_percent`, `core_percent`, `temp`, `gpu_percent`, `bandwidth`, `io_read`, etc. Graph width determines max entries needed -- typically 200-300 values max. A `std::array<long long, 512>` ring buffer with head/tail indices would be zero-allocation and cache-friendly |
-| Batch terminal writes with `writev()` | Instead of building one giant string and calling `cout << output << flush`, use `writev()` with scatter-gather I/O to write multiple buffers in a single syscall | MEDIUM | 5-10% reduction in I/O overhead; avoids building the concatenated output string | The runner thread concatenates cpu+gpu+mem+net+proc output strings into one big `output` string, then writes it all at once. With `writev()`, each box's output could remain separate -- no final concatenation needed |
-| Pool-allocate `proc_info` objects | `proc_info` contains 7 `string` members (name, cmd, short_cmd, user, prefix, plus state info). New processes trigger heap allocations for each string. Use a memory pool or arena allocator | HIGH | 5-15% reduction in Proc::collect allocation overhead | `current_procs` is a `vector<proc_info>` that grows/shrinks as processes appear/disappear. String members cause heap fragmentation. An arena that recycles `proc_info` slots would eliminate per-process allocation churn |
-| Move graph symbol lookup from `unordered_map` to flat array | `Symbols::graph_symbols` is `unordered_map<string, vector<string>>` with 6 entries, looked up by string key on every graph update | LOW | 1-3% draw time reduction | Replace with `enum class GraphSymbol { BrailleUp, BrailleDown, ... }` and `array<array<string, 25>, 6>`. Eliminates string hashing in hot graph rendering loop |
-| Compile-time escape sequence generation with `constexpr` | Many escape sequences in `Fx`, `Term`, `Mv` namespaces are runtime-constructed `string` objects. Convert to `constexpr string_view` or `constexpr char[]` | LOW | 1-2% startup time + minor runtime improvement | `Fx::e`, `Fx::b`, `Fx::ub`, `Term::hide_cursor`, etc. are `const string` (heap-allocated at startup). Making them `constexpr const char[]` or `string_view` eliminates ~30 startup heap allocations |
-| Parallel data collection | Collect CPU, memory, network, disk, and process data concurrently instead of sequentially in the runner thread | HIGH | 20-40% wall-clock reduction per update cycle (not CPU reduction -- spreads work across cores) | Currently the runner loop in `btop.cpp:514-651` collects CPU, then GPU, then MEM, then NET, then PROC sequentially. CPU and MEM/NET reads are independent and could run in parallel. Complexity: thread safety of shared state, increased total CPU usage |
-| `charconv`-based number parsing for `/proc` files | Replace `stoull()`, `stoll()`, `stod()`, `stoi()` with `std::from_chars()` throughout proc collection | LOW | 3-8% reduction in Proc::collect time | `from_chars()` is locale-independent, allocates nothing, and is typically 2-5x faster than `sto*()` functions. Used ~10 times per process in the stat parsing loop |
-| Lazy/on-demand proc detail collection | Only read `/proc/[pid]/cmdline`, `/proc/[pid]/status` (user info) for processes that are actually visible on screen, not all processes | MEDIUM | 10-30% reduction in Proc::collect for systems with many processes | Currently reads `comm`, `cmdline`, and `status` for every new process. If 500 processes exist but only 30 are visible, 470 command-line reads are wasted. Cache and only fetch for visible + recently-seen PIDs |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Illegal menu combinations unrepresentable | `bitset<8>` allows `menuMask = 0b11111111` (all 8 menus active). Variant stack allows only one frame per stack slot — simultaneous conflicting menus are structurally impossible | LOW (side-effect of design) | No explicit code to write; falls out of the typed variant stack |
+| Per-frame state lifetime matches frame lifetime | `frame::SignalChoose` carries `selected_signal` as a member; it's initialized on push and destroyed on pop — no `static` lifetime pollution across close/reopen cycles | LOW (side-effect of design) | Eliminates the `if (bg.empty()) selected = 0;` re-entry detection hacks in all 8 menu functions |
+| Compiler-enforced frame handling | `std::visit` on `MenuFrame` variant produces compile error if a new frame type is added without handling it in dispatch | LOW (side-effect of design) | Makes future menu additions safe |
+| Transition logging | Every push/pop/replace can log `"[Menu PDA] push(Options) → stack: [Main, Options]"` for debuggability | LOW | One log statement in push/pop/replace |
+| Input mode visible at a glance | `std::holds_alternative<input::Filtering>(input_state)` is self-documenting; `Config::getB(BoolKey::proc_filtering)` is not | LOW (side-effect of design) | Debugging and future development benefit |
+| Old filter preserved in state struct | `input::Filtering { string old_filter; Draw::TextEdit filter; }` keeps filter rollback data in the FSM state, not in a module-level `string old_filter` global | LOW | Eliminates one global variable |
+| Extensible focus model | Once input routing is typed, adding a third input mode (e.g., a vim-style command mode) is additive — add a new alternative to the InputFSM variant and handlers | LOW (future-facing) | Not for v1.3, but architecture now supports it |
+| Stack depth limit (defensive) | Assert/enforce `stack.size() <= 3` to prevent any pathological push loop that the bitset could not express but the stack could | LOW | Defensive guard; `bitset<8>` was naturally bounded to 8 |
 
-### Anti-Features (Commonly Considered, Often Problematic)
+### Anti-Features (Do Not Build)
 
-Optimizations that seem appealing but create problems disproportionate to their benefit. These are traps.
+Features that seem natural to add during this refactor but would violate scope, add risk, or create problems.
 
-| Feature | Why Appealing | Why Problematic | Alternative |
+| Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| SIMD-accelerated terminal rendering | Sounds impressive; SIMD is fast | Terminal output is string-based with variable-width UTF-8 and escape sequences. SIMD operates on fixed-width aligned data. The mismatch means complex shuffle/mask logic that's slower than scalar code for this workload. The bottleneck is I/O to the terminal, not string processing | Focus on reducing output volume (differential updates) rather than accelerating string building |
-| Memory-mapped `/proc` files | mmap avoids read syscall overhead | `/proc` files are virtual -- they're generated on read. mmap doesn't help because there's no file to map into memory; the kernel still generates content on page fault. Also adds TLB pressure and requires `munmap` cleanup | Use raw `read()` into stack buffers -- minimal overhead, no cleanup needed |
-| Custom allocator for all `std::string` | Eliminates malloc overhead globally | Massive code change touching every string in the codebase. Debugging becomes harder. SSO (Small String Optimization) already handles most short strings (< 15-22 chars depending on implementation). The real fix is avoiding unnecessary string creation, not making creation cheaper | Target specific hot-path strings with stack buffers or `string_view`; let SSO handle the rest |
-| Rewriting draw functions in a "retained mode" UI framework | Eliminates redundant draws by tracking a widget tree | Architectural rewrite of 2500+ lines of draw code. The current immediate-mode approach is simpler to reason about. Incremental/differential output achieves most of the same benefit without a rewrite | Implement per-cell dirty tracking on top of existing draw functions |
-| Lock-free data structures for collector-to-drawer communication | Eliminates mutex contention between collector and drawer threads | btop uses a single runner thread that collects then draws sequentially -- there's no contention to eliminate. The `atomic_lock` pattern is already lightweight. Lock-free structures add complexity for zero benefit in this architecture | The current `atomic<bool>` + sequential collect-then-draw is already optimal for the single-threaded runner model |
-| Replacing `fmt` library with raw `sprintf` | Marginally faster for simple format strings | `fmt` is already close to optimal, provides type safety, and the project depends on it throughout. `sprintf` is not type-safe, can overflow, and modern `fmt` with `format_to` is comparable in speed | Use `fmt::format_to` with pre-allocated buffers instead of `fmt::format` for hot paths |
-| Reducing update frequency to save CPU | Trivially reduces CPU usage | Violates the project constraint of "no changes to user-visible behavior." The update frequency is user-configurable and should remain so | Optimize what happens during each update, not how often updates occur |
-| Aggressive `constexpr` everything | Sounds like free performance | Many values depend on runtime state (terminal size, config, theme). Over-applying `constexpr` creates maintenance burden with no runtime benefit. Only escape sequence constants and lookup tables benefit | Apply `constexpr` selectively to genuinely compile-time-known values: escape codes, symbol tables, numeric constants |
+| Deep push of Main on top of Options/Help | PDA pattern suggests "push every menu on stack" — so opening Options from Main would push Options over Main | Current btop behavior: ESC from Options goes to Normal, NOT back to Main. Users do not expect to return to Main by closing Options. Breaking this is a regression | Use `replace()` for Main→Options/Help transitions; reserve `push()` for cases that genuinely need return (e.g., SignalChoose → SignalReturn) |
+| Animate or transition visuals during push/pop | Stack-based UIs often have slide or fade transitions | Zero visual change is the explicit constraint in PROJECT.md; any animation adds terminal I/O complexity and is out of scope | Keep the existing instant-switch rendering behavior |
+| History states (remember substate when re-entering) | PDA stacks often carry a "return to where we were" concept — e.g., remember which option was selected when reopening Options | btop already does this via function-static locals (e.g., `static int selected_cat` persists). The migration goal is to move this state into the frame struct, not to change the behavior | Move static locals into frame struct members; preserve current persistence semantics |
+| Async menu state machines | Run menu update logic on a separate thread or with coroutines | Menu rendering must coordinate with Runner's pause_output and bg string; async would introduce races. The existing synchronous model is correct | Keep menu processing synchronous on the main thread |
+| Boost.SML or external FSM library | External libraries provide DSL, hierarchy, guards | PROJECT.md: no new dependencies. Boost.SML would be a new dependency. `std::variant` + `std::visit` is established in this codebase (v1.1 pattern) | Use `std::variant` + `std::visit` matching the existing App/Runner FSM pattern |
+| Replacing `Menu::msgBox` class | The msgBox helper could be refactored to also be a frame type | It works, it's tested, it's not the migration target. Touching it risks regression in SizeError, SignalSend, SignalReturn, ReniceMenu behaviors | Leave msgBox as-is; just move its state into the frame struct (e.g., `frame::SizeError { msgBox box; }`) |
+| Input FSM carrying full keyboard event history | An `InputFSM` could carry a ring buffer of recent keys for multi-key sequence detection | btop already has `Input::history` deque. Adding another history buffer in the FSM state struct duplicates data | Leave `Input::history` deque in place; `InputFSM` state struct carries only mode-specific data |
+| Global input FSM accessible across threads | Making the input FSM readable from Runner thread | Input processing is main-thread only. The runner thread does not need to know the input mode. Cross-thread access would require atomics, undoing the simplification | Keep input FSM as main-thread-only, like the App/Runner FSM variant |
+
+---
 
 ## Feature Dependencies
 
 ```
-[Raw /proc read() with stack buffers]
-    +-- enables --> [from_chars() number parsing]  (parse directly from read buffer)
-    +-- enables --> [Lazy proc detail collection]   (cheap to skip reads when using raw fd)
+[PDA: Typed Stack Frames]
+    +-- requires --> [Frame variant definition]   (MenuFrame = std::variant<...>)
+    +-- requires --> [Per-frame state structs]     (frame::Options { int selected; int selected_cat; ... })
+    +-- enables  --> [Clean state initialization] (constructor replaces if (bg.empty()) hacks)
+    +-- enables  --> [Illegal state prevention]   (structural; falls out of variant)
 
-[Enum-indexed arrays replacing unordered_map]
-    +-- enables --> [Ring buffer for time-series]    (array<RingBuffer, N> instead of map<string, deque>)
+[PDA: push() operation]
+    +-- requires --> [PDA: Typed Stack Frames]
+    +-- requires --> [Input FSM: MenuActive state] (push must transition input FSM if stack was empty)
+    +-- replaces --> [menuMask.set() call sites]
 
-[Differential terminal output]
-    +-- requires --> [Per-cell state tracking]       (need to know what changed)
-    +-- conflicts --> [Parallel data collection]     (harder to diff when data arrives async)
+[PDA: pop() operation]
+    +-- requires --> [PDA: Typed Stack Frames]
+    +-- enables  --> [Input FSM: Normal state]    (pop when stack empties → input FSM back to Normal)
+    +-- replaces --> [menuMask.reset() call sites]
+    +-- coordinates --> [bg string lifecycle]     (bg clears only when stack fully empties)
 
-[Pre-computed escape sequences]
-    +-- enhances --> [Differential terminal output]  (cached escapes = faster partial redraws)
+[PDA: replace() operation]
+    +-- requires --> [PDA: Typed Stack Frames]
+    +-- requires --> [understanding of Switch return code semantics]  (Main→Options must use replace, not push)
 
-[String copy elimination]
-    +-- independent (can be done anytime)
+[Input FSM: typed states]
+    +-- requires --> [InputFSMState = std::variant<input::Normal, input::Filtering, input::MenuActive>]
+    +-- replaces --> [Menu::active atomic<bool>]
+    +-- replaces --> [Config::proc_filtering bool (as routing signal)]
+    +-- enables  --> [Mouse routing via FSM]      (Input::get() checks variant, not bool)
 
-[std::regex replacement]
-    +-- independent (can be done anytime)
-    +-- enhances --> [Process filter matching]       (faster filter = snappier UX on filter changes)
+[Input FSM: Filtering state]
+    +-- carries  --> [old_filter string]          (moves from module-level global into state struct)
+    +-- carries  --> [Draw::TextEdit filter]      (per-activation filter edit context)
 
-[Parallel data collection]
-    +-- conflicts --> [Differential terminal output] (complicates change tracking)
-    +-- requires --> [Thread-safe data structures]   (shared state protection)
+[Tests: PDA transitions]
+    +-- requires --> [PDA: push/pop/replace]
+    +-- requires --> [frame state structs are constructible/inspectable in tests]
+
+[Tests: Input FSM transitions]
+    +-- requires --> [Input FSM: typed states]
+    +-- independent of --> [Tests: PDA transitions] (can test separately)
 ```
 
 ### Dependency Notes
 
-- **Raw /proc reads enable from_chars parsing:** When you have a `char[]` buffer from `read()`, you can parse numbers in-place with `from_chars()`. With `ifstream`, you're extracting into `string` first, then converting -- an unnecessary intermediate step.
-- **Enum-indexed arrays enable ring buffers:** Once you replace `unordered_map<string, deque<long long>>` with `array<..., N>`, switching the `deque` to a ring buffer is a localized change per array slot.
-- **Differential output conflicts with parallel collection:** If data arrives from multiple threads at unpredictable times, tracking "what changed since last frame" becomes much harder. Recommend doing differential output first, parallel collection later (or never -- wall-clock gains may not justify complexity).
-- **String copy elimination is independent:** Can be done as a cleanup pass at any time. No dependencies on other optimizations.
-- **std::regex replacement is independent:** Self-contained change. The `Fx::uncolor` regex is used in the final output path but doesn't interact with other optimizations.
+- **`replace()` semantics must be decided before coding push/pop:** The Main→Options transition currently uses `Switch` return code (same menu slot, replaces bg) so ESC from Options returns to Normal, not to Main. The PDA must model this as `pop(); push(Options)` or a true `replace()`. The decision affects how many frames are on the stack and whether there is ever a Main frame below another frame.
+- **Input FSM must transition to MenuActive when first menu is pushed:** The trigger for `Menu::active = true` must move from `process()` to the `push()` operation. This is the coupling point between the two new machines.
+- **Mouse routing couples Input FSM and PDA:** `Input::get()` currently checks `Menu::active` to choose `Menu::mouse_mappings` vs `Input::mouse_mappings`. After migration, it checks the Input FSM state. The PDA's `push()` and `pop()` must correctly drive the Input FSM state, otherwise mouse events mis-route.
+- **`bg` string lifetime is tied to the full stack, not individual frames:** `bg` is regenerated when `redraw = true` and is shared by the entire menu overlay. It clears when the stack fully empties. Individual frame push/pop must not clear `bg` unless the stack becomes empty — this is a subtlety of the current architecture that must be preserved.
 
-## MVP Definition (First Optimization Phase)
+---
 
-### Phase 1: Profile and Measure Baseline (v0)
+## MVP Definition
 
-Establish measurable baselines before changing anything.
+This milestone is a refactoring milestone, not a feature-addition milestone. The MVP is identical to the existing behavior, with internal representation changed.
 
-- [ ] Instrument with `perf` / Instruments.app to identify actual CPU hotspots
-- [ ] Measure baseline: CPU%, RSS, startup time, time-per-frame
-- [ ] Validate that Proc::collect and draw functions are indeed the top consumers (expected from code analysis but must be confirmed)
+### Core PDA (v1.3 launch)
 
-### Phase 2: Low-Hanging Fruit (v1)
+The minimum that constitutes a successful migration:
 
-High-impact, low-risk changes. Each is independently testable.
+- [ ] `MenuFrame` variant defined with all 8 frame types, each carrying its per-frame state as struct members
+- [ ] `std::vector<MenuFrame> menu_stack` replaces `bitset<8> menuMask` + `int currentMenu`
+- [ ] `push(MenuFrame)` implemented — sets `Menu::active`, drives Input FSM transition
+- [ ] `pop()` implemented — resets state, drives Input FSM, clears `bg` if stack empties
+- [ ] `replace(MenuFrame)` implemented for Switch-return-code transitions (Main→Options/Help)
+- [ ] All 8 menu functions refactored to receive their frame by reference instead of using function-static locals
+- [ ] All `menuMask.set()` / `menuMask.reset()` / `currentMenu = ` call sites replaced
+- [ ] `Menu::show()` and `Menu::process()` updated to work with stack
 
-- [ ] Replace `std::regex` usage in `Fx::uncolor` and proc filter -- because it's on the critical output path every frame
-- [ ] Eliminate string-by-value copies in `uresize`, `luresize`, `ljust`, `rjust`, `cjust` -- because they're called thousands of times per frame
-- [ ] Replace `readfile()` with direct `read()` for small sysfs files -- because it eliminates 2 extra syscalls per call
-- [ ] Use `from_chars()` instead of `sto*()` in proc stat parsing -- because it's zero-allocation and 2-5x faster
-- [ ] Add `string::reserve()` to draw functions and runner output -- because it prevents reallocation cascades
+### Core Input FSM (v1.3 launch)
 
-### Phase 3: Architectural Wins (v1.x)
+- [ ] `InputFSMState` variant defined: `input::Normal`, `input::Filtering { old_filter, filter }`, `input::MenuActive`
+- [ ] `Input::process()` dispatches based on FSM state instead of `filtering` bool check
+- [ ] `Input::get()` mouse routing uses FSM state instead of `Menu::active` bool
+- [ ] Transitions Normal→Filtering, Filtering→Normal, Normal→MenuActive, MenuActive→Normal all wired to correct triggers
+- [ ] `Menu::active` atomic bool removed (or aliased from FSM state for backward compatibility during transition)
+- [ ] `Config::proc_filtering` bool no longer used as an input routing signal (may remain as a config value, but Input FSM state is the routing authority)
 
-Changes that require more careful design but yield large gains.
+### Tests (v1.3 launch)
 
-- [ ] Raw `/proc` reads with stack buffers for Proc::collect -- trigger: after Phase 2 confirms proc collection is still the top hotspot
-- [ ] Enum-indexed arrays replacing `unordered_map<string, ...>` in data structures -- trigger: after profiling shows map lookup overhead
-- [ ] Ring buffers replacing `deque<long long>` for time-series data -- trigger: can be done alongside enum migration
+- [ ] PDA push/pop/replace transition table tested (all 8 frame types, empty-stack pop, SizeError override, stack depth guard)
+- [ ] Input FSM state transitions tested (each edge, key routing per state)
+- [ ] ASan + UBSan + TSan clean
+- [ ] Existing 266 tests still pass
 
-### Phase 4: Advanced Optimizations (v2+)
+### Deferred (v1.4+)
 
-Larger changes to defer until core optimizations prove insufficient.
+- [ ] Multi-level push (e.g., a future nested dialog within Options) — architecture supports it, not needed for behavior parity
+- [ ] Transition logging infrastructure — useful for debugging, not required for correctness
 
-- [ ] Differential terminal output -- requires careful design of change-tracking; biggest potential single win but highest complexity
-- [ ] Parallel data collection -- defer because wall-clock improvement comes at the cost of increased total CPU; only worthwhile if single-core utilization is maxed
-- [ ] `constexpr` escape sequences and compile-time symbol tables -- low impact individually; batch as a cleanup phase
+---
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Expected Impact | Priority |
-|---------|------------|---------------------|-----------------|----------|
-| Profile + baseline measurement | HIGH | LOW | Foundation for all work | P0 |
-| Replace `std::regex` in output path | HIGH | LOW | 5-15% CPU | P1 |
-| Raw `/proc` reads with stack buffers | HIGH | MEDIUM | 20-40% proc collect | P1 |
-| Eliminate string copies (uresize etc.) | HIGH | LOW | 3-8% CPU | P1 |
-| `from_chars()` number parsing | MEDIUM | LOW | 3-8% proc collect | P1 |
-| `reserve()` in draw functions | MEDIUM | LOW | 2-5% draw time | P1 |
-| Replace `readfile()` with raw read | MEDIUM | LOW | 5-10% sensor/battery | P1 |
-| Enum-indexed arrays for data structs | HIGH | MEDIUM | 10-20% overall | P2 |
-| Ring buffers for time-series | MEDIUM | MEDIUM | 5-15% graph data | P2 |
-| `fmt::format_to` consistency | LOW | LOW | 2-4% draw | P2 |
-| Pre-computed escape sequences | LOW | LOW | 1-3% draw | P2 |
-| Differential terminal output | HIGH | HIGH | 30-50% draw + I/O | P2 |
-| Lazy proc detail collection | MEDIUM | MEDIUM | 10-30% proc collect | P2 |
-| Parallel data collection | MEDIUM | HIGH | 20-40% wall-clock | P3 |
-| `constexpr` escape sequences | LOW | LOW | 1-2% startup | P3 |
-| Graph symbol flat array | LOW | LOW | 1-3% draw | P3 |
+| Feature | Architectural Value | Implementation Cost | Regression Risk | Priority |
+|---------|---------------------|---------------------|-----------------|----------|
+| `MenuFrame` variant + frame structs | HIGH (foundation) | MEDIUM | LOW | P1 |
+| push() / pop() / replace() | HIGH (core ops) | MEDIUM | MEDIUM | P1 |
+| Input FSM `Normal` / `MenuActive` states | HIGH (replaces active bool) | LOW | LOW | P1 |
+| Input FSM `Filtering` state | HIGH (replaces proc_filtering routing) | LOW | MEDIUM | P1 |
+| Mouse routing via Input FSM | MEDIUM | LOW | MEDIUM | P1 |
+| Per-frame state in struct (not static locals) | HIGH (eliminates hacks) | HIGH | MEDIUM | P1 |
+| PDA transition tests | HIGH (safety net) | HIGH | N/A | P1 |
+| Input FSM transition tests | HIGH (safety net) | MEDIUM | N/A | P1 |
+| Stack depth guard | LOW (defensive) | LOW | LOW | P2 |
+| Transition logging | LOW (debug aid) | LOW | LOW | P2 |
+| Remove `Menu::active` bool | MEDIUM | LOW | LOW | P2 (after P1 validated) |
 
 **Priority key:**
-- P0: Must do before any optimization work
-- P1: First optimization phase -- high impact, low risk
-- P2: Second phase -- requires more design, still significant impact
-- P3: Defer -- nice to have, lower ROI or higher risk
+- P1: Required for v1.3 — the migration is not done without these
+- P2: Cleanup after P1 is validated; safe to add in later plan within same milestone
 
-## Competitor Feature Analysis (Optimization Approaches)
+---
 
-| Optimization Area | htop | glances | bottom (Rust) | btop++ Current | btop++ Optimized |
-|-------------------|------|---------|---------------|----------------|------------------|
-| /proc parsing | C with raw read() | Python (slow) | Rust with BufReader | C++ ifstream | Raw read() + from_chars() |
-| String handling | C char arrays (zero-copy) | Python strings | Rust String/&str | std::string with copies | string_view + reserve |
-| Data structures | Simple arrays | Python dicts | Rust Vec + HashMap | unordered_map<string,...> | enum-indexed arrays |
-| Terminal output | ncurses (diff-based) | curses (diff-based) | tui-rs (diff-based) | Full rebuild each frame | Differential (planned) |
-| Regex | Not used | Python re | Rust regex (compiled) | std::regex (slow) | Manual parsing / CTRE |
-| Memory model | Flat C structs | Python objects | Rust ownership | std::string in structs | Arena/pool (planned) |
+## Implementation Notes (from Codebase Analysis)
+
+### Frame State Inventory
+
+Each menu function currently uses function-statics. These must become frame struct members:
+
+| Frame | Function-Static State | Notes |
+|-------|-----------------------|-------|
+| `frame::Main` | `int y`, `int selected`, `vector<string> colors_selected`, `vector<string> colors_normal` | `selected` resets when `bg.empty()` |
+| `frame::Options` | `int x`, `int y`, `int height`, `int page`, `int pages`, `int selected`, `int select_max`, `int item_height`, `int selected_cat`, `int max_items`, `int last_sel`, `bool editing`, `Draw::TextEdit editor`, `string warnings`, `bitset<8> selPred` | Most complex frame — 15 state members |
+| `frame::Help` | `int x`, `int y`, `int height`, `int page`, `int pages` | Simpler |
+| `frame::SizeError` | `msgBox messageBox` | msgBox carries its own state |
+| `frame::SignalChoose` | `int x`, `int y`, `int selected_signal` | `selected_signal` resets when `bg.empty()` |
+| `frame::SignalSend` | `msgBox messageBox` | Signal to send comes from PDA context |
+| `frame::SignalReturn` | `msgBox messageBox` | Error code comes from PDA context |
+| `frame::Renice` | `int x`, `int y`, `int selected_nice`, `string nice_edit` | `selected_nice` / `nice_edit` reset when `bg.empty()` |
+
+### Current Menu Transition Graph
+
+Understanding which transitions use `Switch` (replace) vs `Closed` (pop) is critical for PDA design:
+
+```
+Normal
+  +--[show(Main)]----------> push(Main)
+  +--[show(Options)]--------> push(Options)    [direct open, not via Main]
+  +--[show(Help)]-----------> push(Help)       [direct open, not via Main]
+  +--[show(SizeError)]------> push(SizeError)  [replaces all others if too small]
+  +--[show(SignalChoose)]---> push(SignalChoose)
+  +--[show(SignalSend)]-----> push(SignalSend)  [direct, from k/K key]
+
+Main
+  +--[select Options, enter]--> replace(Options)  [Switch return code]
+  +--[select Help, enter]-----> replace(Help)     [Switch return code]
+  +--[escape/q/m]-------------> pop() → Normal
+
+Options
+  +--[escape]----------------> pop() → Normal
+
+Help
+  +--[escape]----------------> pop() → Normal
+
+SizeError
+  +--[enter/escape]-----------> pop() → Normal  [or to whatever was below]
+
+SignalChoose
+  +--[enter + kill succeeds]--> pop() → Normal  [Closed, no SignalReturn needed]
+  +--[enter + kill fails]-----> set(SignalReturn) then pop() → Normal  [then show(SignalReturn) fires]
+  +--[escape/q]--------------> pop() → Normal
+
+SignalSend
+  +--[yes + kill succeeds]---> pop() → Normal
+  +--[yes + kill fails]------> set(SignalReturn) then pop() → Normal
+  +--[no/escape]-------------> pop() → Normal
+
+SignalReturn
+  +--[enter/escape]-----------> pop() → Normal
+
+Renice
+  +--[enter/escape]-----------> pop() → Normal
+```
+
+Key insight: `Switch` return code currently means "replace current frame AND reset bg/redraw" — it is used only for the Main→Options and Main→Help transitions. All other transitions use `Closed` (pop). The `menuMask.set(SignalReturn)` inside SignalChoose/SignalSend is a "schedule next menu after popping this one" side-effect — the PDA must model this as a post-pop push, not a concurrent set.
+
+### Input FSM Trigger Map
+
+| Current code | FSM equivalent |
+|---|---|
+| `auto filtering = Config::getB(BoolKey::proc_filtering)` in `Input::process()` | `std::holds_alternative<input::Filtering>(input_fsm)` |
+| `Menu::active` bool in `Input::get()` mouse routing | `std::holds_alternative<input::MenuActive>(input_fsm)` |
+| `Config::flip(BoolKey::proc_filtering)` (enter filter mode) | `input_fsm = input::Filtering{ .old_filter = ..., .filter = ... }` |
+| `Config::set(BoolKey::proc_filtering, false)` (exit filter mode) | `input_fsm = input::Normal{}` |
+| `Menu::active = true` in `process()` when `menuMask` becomes non-empty | `input_fsm = input::MenuActive{}` triggered by first `push()` |
+| `Menu::active = false` in `process()` when `menuMask.none()` | `input_fsm = input::Normal{}` triggered by final `pop()` |
+
+---
 
 ## Sources
 
-- Codebase analysis: `/Users/mit/Documents/GitHub/btop/src/` -- all `.cpp` and `.hpp` files examined
-- [String Concatenation - CPP Optimizations Diary](https://cpp-optimizations.netlify.app/strings_concatenation/) -- benchmark data for string append vs fmt::format
-- [CTRE Documentation](https://compile-time-regular-expressions.readthedocs.io/en/latest/) -- compile-time regex alternative to std::regex
-- [libc++ std::regex performance issue](https://github.com/llvm/llvm-project/issues/60991) -- documents 10x slowness of std::regex on libc++
-- [Daniel Lemire: Which is fastest: read, fread, ifstream?](https://lemire.me/blog/2012/06/26/which-is-fastest-read-fread-ifstream-or-mmap/) -- I/O method benchmarks
-- [fmt library string concatenation issue](https://github.com/fmtlib/fmt/issues/1685) -- fmt::format_to vs fmt::format performance
-- [clang-tidy performance-inefficient-string-concatenation](https://clang.llvm.org/extra/clang-tidy/checks/performance/inefficient-string-concatenation.html) -- automated detection of string copy issues
+- Codebase analysis: `/Users/mit/Documents/GitHub/btop/src/btop_menu.cpp`, `btop_input.cpp`, `btop_menu.hpp`, `btop_input.hpp`, `btop_state.hpp`
+- [Game Programming Patterns: State (Pushdown Automata)](https://gameprogrammingpatterns.com/state.html) — canonical push/pop/replace semantics
+- [Implementing State Machines with std::variant](https://khuttun.github.io/2017/02/04/implementing-state-machines-with-std-variant.html) — per-state data in variant alternatives
+- [TUI Architecture: Bubble Tea / charmbracelet](https://deepwiki.com/charmbracelet/crush/5.1-tui-architecture-and-appmodel) — dialog priority blocking input, focus FSM
+- [Ratatui focus management discussion](https://forum.ratatui.rs/t/focusable-crate-manage-focus-state-for-your-widgets/73) — typed focus state patterns in TUI apps
+- [Learning the State Machine Behind (Neo)Vim](https://spin-web.github.io/SPIN2024/assets/preproceedings/SPIN2024-paper9.pdf) — modal input as FSM, mode transitions
+- [Game State Manager (C++) — codesmith-fi](https://github.com/codesmith-fi/GameStateManager) — push/pop state stack implementation reference
+- `.planning/research/AUTOMATA-ARCHITECTURE.md` — prior feasibility research for btop FSM migration
+- `.planning/PROJECT.md` — v1.3 scope, constraints, and key decisions
 
 ---
-*Feature research for: C++ terminal system monitor performance optimization*
-*Researched: 2026-02-27*
+*Feature research for: btop++ v1.3 Menu PDA + Input FSM*
+*Researched: 2026-03-02*

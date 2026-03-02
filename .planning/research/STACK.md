@@ -1,232 +1,303 @@
 # Stack Research
 
-**Domain:** C++ terminal application performance optimization (btop++)
-**Researched:** 2026-02-27
+**Domain:** C++ pushdown automaton + input FSM for btop++ TUI (v1.3 milestone)
+**Researched:** 2026-03-02
 **Confidence:** HIGH
+
+## Context
+
+This file covers only what is **new or changed** for v1.3. The existing v1.0 profiling stack (perf, heaptrack, Instruments, nanobench) and the v1.1/v1.2 FSM stack (std::variant, std::visit, AppEvent, EventQueue) are already validated. Do not re-add those here; they remain in use unchanged.
+
+The v1.3 work has two new implementation surfaces:
+1. **Menu pushdown automaton (PDA):** A typed stack of menu frames replacing `menuMask bitset<8>` + `currentMenu int` + function-static locals
+2. **Input FSM:** A typed finite state machine for input mode routing replacing the implicit `Config::getB(BoolKey::proc_filtering)` + `Menu::active` flag checks
+
+---
 
 ## Recommended Stack
 
-This stack is organized around the optimization workflow: profile, analyze, optimize, verify. Every tool earns its place by solving a specific problem in that chain. btop++ is a C++23 CMake project targeting Linux, macOS, and FreeBSD, built with GCC 12+ or Clang 15+, using fmt for formatting and pthreads for concurrency.
-
-### Core Profiling Tools
+### Core Technologies (NEW for v1.3)
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| **Linux `perf`** | 6.x (matches kernel) | CPU sampling profiler, hardware counters, cache analysis | Zero-copy kernel integration, negligible overhead (<2%), gives wall-clock AND CPU-clock profiles. The gold standard for Linux C++ profiling. Every other Linux profiler either wraps perf or is worse. **Confidence: HIGH** |
-| **Apple Instruments** (xctrace) | Xcode 16+ | CPU Time Profiler, Allocations, System Trace on macOS | Only real option on macOS for hardware-level profiling. Time Profiler gives per-function CPU attribution; Allocations tracks heap churn. Command-line via `xcrun xctrace record`. **Confidence: HIGH** |
-| **FreeBSD `pmcstat`** | Base system | Hardware performance counter profiling on FreeBSD | FreeBSD's equivalent of Linux perf. Uses hwpmc(4) kernel module. Run `kldload hwpmc` first. Produces stack traces compatible with flame graph generation. **Confidence: MEDIUM** (less community tooling than perf) |
-| **Valgrind Callgrind** | 3.23+ | Instruction-level profiling, call graph analysis | Simulates CPU execution — counts exact instruction/cache miss numbers, not statistical samples. Slow (10-50x overhead) but gives precise call counts. Use for "which function is called how many times" questions that sampling misses. **Confidence: HIGH** |
-| **Valgrind Cachegrind** | 3.23+ | Cache miss profiling (L1/L2/LL) | Simulates cache hierarchy to count misses per source line. Critical for data layout optimization — L1 miss costs ~10 cycles, L2 miss costs ~200 cycles. Use after perf identifies hot functions to understand WHY they're hot. **Confidence: HIGH** |
+| **`std::stack<MenuFrame, std::vector<MenuFrame>>`** | C++11 std, `<stack>` | PDA stack container | `std::stack` with `std::vector` as the backing store gives contiguous memory layout, amortized O(1) push/pop, and zero extra dependencies. The menu stack depth is bounded (max 3-4 levels deep: `Main → Options`, `Main → SignalChoose → SignalSend`, etc.), so `std::deque` (the default backing store) wastes memory on small sizes. `std::vector<MenuFrame>` with a pre-reserved capacity of 8 keeps all frames on a single heap allocation. **Confidence: HIGH** — cppreference confirms `stack<T, vector<T>>` is fully supported; vector backing is the standard recommendation for bounded-depth stacks |
+| **`using MenuFrame = std::variant<frame::Main, frame::Options, frame::Help, frame::SignalChoose, frame::SignalSend, frame::SignalReturn, frame::Renice, frame::SizeError>`** | C++17 std, `<variant>` | Typed stack frame union | Identical pattern to the existing `AppStateVar` + `AppEvent` approach already validated in v1.1. Each frame alternative carries its per-frame state (selected item, scroll position, signal target) as data fields — no function-static locals needed. `std::variant` prevents invalid frame combinations at compile time. **Confidence: HIGH** — direct extension of existing codebase pattern |
+| **`using InputStateVar = std::variant<input_state::Normal, input_state::Filtering, input_state::MenuActive>`** | C++17 std, `<variant>` | Input FSM state type | Three alternatives matching the three input modes already present implicitly in `Input::process`. `input_state::Filtering` carries `std::string filter_text`; `input_state::MenuActive` carries nothing (menu PDA is the authoritative state); `input_state::Normal` carries nothing. Same pattern as `AppStateVar`. **Confidence: HIGH** |
+| **`std::visit` two-variant dispatch** | C++17 std, `<variant>` | State × event transition | The existing `dispatch_event(current, ev)` function uses `std::visit([](const auto& s, const auto& e){ return on_event(s, e); }, current, ev)` — identical pattern applies to the input FSM. Compiler generates an exhaustive switch over all state × event combinations. **Confidence: HIGH** — already proven in this codebase |
+| **Overload pattern (C++17/20)** | C++17 required, C++20 simplifies | Inline visitor construction | `template<class... Ts> struct overload : Ts... { using Ts::operator()...; };` — used for single-variant `std::visit` calls where a concise inline lambda set is cleaner than named `on_event` overloads. In C++20, the explicit deduction guide is no longer needed. For the PDA's `peek()` + dispatch pattern, this is cleaner than a separate `on_event` overload set when there are only 2-3 frame alternatives to handle. **Confidence: HIGH** — standard C++17/20 idiom, verified in C++ Stories and cppreference |
+| **`if constexpr` + `std::is_same_v`** | C++17 std | Type-conditional logic in generic visitors | Used inside `auto`-parameter lambdas to handle frame-specific rendering or key handling without virtual dispatch: `if constexpr (std::is_same_v<T, frame::Options>) { ... }`. Already used in `to_tag()` in `btop_state.hpp`. **Confidence: HIGH** |
 
-### Visualization Tools
+### Supporting Libraries (existing, no changes)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **Hotspot** (KDAB) | 1.5.0+ | GUI for Linux perf data with flame graphs | Best perf.data visualizer available. Built-in flame graphs, source annotation, timeline view. AppImage available for any Linux distro. Click-to-source integration. Use instead of raw `perf report`. **Confidence: HIGH** |
-| **Brendan Gregg's FlameGraph** | latest (Perl scripts) | Generate flame graph SVGs from any profiler output | Universal flame graph generator — works with perf, DTrace, pmcstat. Interactive SVGs let you zoom into hot paths. The canonical tool. **Confidence: HIGH** |
-| **KCachegrind** | 23.x+ | GUI for Callgrind/Cachegrind output | Visualizes call graphs and per-line cache miss data from Valgrind tools. Essential companion to Callgrind — raw text output is nearly unusable for complex programs. **Confidence: HIGH** |
-| **speedscope** | 0.7+ | Web-based flame graph viewer | Alternative to Hotspot when you need portability or are on macOS. Imports perf, Chrome trace, and other formats. Lightweight — just open in browser. **Confidence: MEDIUM** |
+| Library | Version | Purpose | Notes for v1.3 |
+|---------|---------|---------|----------------|
+| **GoogleTest** | v1.17.0 (FetchContent) | Unit tests for PDA and input FSM | Already in CMakeLists.txt. New test files `test_menu_pda.cpp` and `test_input_fsm.cpp` added to `btop_test` target. No version change needed. |
+| **nanobench** | 4.3+ (header-only) | Micro-benchmarks for push/pop/dispatch | Already present. Optional: benchmark PDA dispatch cost vs old `menuMask` check if needed. |
 
-### Memory Analysis Tools
-
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **heaptrack** (KDE) | 1.5+ | Heap allocation profiler | Tracks every malloc/free with full call stacks. Much faster than Valgrind Massif — doesn't serialize threads, only adds overhead on allocation (not CPU computation). Shows allocation hotspots, temporary allocations, and peak memory contributors. Use this first for memory work. **Confidence: HIGH** |
-| **Valgrind Massif** | 3.23+ | Heap memory profiling over time | Produces time-series snapshots of heap usage. Slower than heaptrack but produces cleaner "memory over time" graphs. Use when heaptrack's timeline isn't sufficient. **Confidence: HIGH** |
-| **heaptrack_gui** | 1.5+ | GUI for heaptrack data | Visualizes heaptrack output with flame graphs of allocations, timeline of heap size, and per-callstack breakdown. Essential — heaptrack text output alone is insufficient. **Confidence: HIGH** |
-| **AddressSanitizer (ASan)** | GCC 12+ / Clang 15+ | Memory error detection | 2-3x overhead. Detects buffer overflows, use-after-free, leaks. Compile with `-fsanitize=address`. Not a profiler per se, but catching memory bugs before optimizing prevents wasted effort. **Confidence: HIGH** |
-
-### Micro-Benchmarking
-
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **nanobench** | 4.3+ | Single-header micro-benchmarking | ~80x faster iteration than Google Benchmark, single-header (no dependency), C++11/17/20 compatible. Use for A/B testing specific optimizations (e.g., "is fmt::format_to faster than fmt::format here?"). Fits btop's "no heavy dependencies" constraint. **Confidence: HIGH** |
-| **Google Benchmark** | 1.9+ | Full-featured micro-benchmarking | More features than nanobench (fixtures, parametric, threading). But requires linking a library, slower compilation. Use only if nanobench's feature set is insufficient. **Confidence: MEDIUM** — overkill for this project |
-
-### Compiler Optimization Techniques
-
-| Technique | Flags / Config | Purpose | Why Recommended |
-|-----------|---------------|---------|-----------------|
-| **Link-Time Optimization (LTO)** | CMake: already enabled via `BTOP_LTO` | Whole-program optimization across compilation units | btop already has this in CMakeLists.txt. LTO enables cross-TU inlining and dead code elimination. Verify it's actually active in release builds. **Confidence: HIGH** |
-| **Profile-Guided Optimization (PGO)** | GCC: `-fprofile-generate` / `-fprofile-use`; Clang: `-fprofile-instr-generate` / `-fprofile-instr-use` | Use runtime profiles to guide compiler optimization | PGO is the single highest-impact compiler technique for real-world performance. Compiler uses actual execution data to decide inlining, branch prediction, code layout. Typical gains: 10-20% for CPU-bound workloads. Requires a representative profiling run. **Confidence: HIGH** |
-| **Optimization Level** | `-O2` (preferred) or `-O3` (test carefully) | Compiler optimization level | `-O2` is the safe default. `-O3` adds aggressive vectorization and inlining that can HURT performance (code bloat, instruction cache pressure). For btop, `-O2 + LTO + PGO` will almost certainly outperform `-O3` alone. Always benchmark both. **Confidence: HIGH** |
-| **Architecture-specific** | `-march=native` | Target current CPU's instruction set | Enables AVX/SSE/NEON where profitable. Only for local development/benchmarking — release builds must be portable. Never ship with `-march=native`. **Confidence: HIGH** |
-
-### Runtime Analysis Tools
-
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **ThreadSanitizer (TSan)** | GCC 12+ / Clang 15+ | Data race detection | btop uses pthreads. TSan detects races with 5-15x overhead. Compile with `-fsanitize=thread`. Fix races before optimizing concurrency — a race condition that "works" today will break after optimization changes timing. **Confidence: HIGH** |
-| **UndefinedBehaviorSanitizer (UBSan)** | GCC 12+ / Clang 15+ | Detect undefined behavior | ~1.2x overhead. Catches signed overflow, null deref, misalignment. Compile with `-fsanitize=undefined`. UB that "works" in debug builds can produce wrong results after optimization. **Confidence: HIGH** |
-| **strace / dtruss** | System tools | System call tracing | strace (Linux), dtruss (macOS) show every syscall. If btop is doing excessive read/write/ioctl calls, these reveal it instantly. Low effort, high diagnostic value for I/O bottlenecks. **Confidence: HIGH** |
-
-### Supporting Libraries (Optimization-Adjacent)
-
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **mimalloc** | 2.1+ | Drop-in memory allocator replacement | If heaptrack reveals high allocation churn, swap glibc malloc for mimalloc via `LD_PRELOAD`. Outperforms jemalloc and tcmalloc across allocation sizes in 2025 benchmarks. Header-only mode available. Test with `LD_PRELOAD=libmimalloc.so btop` — zero code changes needed to evaluate. **Confidence: HIGH** |
-| **Tracy Profiler** | 0.11+ | Real-time frame profiler with nanosecond resolution | If btop needs continuous profiling during development (like a game engine), Tracy adds ~2ns per instrumented zone. Requires source instrumentation (macros). Overkill unless the frame-by-frame timing of btop's render loop needs constant monitoring. **Confidence: MEDIUM** — high quality but requires code changes |
-| **{fmt}** (already used) | 11.x (header-only) | String formatting | btop already uses fmt. Key optimization: switch from `fmt::format` (returns `std::string`) to `fmt::format_to` (writes to existing buffer) in hot paths to eliminate allocations. This is a code-level optimization, not a library swap. **Confidence: HIGH** |
-
-## Development Tools
+### Development Tools (existing, no changes)
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| **CMake** (already used) | Build system | Add CMake presets for PGO workflow: `pgo-generate`, `pgo-use`. Add a `RelWithDebInfo` preset for profiling (optimized + debug symbols). |
-| **compile_commands.json** | IDE integration, static analysis | Already enabled via `CMAKE_EXPORT_COMPILE_COMMANDS`. Ensure clangd or clang-tidy can consume it. |
-| **clang-tidy** | Static analysis for performance | Run `clang-tidy` with `performance-*` checks to catch unnecessary copies, inefficient container usage, etc. Automated low-hanging fruit finder. |
-| **Compiler Explorer (godbolt.org)** | Inspect generated assembly | When optimizing hot loops, paste the function into Compiler Explorer to verify the compiler is vectorizing / inlining as expected. Free, browser-based, no setup. |
-| **hyperfine** | Command-line benchmarking | Measure btop startup time with statistical rigor: `hyperfine --warmup 3 './btop --tty_on'`. Handles variance, warmup, comparison. |
+| **ASan + UBSan** | Detect use-after-pop, variant bad_access | Build config `build-asan/` already exists. Run after PDA implementation. |
+| **TSan** | Verify menu PDA is main-thread-only (no races) | `build-tsan/` already exists. PDA should be touched only from main thread — TSan confirms this. |
+
+---
 
 ## Installation
 
+No new dependencies for v1.3. All required headers (`<stack>`, `<variant>`, `<type_traits>`) are part of the C++ standard library already included in the build.
+
 ```bash
-# Linux (Ubuntu/Debian) — core profiling stack
-sudo apt install linux-tools-common linux-tools-$(uname -r)  # perf
-sudo apt install valgrind kcachegrind                         # Valgrind + GUI
-sudo apt install heaptrack heaptrack-gui                      # heap profiling
-sudo apt install strace                                       # syscall tracing
-sudo apt install hyperfine                                    # startup benchmarking
-
-# Hotspot — use AppImage for latest version
-wget https://github.com/KDAB/hotspot/releases/latest/download/hotspot-x86_64.AppImage
-chmod +x hotspot-x86_64.AppImage
-
-# FlameGraph scripts
-git clone https://github.com/brendangregg/FlameGraph.git ~/FlameGraph
-
-# mimalloc (for testing)
-sudo apt install libmimalloc-dev
-
-# macOS — core profiling stack
-# Instruments comes with Xcode (xcrun xctrace)
-brew install hyperfine
-
-# FreeBSD — core profiling stack
-sudo kldload hwpmc            # enable hardware perf counters
-# pmcstat is in base system
-sudo pkg install valgrind kcachegrind hyperfine
-
-# Compiler flags for profiling builds (add to CMake)
-# cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" ..
-
-# PGO workflow (GCC example)
-# Step 1: Instrument build
-# cmake -DCMAKE_CXX_FLAGS="-fprofile-generate=/tmp/btop-pgo" ..
-# Step 2: Run btop for representative workload
-# Step 3: Optimized build
-# cmake -DCMAKE_CXX_FLAGS="-fprofile-use=/tmp/btop-pgo" ..
+# Nothing to install — all technologies are:
+# 1. C++ standard library (GCC 12+ / Clang 15+, already required)
+# 2. Already present dependencies (GoogleTest v1.17.0 via FetchContent, nanobench)
 ```
+
+---
 
 ## Alternatives Considered
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| **perf** (Linux) | Intel VTune | Only if targeting Intel-specific optimization (e.g., AVX tuning). VTune is free but proprietary, heavy install, Intel-only insights. perf is sufficient for btop's needs. |
-| **heaptrack** | Valgrind Massif | When you need time-series "heap over time" visualization rather than allocation-site analysis. Massif's ms_print output is cleaner for temporal patterns. |
-| **mimalloc** | jemalloc / tcmalloc | jemalloc appears increasingly unmaintained as of 2025. tcmalloc is viable but requires Abseil/Google infrastructure. mimalloc is simpler, faster for mixed workloads, and works as `LD_PRELOAD` without code changes. |
-| **nanobench** | Google Benchmark | Only if you need parametric benchmarks, fixtures, or threading support that nanobench lacks. For A/B testing individual optimizations, nanobench is faster to set up and compile. |
-| **Hotspot** | Firefox Profiler | Firefox Profiler can import perf data and runs in browser (good for remote servers). But Hotspot's source annotation and timeline are superior for C++ work. |
-| **`-O2` + PGO** | `-O3` alone | Almost never. `-O3` without PGO frequently underperforms `-O2` with PGO due to code bloat increasing instruction cache pressure. |
+| `std::stack<MenuFrame, std::vector<MenuFrame>>` | `std::stack<MenuFrame>` (default deque) | Never for this use case. `std::deque` is the right choice when depth is unbounded or element size is large enough that deque's block-based layout avoids reallocs. For 8 menus with ≤4 simultaneous levels, `vector` backing is strictly better (contiguous, fewer allocations, cache-friendly). |
+| `std::variant` for `MenuFrame` | Virtual base class `MenuFrameBase*` | Only if frames need runtime polymorphism not expressible as data fields, or if adding new frame types at runtime is required. Neither applies here — frame set is fixed at 8. Virtual dispatch adds heap allocation, pointer indirection, and prevents value semantics. The existing codebase explicitly chose `std::variant` over virtual dispatch for `AppStateVar`; maintain consistency. |
+| `std::variant` for `InputStateVar` | `enum class InputMode` (flat enum) | Only if per-state data (like `filter_text` in `input_state::Filtering`) is stored as a separate global rather than inside the state. Using a plain enum recreates the same implicit-state problem v1.3 is solving. `std::variant` carries state with the mode, making invalid configurations impossible. |
+| Named `on_event` overloads for input FSM dispatch | `if/else if` chain in `Input::process` | If the FSM has more than ~6 transitions. For 3 states × ~5 events, the existing `if/else if` with an `on_event` overload set is readable. For fewer branches, the overload pattern with inline lambdas is acceptable. Choose whichever matches what is already written for `dispatch_event`. |
+| Two separate test files (`test_menu_pda.cpp`, `test_input_fsm.cpp`) | Single combined test file | Only if the test count stays under ~30. At the scale of the existing test files (266 total), separate files are easier to navigate and build independently. |
+| GoogleTest `TYPED_TEST` for testing multiple frame types | Separate `TEST()` per frame | `TYPED_TEST` is appropriate when the same test logic applies to all types in a list. For PDA tests, the transitions between frames are heterogeneous enough that separate named tests are clearer than typed parameterization. Use `TEST_P` + `INSTANTIATE_TEST_SUITE_P` only for table-driven transition tests where input is `(initial_frames, push_or_pop, expected_top)` tuples. |
+
+---
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **gprof** | Obsolete. Requires recompilation with `-pg`, doesn't handle shared libraries, misleading results with modern optimizations, doesn't support multi-threaded code properly. | Linux perf (sampling, no recompilation needed) |
-| **`-O3` blindly** | `-O3` enables aggressive loop vectorization and inlining that can increase code size, cause instruction cache thrashing, and actually slow down programs. Documented cases of `-O3` being slower than `-O2` exist in 2025 compiler versions. | `-O2` as baseline, benchmark `-O3` per-TU if needed, always prefer PGO over raising -O level |
-| **`-march=native` in release builds** | Produces binaries that crash on CPUs lacking the instruction set used at build time. btop is distributed software — users compile on one machine and may run on another. | Use `-march=native` only for local benchmarking, not in shipped CMake defaults |
-| **jemalloc** | Increasingly unmaintained as of 2025. tcmalloc has Google backing, mimalloc has Microsoft backing. jemalloc's advantage in multi-threaded arena scaling doesn't justify the maintenance risk for a new integration. | mimalloc (simpler, faster for mixed workloads, actively maintained) |
-| **Valgrind as the primary profiler** | 10-50x slowdown makes it unsuitable for profiling btop's real-time rendering loop. Results are distorted because the timing characteristics of a 50x-slower program differ fundamentally from real execution. | Linux perf for sampling (real-time, low overhead), Valgrind only for instruction-counting and cache simulation |
-| **Tracy without deliberate need** | Requires instrumenting source code with macros. High-quality tool, but the overhead of maintaining instrumentation in a project that doesn't need continuous real-time profiling isn't justified. btop isn't a game engine. | perf + Hotspot for periodic profiling sessions |
-| **Custom allocators (writing one)** | Engineering effort is enormous and almost never beats battle-tested allocators. mimalloc/tcmalloc represent decades of optimization. | LD_PRELOAD mimalloc to test; only pursue custom allocation pools for specific proven hotspots |
+| **Virtual dispatch (`MenuFrameBase*` polymorphism)** | Heap allocation per frame, pointer indirection, no value semantics, breaks stack copy/move cleanly. The existing codebase explicitly avoided virtual dispatch for FSMs. | `std::variant` frame type — zero-cost, value semantics, compile-time exhaustiveness |
+| **`bitset<8> menuMask` + `int currentMenu`** (the thing being replaced) | Allows invalid state (multiple bits set, currentMenu inconsistent with mask, function-static locals scattered across menus). Cannot test individual menus in isolation because state is global and implicit. | `std::stack<MenuFrame, std::vector<MenuFrame>>` — exactly one active frame at stack top, each frame carries its own data |
+| **`Config::getB(BoolKey::proc_filtering)` + `Menu::active` checks scattered in `Input::process`** (the thing being replaced) | Implicit mode routing — behavior depends on two separate global flags checked in sequence. Adding a new mode requires hunting for all check sites. | `InputStateVar` FSM with `dispatch_event` — mode is a single typed value; adding a new mode requires adding one variant alternative and one set of `on_event` overloads |
+| **`std::deque` as PDA backing store** | `std::deque` allocates in blocks; for ≤8 elements of variant size (~100 bytes for a frame carrying a string + ints), deque adds overhead with no benefit. | `std::stack<MenuFrame, std::vector<MenuFrame>>` — single contiguous allocation, reserved at construction |
+| **Third-party FSM libraries (Boost.MSM, TinyFSM, etc.)** | Add build dependencies; btop's constraint is "no new heavy dependencies." The existing `std::variant` pattern has already been proven at 266 tests. Third-party libraries add concepts and macros that conflict with the codebase style. | Bare `std::variant` + `std::visit` + `std::stack` — proven pattern already in this codebase |
+| **`std::stack<std::any>`** | `std::any` erases type; frame access requires `std::any_cast` which throws on mismatch, producing runtime rather than compile-time errors. Eliminates all type-safety benefits. | `std::variant<frame::Main, frame::Options, ...>` — compile-time exhaustiveness, no cast required |
+| **Storing mouse mappings as function-static locals inside `Menu::process()`** | Already identified as a problem in the existing code. Function-static locals survive menu dismissal, creating stale mappings when menus are re-entered. | Per-frame data field in the `MenuFrame` variant struct. Each frame alternative carries its own `std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings` (or equivalent). Field is initialized on push, destroyed on pop. |
 
-## Stack Patterns by Optimization Phase
+---
 
-**Phase 1 — Baseline & Profiling:**
-- Build with `RelWithDebInfo` + `-fno-omit-frame-pointer` (enables perf stack walking)
-- Profile with perf (Linux), Instruments (macOS), pmcstat (FreeBSD)
-- Visualize with Hotspot / FlameGraph scripts
-- Measure startup with hyperfine
-- Run heaptrack for allocation baseline
-- Because: you cannot optimize what you haven't measured
+## Stack Patterns for This Milestone
 
-**Phase 2 — String & Memory Optimization:**
-- Use heaptrack to find allocation hotspots (expect `btop_draw.cpp` and `fmt::format` calls)
-- Use Cachegrind to identify cache-unfriendly data access patterns
-- Benchmark individual changes with nanobench
-- Test mimalloc via `LD_PRELOAD` as a quick win
-- Because: btop's ~207 fmt::format calls and heavy string construction in the 2517-line draw module are likely allocation-heavy
+**Menu PDA stack declaration:**
+```cpp
+// In btop_menu.hpp (or btop_state.hpp)
+namespace menu_frame {
+    struct Main    { int selected{0}; };
+    struct Options { int selected{0}; int scroll{0}; int category{0}; };
+    struct Help    { int scroll{0}; };
+    struct SignalChoose { int selected{0}; };
+    struct SignalSend   { int signal{0}; int pid{0}; };
+    struct SignalReturn {};
+    struct Renice  { int selected{0}; int nice{0}; };
+    struct SizeError {};
+}
 
-**Phase 3 — Rendering & I/O Optimization:**
-- Use strace/dtruss to count write() syscalls per frame
-- Use perf to profile the render path specifically
-- Because: terminal output is buffered but each write() syscall still has kernel overhead; reducing syscall count can significantly reduce CPU time
+using MenuFrame = std::variant<
+    menu_frame::Main,
+    menu_frame::Options,
+    menu_frame::Help,
+    menu_frame::SignalChoose,
+    menu_frame::SignalSend,
+    menu_frame::SignalReturn,
+    menu_frame::Renice,
+    menu_frame::SizeError
+>;
 
-**Phase 4 — Compiler-Level Optimization:**
-- Implement PGO workflow in CMake
-- Benchmark `-O2+PGO` vs `-O3+PGO` vs `-O2` vs `-O3`
-- Because: PGO is the highest-ROI compiler technique and should be applied after code-level optimizations are done (so the profile reflects the optimized code)
+// PDA stack — main-thread only
+// Use vector backing for bounded depth; reserve(8) avoids realloc
+class MenuPDA {
+    std::stack<MenuFrame, std::vector<MenuFrame>> frames_;
+public:
+    MenuPDA() { frames_.c.reserve(8); }
 
-**Phase 5 — Verification:**
-- Run full sanitizer suite (ASan, TSan, UBSan) on optimized build
-- Re-profile to confirm improvements
-- Compare against Phase 1 baseline
-- Because: optimizations that introduce UB or races are not optimizations
+    void push(MenuFrame f) { frames_.push(std::move(f)); }
+    void pop()             { if (!frames_.empty()) frames_.pop(); }
+    bool empty()     const { return frames_.empty(); }
+    bool active()    const { return !frames_.empty(); }
+
+    const MenuFrame& top() const { return frames_.top(); }
+    MenuFrame&       top()       { return frames_.top(); }
+};
+```
+
+**Input FSM state declaration:**
+```cpp
+// In btop_input.hpp (or a new btop_input_state.hpp)
+namespace input_state {
+    struct Normal   {};
+    struct Filtering { std::string filter_text; };
+    struct MenuActive {};   // Menu PDA is the authoritative state
+}
+
+using InputStateVar = std::variant<
+    input_state::Normal,
+    input_state::Filtering,
+    input_state::MenuActive
+>;
+```
+
+**Dispatch pattern (mirrors existing dispatch_event):**
+```cpp
+// In btop_input.cpp
+static InputStateVar on_event(const input_state::Normal&, const input_event::StartFilter&) {
+    return input_state::Filtering{};
+}
+static InputStateVar on_event(const input_state::Filtering& s, const input_event::KeyChar& e) {
+    auto next = s;
+    next.filter_text += e.ch;
+    return next;
+}
+static InputStateVar on_event(const auto& s, const auto&) {
+    return s; // catch-all: unhandled pairs preserve state
+}
+
+InputStateVar dispatch_input(const InputStateVar& current, const InputEvent& ev) {
+    return std::visit(
+        [](const auto& state, const auto& event) -> InputStateVar {
+            return on_event(state, event);
+        },
+        current, ev
+    );
+}
+```
+
+**PDA dispatch (overload pattern for per-frame rendering):**
+```cpp
+// In btop_menu.cpp
+void render_top_frame(const MenuFrame& frame) {
+    std::visit(overload{
+        [](const menu_frame::Main& f)    { /* render main menu, use f.selected */ },
+        [](const menu_frame::Options& f) { /* render options, use f.selected, f.scroll */ },
+        [](const menu_frame::Help& f)    { /* render help, use f.scroll */ },
+        [](const auto&)                  { /* other frames */ },
+    }, frame);
+}
+```
+
+**Overload helper (C++20, no deduction guide needed):**
+```cpp
+// In btop_tools.hpp or inline at use site
+template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+// C++20: deduction guide is implicit — no extra line needed
+```
+
+**If [C++23 static_assert safety is desired]:**
+```cpp
+// Catch-all that errors at compile time if a frame type is not handled
+template<class... Ts> struct overload : Ts... {
+    using Ts::operator()...;
+    consteval void operator()(auto) const {
+        static_assert(false, "Unhandled MenuFrame alternative in visitor");
+    }
+};
+```
+Use the exhaustive version when adding new frame types is expected (forces callers to handle all alternatives). Use the catch-all `on_event` version when a no-op default is intentional (as in the existing codebase).
+
+---
+
+## Testing Approach for Stack-Based State Machines
+
+**What to test in `test_menu_pda.cpp`:**
+
+```cpp
+// 1. Empty PDA is inactive
+TEST(MenuPDA, EmptyIsInactive) { MenuPDA pda; EXPECT_FALSE(pda.active()); }
+
+// 2. Push makes active, top() returns pushed frame
+TEST(MenuPDA, PushActivates) {
+    MenuPDA pda;
+    pda.push(menu_frame::Main{});
+    EXPECT_TRUE(pda.active());
+    EXPECT_TRUE(std::holds_alternative<menu_frame::Main>(pda.top()));
+}
+
+// 3. Push-then-pop returns to empty (not to previous frame)
+TEST(MenuPDA, PushPopIsEmpty) {
+    MenuPDA pda;
+    pda.push(menu_frame::Main{});
+    pda.pop();
+    EXPECT_FALSE(pda.active());
+}
+
+// 4. Stack preserves frame-below after push/pop sequence
+TEST(MenuPDA, StackPreservesUnderneath) {
+    MenuPDA pda;
+    pda.push(menu_frame::Main{.selected = 2});
+    pda.push(menu_frame::Help{});
+    pda.pop();
+    ASSERT_TRUE(std::holds_alternative<menu_frame::Main>(pda.top()));
+    EXPECT_EQ(std::get<menu_frame::Main>(pda.top()).selected, 2);
+}
+
+// 5. Per-frame data survives round-trip (no mutation on push/pop)
+TEST(MenuPDA, FrameDataPreserved) {
+    MenuPDA pda;
+    pda.push(menu_frame::Options{.selected = 3, .scroll = 10, .category = 1});
+    const auto& top = std::get<menu_frame::Options>(pda.top());
+    EXPECT_EQ(top.selected, 3);
+    EXPECT_EQ(top.scroll, 10);
+}
+
+// 6. Table-driven transition test using TEST_P
+struct PdaTransition { MenuFrame push_frame; MenuFrame expected_top; };
+class PdaTransitionTest : public ::testing::TestWithParam<PdaTransition> {};
+TEST_P(PdaTransitionTest, TopMatchesExpected) {
+    MenuPDA pda;
+    pda.push(GetParam().push_frame);
+    EXPECT_EQ(pda.top().index(), GetParam().expected_top.index());
+}
+INSTANTIATE_TEST_SUITE_P(AllFrameTypes, PdaTransitionTest, ::testing::Values(
+    PdaTransition{menu_frame::Main{},        menu_frame::Main{}},
+    PdaTransition{menu_frame::Options{},     menu_frame::Options{}},
+    PdaTransition{menu_frame::Help{},        menu_frame::Help{}},
+    PdaTransition{menu_frame::SignalChoose{}, menu_frame::SignalChoose{}}
+));
+```
+
+**What to test in `test_input_fsm.cpp`:**
+- Each `on_event(state, event)` overload returns the expected next state
+- Catch-all `on_event(auto, auto)` returns current state unchanged
+- `dispatch_input(current, ev)` routes correctly (mirrors `test_transitions.cpp`)
+- `input_state::Filtering` carries `filter_text` across multiple `KeyChar` events
+
+**What NOT to test (avoid):**
+- Rendering logic (involves terminal I/O, not suitable for unit test)
+- Mouse mapping resolution (depends on terminal geometry)
+- Any code path that calls `Menu::show()` or `Input::process()` directly (integration concern, not unit concern)
+
+---
 
 ## Version Compatibility
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| perf 6.x | Linux kernel 6.x | Version must match running kernel |
-| Valgrind 3.23+ | GCC 12-14, Clang 15-19 | Valgrind must support the instruction set used; check release notes for new CPU support |
-| heaptrack 1.5+ | GCC 12+, Clang 15+ | Requires debug symbols (`-g`) for useful output |
-| Hotspot 1.5.0 | perf 5.x+ data files | Uses perf_event_open; needs `perf_event_paranoid <= 1` on Linux |
-| mimalloc 2.1+ | GCC 12+, Clang 15+, all platforms | Works on Linux, macOS, FreeBSD. LD_PRELOAD on Linux; DYLD_INSERT_LIBRARIES on macOS |
-| nanobench 4.3+ | C++11 minimum, C++20/23 compatible | Single header, no build system integration needed |
-| {fmt} 11.x | C++17 minimum, C++23 compatible | Already in btop as header-only (FMT_HEADER_ONLY defined) |
+| Component | Version Requirement | Notes |
+|-----------|---------------------|-------|
+| `std::stack<T, std::vector<T>>` | C++11 | Standard since C++11; fully available in GCC 12+ / Clang 15+ |
+| `std::variant` | C++17 | Already used in btop_state.hpp and btop_events.hpp |
+| `std::visit` two-variant form | C++17 | Already used in `dispatch_event` in btop.cpp |
+| Overload pattern (no deduction guide) | C++20 | GCC 12 and Clang 15 both support C++20 CTAD for aggregates |
+| `consteval` static_assert safety | C++23 | Optional enhancement. GCC 12 supports C++23 with `-std=c++23`; Clang 15 supports C++23. Only use if the project's CMakeLists.txt is already targeting C++23. |
+| GoogleTest v1.17.0 `TEST_P` / `INSTANTIATE_TEST_SUITE_P` | Requires C++17 (GTest 1.17 requires C++17) | Already in CMakeLists.txt at v1.17.0 |
 
-## Platform-Specific Notes
-
-### Linux
-- Full tooling support. perf + Hotspot + heaptrack + Valgrind all work natively.
-- Set `kernel.perf_event_paranoid=1` (or `=0`) in `/etc/sysctl.conf` for non-root perf access.
-- Build with `-fno-omit-frame-pointer` for reliable perf stack traces (Clang/GCC default to omitting frame pointers with optimization).
-
-### macOS
-- No perf, no Valgrind (deprecated on ARM64), no heaptrack.
-- Primary tool: Instruments via `xcrun xctrace record --template 'Time Profiler' --launch ./btop`.
-- For memory: Instruments Allocations template, or `leaks` / `heap` command-line tools.
-- mimalloc testing: `DYLD_INSERT_LIBRARIES=/path/to/libmimalloc.dylib ./btop`.
-- DTrace available but requires SIP disabled for full functionality.
-
-### FreeBSD
-- pmcstat for CPU profiling, DTrace for tracing.
-- Valgrind works but has historically lagged behind Linux support.
-- Load hwpmc kernel module before profiling: `kldload hwpmc`.
-- FlameGraph scripts work with pmcstat output.
+---
 
 ## Sources
 
-- [KDAB C and C++ Profiling Tools Overview](https://www.kdab.com/c-cpp-profiling-tools/) — Comprehensive profiling tool survey (verified)
-- [Brendan Gregg's perf Examples](https://www.brendangregg.com/perf.html) — Authoritative Linux perf reference (HIGH confidence)
-- [Brendan Gregg's FlameGraph](https://github.com/brendangregg/FlameGraph) — Flame graph generation tooling (HIGH confidence)
-- [KDAB Hotspot GitHub](https://github.com/KDAB/hotspot) — Latest release info, v1.5.0 (HIGH confidence)
-- [KDE heaptrack GitHub](https://github.com/KDE/heaptrack) — Heap profiler documentation (HIGH confidence)
-- [Valgrind Massif Manual](https://valgrind.org/docs/manual/ms-manual.html) — Official documentation (HIGH confidence)
-- [mimalloc Benchmarks](https://microsoft.github.io/mimalloc/bench.html) — Microsoft's allocator benchmark data (HIGH confidence)
-- [Johnny's Software Lab — PGO](https://johnnysswlab.com/tune-your-programs-speed-with-profile-guided-optimizations/) — Practical PGO guide (MEDIUM confidence)
-- [LLVM PGO Documentation](https://llvm.org/docs/HowToBuildWithPGO.html) — Official Clang PGO docs (HIGH confidence)
-- [GCC Optimization Options](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html) — Official GCC docs (HIGH confidence)
-- [Google Sanitizers Wiki](https://github.com/google/sanitizers) — ASan/TSan/UBSan documentation (HIGH confidence)
-- [Brendan Gregg's FreeBSD Flame Graphs](https://www.brendangregg.com/blog/2015-03-10/freebsd-flame-graphs.html) — FreeBSD profiling workflow (MEDIUM confidence — 2015 but techniques still apply)
-- [FreeBSD pmcstat man page](https://man.freebsd.org/cgi/man.cgi?query=pmcstat&sektion=8) — Official documentation (HIGH confidence)
-- [nanobench GitHub](https://github.com/martinus/nanobench) — Single-header benchmarking library (HIGH confidence)
-- [Xcode Instruments for C++ CPU Profiling](https://www.jviotti.com/2024/01/29/using-xcode-instruments-for-cpp-cpu-profiling.html) — Practical macOS profiling guide (MEDIUM confidence)
-- [JetBrains — LTO, PGO, Unity Builds](https://blog.jetbrains.com/clion/2022/05/testing-3-approaches-performance-cpp_apps/) — Comparative benchmarks of compiler techniques (MEDIUM confidence)
-- [-O3 slower than -O2 analysis](https://barish.me/blog/cpp-o3-slower/) — Documented cases of -O3 regression (MEDIUM confidence)
-- [Clang ThreadSanitizer Documentation](https://clang.llvm.org/docs/ThreadSanitizer.html) — Official docs (HIGH confidence)
+- [cppreference — std::stack](https://en.cppreference.com/w/cpp/container/stack) — Confirmed `stack<T, vector<T>>` parameterization, required container operations. **HIGH confidence.**
+- [cppreference — std::variant::visit](https://en.cppreference.com/w/cpp/utility/variant/visit) — Two-variant `std::visit` form confirmed C++17. Member function overloads are C++26 (not applicable here). **HIGH confidence.**
+- [C++ Stories — Overload Pattern](https://www.cppstories.com/2019/02/2lines3featuresoverload.html/) — Overload pattern in C++17/20, C++20 eliminates deduction guide, C++23 `consteval` catch-all for exhaustive matching. **HIGH confidence.**
+- [C++ Stories — FSM with std::variant (2023)](https://www.cppstories.com/2023/finite-state-machines-variant-cpp/) — Two-variant `std::visit` for state × event dispatch, vending machine example mirrors btop's `dispatch_event` pattern. **HIGH confidence.**
+- [Game Programming Patterns — State chapter](https://gameprogrammingpatterns.com/state.html) — Pushdown automaton for menu/game-state management: stack of states with push/pop instead of single-state replacement. Confirms the "stack of typed frames" pattern. **MEDIUM confidence** (blog, but canonical reference for the pattern).
+- `btop_state.hpp`, `btop_events.hpp`, `btop.cpp` — Direct codebase analysis. The `AppStateVar`, `AppEvent`, `dispatch_event`, `on_event`, `transition_to` patterns in the existing code are the direct model for v1.3. **HIGH confidence** (primary source).
+- `tests/CMakeLists.txt`, `tests/test_transitions.cpp` — Direct codebase analysis. GoogleTest v1.17.0, `TEST()` pattern, `holds_alternative` + `get` assertions. **HIGH confidence** (primary source).
+- [GoogleTest v1.17.0 — Testing Reference](https://google.github.io/googletest/reference/testing.html) — `TEST_P`, `INSTANTIATE_TEST_SUITE_P` for table-driven transition tests. **HIGH confidence.**
 
 ---
-*Stack research for: C++ terminal application performance optimization (btop++)*
-*Researched: 2026-02-27*
+
+*Stack research for: btop++ v1.3 Menu PDA + Input FSM*
+*Researched: 2026-03-02*
