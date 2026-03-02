@@ -1390,14 +1390,14 @@ namespace Cpu {
 		if (Shared::coreCount >= 100) core_width++;
 		for (const auto& n : iota(0, Shared::coreCount)) {
 			auto enabled = is_cpu_enabled(n);
-			out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c(enabled ? "main_fg" : "inactive_fg") + (Shared::coreCount < 100 ? Fx::b + 'C' + Fx::ub : "")
+			out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c(enabled ? ColorKey::main_fg : ColorKey::inactive_fg) + (Shared::coreCount < 100 ? Fx::b + 'C' + Fx::ub : "")
 				+ ljust(to_string(n), core_width);
 			if ((b_column_size > 0 or extra_width > 0) and cmp_less(n, core_graphs.size()))
 				out += Theme::c(ColorKey::inactive_fg) + graph_bg * (5 * b_column_size + extra_width) + Mv::l(5 * b_column_size + extra_width)
 					+ core_graphs.at(n)(safeVal(cpu.core_percent, n), data_same or redraw);
 
 			out += enabled ? Theme::g(GradientKey::cpu).at(clamp(safeVal(cpu.core_percent, n).back(), 0ll, 100ll)) : Theme::c(ColorKey::inactive_fg);
-			out += rjust(to_string(safeVal(cpu.core_percent, n).back()), (b_column_size < 2 ? 3 : 4)) + Theme::c(enabled ? "main_fg" : "inactive_fg") + '%';
+			out += rjust(to_string(safeVal(cpu.core_percent, n).back()), (b_column_size < 2 ? 3 : 4)) + Theme::c(enabled ? ColorKey::main_fg : ColorKey::inactive_fg) + '%';
 
 			if (show_temps and not hide_cores) {
 				const auto core_temps = safeVal(cpu.temp, n + 1);
@@ -1420,7 +1420,7 @@ namespace Cpu {
 						"{}{}{}{}",
 						temp_color,
 						rjust(std::to_string(temp), 4),
-						Theme::c(enabled ? "main_fg" : "inactive_fg"),
+						Theme::c(enabled ? ColorKey::main_fg : ColorKey::inactive_fg),
 						unit
 					);
 				}

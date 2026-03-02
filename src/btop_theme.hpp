@@ -171,9 +171,4 @@ namespace Theme {
 	//* Return array of red, green and blue in decimal for color <key>
 	inline const std::array<int, 3>& dec(ColorKey key) { return rgbs[static_cast<size_t>(key)]; }
 
-	//* TEMPORARY: string-accepting overloads for incremental migration (remove after Plan 26-02)
-	const string& c(const string& name);
-	const array<string, 101>& g(const string& name);
-	const std::array<int, 3>& dec(const string& name);
-
 }

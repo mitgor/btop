@@ -75,28 +75,6 @@ namespace Theme {
 	}
 
 	//----------------------------------------------------------
-	// TEMPORARY: string-accepting overloads (remove after Plan 26-02)
-	//----------------------------------------------------------
-
-	const string& c(const string& name) {
-		if (auto key = colorKeyFromString(name)) return colors[static_cast<size_t>(*key)];
-		static const string empty;
-		return empty;
-	}
-
-	const array<string, 101>& g(const string& name) {
-		if (auto key = gradientKeyFromString(name)) return gradients[static_cast<size_t>(*key)];
-		static const array<string, 101> empty{};
-		return empty;
-	}
-
-	const std::array<int, 3>& dec(const string& name) {
-		if (auto key = colorKeyFromString(name)) return rgbs[static_cast<size_t>(*key)];
-		static const std::array<int, 3> empty{-1, -1, -1};
-		return empty;
-	}
-
-	//----------------------------------------------------------
 	// Default and TTY theme data (ColorKey-indexed)
 	//----------------------------------------------------------
 
