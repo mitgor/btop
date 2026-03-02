@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
-status: in-progress
-last_updated: "2026-03-02"
+status: unknown
+last_updated: "2026-03-02T11:07:54.629Z"
 progress:
-  total_phases: 6
+  total_phases: 1
   completed_phases: 1
-  total_plans: 11
+  total_plans: 1
   completed_plans: 1
 ---
 
