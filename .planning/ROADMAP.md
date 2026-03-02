@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 Performance Optimization** — Phases 1-8 (shipped 2026-02-27)
 - ✅ **v1.1 Automata Architecture** — Phases 10-15 (shipped 2026-03-01)
-- **v1.2 Tech Debt** — Phases 16-19 (in progress)
+- ✅ **v1.2 Tech Debt** — Phases 16-19 (shipped 2026-03-02)
 
 ## Phases
 
@@ -39,65 +39,17 @@ Full details: `milestones/v1.1-ROADMAP.md`
 
 </details>
 
-### v1.2 Tech Debt (In Progress)
+<details>
+<summary>✅ v1.2 Tech Debt (Phases 16-19) — SHIPPED 2026-03-02</summary>
 
-**Milestone Goal:** Close all v1.1 integration impurities, fix pre-existing issues, route all state transitions through the FSM architecture, and measure actual CPU/memory improvements.
+- [x] Phase 16: Runner Error Path Purity (1/1 plan) — completed 2026-03-01
+- [x] Phase 17: Signal & Transition Routing (1/1 plan) — completed 2026-03-01
+- [x] Phase 18: Test & Doc Hygiene (1/1 plan) — completed 2026-03-01
+- [x] Phase 19: Performance Measurement (1/1 plan) — completed 2026-03-01
 
-- [x] **Phase 16: Runner Error Path Purity** - Runner exception handling uses event queue end-to-end with variant/shadow sync (completed 2026-03-01)
-- [x] **Phase 17: Signal & Transition Routing** - All remaining shadow atomic bypasses routed through FSM transition_to() (completed 2026-03-01)
-- [x] **Phase 18: Test & Doc Hygiene** - Pre-existing test failure fixed and stale documentation cleaned up (completed 2026-03-01)
-- [x] **Phase 19: Performance Measurement** - CPU and memory improvements from v1.0+v1.1 quantified with documented methodology (completed 2026-03-01)
+Full details: `milestones/v1.2-ROADMAP.md`
 
-## Phase Details
-
-### Phase 16: Runner Error Path Purity
-**Goal**: Runner thread errors flow through the event-driven architecture instead of bypassing it with direct shadow atomic writes
-**Depends on**: Phase 15 (v1.1 FSM infrastructure)
-**Requirements**: PURE-01, PURE-02, PURE-03, PURE-04
-**Success Criteria** (what must be TRUE):
-  1. Runner exception handler pushes event::ThreadError into the event queue (no direct atomic writes on error path)
-  2. Main loop receives and dispatches ThreadError events via on_event(Running, ThreadError)
-  3. runner_var is either used for actual runtime dispatch in the runner thread or completely removed (no write-only dead code remains)
-  4. When runner reports an error, app_var holds state::Error and the shadow atomic agrees (variant and shadow are in sync)
-  5. All error-path changes pass ASan+UBSan and TSan sweeps with zero findings
-**Plans**: 1 plan
-- [ ] 16-01-PLAN.md — Route runner errors through event queue, remove runner_var dead code, sanitizer verification
-
-### Phase 17: Signal & Transition Routing
-**Goal**: Every state transition in btop goes through transition_to(), eliminating the last shadow atomic bypasses
-**Depends on**: Phase 16
-**Requirements**: PURE-05, PURE-06
-**Success Criteria** (what must be TRUE):
-  1. term_resize() triggers state changes via transition_to() instead of writing shadow atomics directly
-  2. clean_quit() triggers state changes via transition_to() instead of writing shadow atomics directly
-  3. SIGTERM is pushed into the event queue and dispatched through on_event(), not handled by direct flag writes
-  4. No code path outside transition_to() writes to shadow atomic state variables (grep-verifiable)
-**Plans**: 1 plan
-- [ ] 17-01-PLAN.md — Remove shadow atomic bypasses from term_resize()/clean_quit(), route SIGTERM through event queue, grep-verify purity
-
-### Phase 18: Test & Doc Hygiene
-**Goal**: Pre-existing test failures and stale documentation from earlier milestones are cleaned up
-**Depends on**: Nothing (independent of Phases 16-17)
-**Requirements**: HYGN-01, HYGN-02
-**Success Criteria** (what must be TRUE):
-  1. RingBuffer.PushBackOnZeroCapacity test passes in all build configs (normal, ASan+UBSan, TSan)
-  2. VERIFICATION.md contains no references to removed Phase 12 infrastructure or other stale content
-  3. Full test suite runs 266/266 pass (the pre-existing failure is resolved)
-**Plans**: 1 plan
-- [x] 18-01-PLAN.md — Fix RingBuffer zero-capacity test, clean stale VERIFICATION.md references
-
-### Phase 19: Performance Measurement
-**Goal**: Quantify the actual CPU and memory impact of v1.0+v1.1 optimizations with reproducible methodology
-**Depends on**: Phases 16-17 (measure after all code changes are complete)
-**Requirements**: PERF-01, PERF-02
-**Success Criteria** (what must be TRUE):
-  1. CPU usage is measured using a documented, reproducible methodology (tool, workload, duration, environment specified)
-  2. Memory footprint is measured using a documented, reproducible methodology (tool, metric, workload specified)
-  3. Before/after comparison shows measured values for both baseline (pre-v1.0) and current (post-v1.2) builds
-  4. Results are committed to the repository with methodology documentation sufficient for independent reproduction
-**Plans**: 1 plan
-Plans:
-- [ ] 19-01-PLAN.md — Create measurement script, run benchmarks, generate PERFORMANCE.md with before/after results
+</details>
 
 ## Progress
 
@@ -105,7 +57,4 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
-| 16. Runner Error Path Purity | 1/1 | Complete    | 2026-03-01 | - |
-| 17. Signal & Transition Routing | 1/1 | Complete    | 2026-03-01 | - |
-| 18. Test & Doc Hygiene | 1/1 | Complete    | 2026-03-01 | - |
-| 19. Performance Measurement | v1.2 | Complete    | 2026-03-01 | - |
+| 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |

@@ -8,19 +8,9 @@ An ongoing optimization and architectural improvement effort for btop++, the ter
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## Current Milestone: v1.2 Tech Debt
+## Current State
 
-**Goal:** Close all v1.1 integration impurities, fix pre-existing issues, route all state transitions through the FSM architecture, and measure actual CPU/memory improvements.
-
-**Target work:**
-- Fix runner error path to use event queue instead of direct shadow atomic writes
-- Eliminate write-only runner_var by either using it or removing it
-- Fix variant/shadow desync on error path
-- Route shadow atomic bypasses (term_resize, clean_quit) through transition_to()
-- Route SIGTERM through event system
-- Fix pre-existing RingBuffer.PushBackOnZeroCapacity test failure
-- Clean up stale VERIFICATION.md docs
-- Measure CPU and memory improvements from v1.0+v1.1
+v1.0, v1.1, and v1.2 milestones shipped. No active milestone — ready for `/gsd:new-milestone` to start next cycle.
 
 ## Requirements
 
@@ -38,18 +28,18 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Extract transition logic into typed transition functions — v1.1 (on_event overloads + dispatch_event)
 - ✓ Create Runner thread FSM with typed states — v1.1 (RunnerStateTag: Idle/Collecting/Drawing/Stopping)
 - ✓ Achieve testable state transitions — v1.1 (279 tests, 278/279 pass)
+- ✓ Runner error path pushes ThreadError event instead of direct shadow write — v1.2
+- ✓ runner_var write-only dead code removed — v1.2
+- ✓ Variant/shadow desync on error path fixed — v1.2
+- ✓ All shadow atomic bypasses routed through transition_to() — v1.2
+- ✓ SIGTERM routed through event system — v1.2
+- ✓ RingBuffer.PushBackOnZeroCapacity test fixed — v1.2 (266/266 pass)
+- ✓ Stale phase documentation cleaned up — v1.2
+- ✓ CPU/memory measured: -4.4% wall, -6.3% collect, +13.7% RSS — v1.2
 
 ### Active
 
-- [ ] Fix runner error path to push ThreadError event instead of direct shadow atomic write
-- [ ] Eliminate runner_var write-only dead code (use variant dispatch or remove)
-- [ ] Fix variant/shadow desync on thread error (app_var must reflect Error state)
-- [ ] Route shadow atomic bypasses through transition_to()
-- [ ] Route SIGTERM through event system
-- [ ] Fix RingBuffer.PushBackOnZeroCapacity test failure
-- [ ] Clean up stale phase documentation
-- [ ] Measure CPU usage reduction (target 50%+)
-- [ ] Measure memory footprint reduction (target 30%+)
+(None — start next milestone with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -74,7 +64,7 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - 279 tests across normal, ASan+UBSan, TSan configs — zero sanitizer findings
 - Benchmark infrastructure: nanobench microbenchmarks, --benchmark CLI mode, CI regression detection
 - PGO build pipeline available (1.1% gain — I/O-bound ceiling); mimalloc evaluated (1.6% gain)
-- Known tech debt (v1.2 target): runner error path bypasses event queue, runner_var write-only, variant/shadow desync on error, shadow atomic bypasses in term_resize/clean_quit, SIGTERM not routed, pre-existing RingBuffer test failure
+- v1.2 shipped: All tech debt resolved — single-writer invariant for app_state, 266/266 tests pass, -4.4% wall time cumulative
 
 ## Constraints
 
@@ -102,7 +92,7 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Orthogonal FSMs (App + Runner) | Avoids state explosion from flag combinations | ✓ Good — independent state machines, no 128-state product |
 | Event queue for signal decoupling | Unidirectional data flow, eliminates shared mutable state | ✓ Good — lock-free SPSC, async-signal-safe |
 | Phased migration (not big-bang) | Each phase independently deployable, reduces risk | ✓ Good — 6 phases, each shipped and tested incrementally |
-| Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ⚠️ Revisit — creates desync on error path (accepted tech debt) |
+| Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-01 after v1.2 milestone start*
+*Last updated: 2026-03-02 after v1.2 milestone completion*

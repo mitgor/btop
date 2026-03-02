@@ -1,5 +1,23 @@
 # Milestones
 
+## v1.2 Tech Debt (Shipped: 2026-03-02)
+
+**Phases:** 4 | **Plans:** 4 | **Tasks:** 10 | **Source files:** 10 | **LOC:** +686 / -145
+**Timeline:** 1 day (2026-03-01)
+**Git range:** `20e2ddd`..`42f58c5`
+**Tests:** 266/266 pass (zero sanitizer findings across 3 configs)
+
+**Key accomplishments:**
+1. Routed runner error paths through event queue (ThreadError push + on_event dispatch), eliminating direct shadow atomic writes
+2. Established single-writer invariant: transition_to() is the sole writer of Global::app_state (grep-verifiable)
+3. Routed SIGTERM through event queue like all other signals; Input/Menu quit paths via event::Quit
+4. Fixed pre-existing RingBuffer.PushBackOnZeroCapacity test failure (266/266 tests now pass)
+5. Measured cumulative v1.0+v1.1+v1.2 performance: -4.4% wall time, -6.3% collect, +13.7% RSS (deliberate pre-allocation)
+
+**Archive:** `milestones/v1.2-ROADMAP.md` | `milestones/v1.2-REQUIREMENTS.md` | `milestones/v1.2-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.1 Automata Architecture (Shipped: 2026-03-01)
 
 **Phases:** 6 | **Plans:** 13 | **Commits:** 66 | **Source files:** 63 | **LOC:** +13,095 / -272
