@@ -80,44 +80,44 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PDA-01 | — | Pending |
-| PDA-02 | — | Pending |
-| PDA-03 | — | Pending |
-| PDA-04 | — | Pending |
-| PDA-05 | — | Pending |
-| PDA-06 | — | Pending |
-| FRAME-01 | — | Pending |
-| FRAME-02 | — | Pending |
-| FRAME-03 | — | Pending |
-| FRAME-04 | — | Pending |
-| FRAME-05 | — | Pending |
-| INPUT-01 | — | Pending |
-| INPUT-02 | — | Pending |
-| INPUT-03 | — | Pending |
-| INPUT-04 | — | Pending |
-| INPUT-05 | — | Pending |
-| INPUT-06 | — | Pending |
-| INTEG-01 | — | Pending |
-| INTEG-02 | — | Pending |
-| INTEG-03 | — | Pending |
-| INTEG-04 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| TEST-04 | — | Pending |
-| TEST-05 | — | Pending |
-| TEST-06 | — | Pending |
-| TEST-07 | — | Pending |
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| CLEAN-03 | — | Pending |
-| CLEAN-04 | — | Pending |
+| PDA-01 | Phase 20 | Pending |
+| PDA-02 | Phase 20 | Pending |
+| PDA-03 | Phase 20 | Pending |
+| PDA-04 | Phase 22 | Pending |
+| PDA-05 | Phase 20 | Pending |
+| PDA-06 | Phase 22 | Pending |
+| FRAME-01 | Phase 21 | Pending |
+| FRAME-02 | Phase 20 | Pending |
+| FRAME-03 | Phase 21 | Pending |
+| FRAME-04 | Phase 20 | Pending |
+| FRAME-05 | Phase 20 | Pending |
+| INPUT-01 | Phase 23 | Pending |
+| INPUT-02 | Phase 23 | Pending |
+| INPUT-03 | Phase 23 | Pending |
+| INPUT-04 | Phase 23 | Pending |
+| INPUT-05 | Phase 23 | Pending |
+| INPUT-06 | Phase 23 | Pending |
+| INTEG-01 | Phase 23 | Pending |
+| INTEG-02 | Phase 23 | Pending |
+| INTEG-03 | Phase 23 | Pending |
+| INTEG-04 | Phase 23 | Pending |
+| TEST-01 | Phase 24 | Pending |
+| TEST-02 | Phase 24 | Pending |
+| TEST-03 | Phase 24 | Pending |
+| TEST-04 | Phase 24 | Pending |
+| TEST-05 | Phase 24 | Pending |
+| TEST-06 | Phase 24 | Pending |
+| TEST-07 | Phase 24 | Pending |
+| CLEAN-01 | Phase 25 | Pending |
+| CLEAN-02 | Phase 25 | Pending |
+| CLEAN-03 | Phase 25 | Pending |
+| CLEAN-04 | Phase 25 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 32 total
-- Mapped to phases: 0
-- Unmapped: 32 ⚠️
+- Mapped to phases: 32
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after initial definition*
+*Last updated: 2026-03-02 after roadmap creation*
