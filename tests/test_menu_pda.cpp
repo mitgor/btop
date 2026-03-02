@@ -278,6 +278,161 @@ TEST(FrameDefaults, ReniceFrameDefaults) {
 // Per-frame mouse mappings test (FRAME-05)
 // ========================================================================
 
+// ========================================================================
+// InvalidateLayout tests (FRAME-03)
+// ========================================================================
+
+TEST(InvalidateLayout, MainFrameZerosLayoutPreservesInteraction) {
+	menu::MainFrame f;
+	// Set layout fields to non-zero
+	f.y = 42;
+	f.mouse_mappings["btn"] = Input::Mouse_loc{1, 2, 3, 4};
+	// Set interaction fields to non-zero
+	f.selected = 7;
+	f.colors_selected = {"red", "blue"};
+	f.colors_normal = {"green"};
+
+	f.invalidate_layout();
+
+	// Layout fields zeroed
+	EXPECT_EQ(f.y, 0);
+	EXPECT_TRUE(f.mouse_mappings.empty());
+	// Interaction fields preserved
+	EXPECT_EQ(f.selected, 7);
+	EXPECT_EQ(f.colors_selected.size(), 2u);
+	EXPECT_EQ(f.colors_normal.size(), 1u);
+}
+
+TEST(InvalidateLayout, OptionsFrameZerosLayoutPreservesInteraction) {
+	menu::OptionsFrame f;
+	// Set layout fields
+	f.x = 10; f.y = 20; f.height = 30;
+	f.mouse_mappings["opt"] = Input::Mouse_loc{5, 6, 7, 8};
+	// Set interaction fields
+	f.page = 2; f.pages = 5; f.selected = 3; f.select_max = 10;
+	f.item_height = 4; f.selected_cat = 1; f.max_items = 8;
+	f.last_sel = 2; f.editing = true; f.warnings = "warn";
+	f.selPred.set(3);
+
+	f.invalidate_layout();
+
+	// Layout zeroed
+	EXPECT_EQ(f.x, 0);
+	EXPECT_EQ(f.y, 0);
+	EXPECT_EQ(f.height, 0);
+	EXPECT_TRUE(f.mouse_mappings.empty());
+	// Interaction preserved
+	EXPECT_EQ(f.page, 2);
+	EXPECT_EQ(f.pages, 5);
+	EXPECT_EQ(f.selected, 3);
+	EXPECT_EQ(f.select_max, 10);
+	EXPECT_EQ(f.item_height, 4);
+	EXPECT_EQ(f.selected_cat, 1);
+	EXPECT_EQ(f.max_items, 8);
+	EXPECT_EQ(f.last_sel, 2);
+	EXPECT_TRUE(f.editing);
+	EXPECT_EQ(f.warnings, "warn");
+	EXPECT_TRUE(f.selPred.test(3));
+}
+
+TEST(InvalidateLayout, HelpFrameZerosLayoutPreservesInteraction) {
+	menu::HelpFrame f;
+	f.x = 15; f.y = 25; f.height = 35;
+	f.mouse_mappings["help"] = Input::Mouse_loc{1, 1, 1, 1};
+	f.page = 3; f.pages = 7;
+
+	f.invalidate_layout();
+
+	EXPECT_EQ(f.x, 0);
+	EXPECT_EQ(f.y, 0);
+	EXPECT_EQ(f.height, 0);
+	EXPECT_TRUE(f.mouse_mappings.empty());
+	EXPECT_EQ(f.page, 3);
+	EXPECT_EQ(f.pages, 7);
+}
+
+TEST(InvalidateLayout, SizeErrorFrameClearsMouseMappings) {
+	menu::SizeErrorFrame f;
+	f.mouse_mappings["err"] = Input::Mouse_loc{9, 9, 9, 9};
+
+	f.invalidate_layout();
+
+	EXPECT_TRUE(f.mouse_mappings.empty());
+}
+
+TEST(InvalidateLayout, SignalChooseFrameZerosLayoutPreservesInteraction) {
+	menu::SignalChooseFrame f;
+	f.x = 100; f.y = 200;
+	f.mouse_mappings["sig"] = Input::Mouse_loc{2, 3, 4, 5};
+	f.selected_signal = 15;
+
+	f.invalidate_layout();
+
+	EXPECT_EQ(f.x, 0);
+	EXPECT_EQ(f.y, 0);
+	EXPECT_TRUE(f.mouse_mappings.empty());
+	EXPECT_EQ(f.selected_signal, 15);
+}
+
+TEST(InvalidateLayout, SignalSendFrameClearsMouseMappings) {
+	menu::SignalSendFrame f;
+	f.mouse_mappings["send"] = Input::Mouse_loc{1, 2, 3, 4};
+
+	f.invalidate_layout();
+
+	EXPECT_TRUE(f.mouse_mappings.empty());
+}
+
+TEST(InvalidateLayout, SignalReturnFrameClearsMouseMappings) {
+	menu::SignalReturnFrame f;
+	f.mouse_mappings["ret"] = Input::Mouse_loc{5, 6, 7, 8};
+
+	f.invalidate_layout();
+
+	EXPECT_TRUE(f.mouse_mappings.empty());
+}
+
+TEST(InvalidateLayout, ReniceFrameZerosLayoutPreservesInteraction) {
+	menu::ReniceFrame f;
+	f.x = 50; f.y = 60;
+	f.mouse_mappings["ren"] = Input::Mouse_loc{3, 4, 5, 6};
+	f.selected_nice = 10;
+	f.nice_edit = "editing";
+
+	f.invalidate_layout();
+
+	EXPECT_EQ(f.x, 0);
+	EXPECT_EQ(f.y, 0);
+	EXPECT_TRUE(f.mouse_mappings.empty());
+	EXPECT_EQ(f.selected_nice, 10);
+	EXPECT_EQ(f.nice_edit, "editing");
+}
+
+TEST(InvalidateLayout, MenuPDADispatchesToTopFrame) {
+	menu::MenuPDA pda;
+	menu::MainFrame mf;
+	mf.y = 99;
+	mf.selected = 5;
+	pda.push(mf);
+
+	pda.invalidate_layout();
+
+	auto& frame = std::get<menu::MainFrame>(pda.top());
+	EXPECT_EQ(frame.y, 0);
+	EXPECT_EQ(frame.selected, 5);
+}
+
+TEST(InvalidateLayout, MenuPDAEmptyIsNoOp) {
+	menu::MenuPDA pda;
+	// Should not crash
+	pda.invalidate_layout();
+	EXPECT_TRUE(pda.empty());
+}
+
+// ========================================================================
+// Per-frame mouse mappings test (FRAME-05)
+// ========================================================================
+
 TEST(FrameMouseMappings, FrameOwnsMouseMappings) {
 	menu::MainFrame mf;
 	mf.mouse_mappings["button1"] = Input::Mouse_loc{1, 2, 3, 4};
