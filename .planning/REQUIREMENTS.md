@@ -9,7 +9,7 @@ Requirements for v1.4 Render & Collect Modernization. Each maps to roadmap phase
 
 ### Correctness
 
-- [ ] **CORR-01**: calcSizes() freq_range and hasCpuHz values refresh when config changes instead of being baked at first call
+- [x] **CORR-01**: calcSizes() freq_range and hasCpuHz values refresh when config changes instead of being baked at first call
 
 ### Hot-Path Performance
 
@@ -71,7 +71,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORR-01 | Phase 25 | Pending |
+| CORR-01 | Phase 25 | Complete |
 | PERF-01 | Phase 27 | Pending |
 | PERF-02 | Phase 27 | Pending |
 | PERF-03 | Phase 27 | Pending |

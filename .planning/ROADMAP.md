@@ -72,7 +72,7 @@ Full details: `milestones/v1.3-ROADMAP.md` | `milestones/v1.3-REQUIREMENTS.md`
 
 **Phase Numbering:** Integer phases 25-30. Decimal phases (e.g., 25.1) reserved for urgent insertions.
 
-- [ ] **Phase 25: Stale Static Const Fix** - Fix calcSizes() freq_range/hasCpuHz values that are baked at first call instead of refreshing on config change
+- [x] **Phase 25: Stale Static Const Fix** - Fix calcSizes() freq_range/hasCpuHz values that are baked at first call instead of refreshing on config change (completed 2026-03-02)
 - [ ] **Phase 26: ThemeKey Enum Arrays** - Replace theme string-keyed maps (colors, rgbs, gradients) with ThemeKey enum + std::array
 - [ ] **Phase 27: cpu_old Enum Arrays** - Convert cpu_old string-keyed unordered_map to enum-indexed std::array on all platforms
 - [ ] **Phase 28: Hot-Path POSIX I/O** - Convert Cpu::collect and Mem::collect ifstream reads to read_proc_file() on Linux
@@ -180,7 +180,7 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
-| 25. Stale Static Const Fix | v1.4 | 0/1 | Not started | - |
+| 25. Stale Static Const Fix | 1/1 | Complete   | 2026-03-02 | - |
 | 26. ThemeKey Enum Arrays | v1.4 | 0/2 | Not started | - |
 | 27. cpu_old Enum Arrays | v1.4 | 0/2 | Not started | - |
 | 28. Hot-Path POSIX I/O | v1.4 | 0/1 | Not started | - |
