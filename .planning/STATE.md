@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Render & Collect Completion
 status: active
-last_updated: "2026-03-02"
+last_updated: "2026-03-02T20:59:02.378Z"
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 5
-  completed_plans: 1
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # Project State
@@ -18,21 +18,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 28 - Hot-Path POSIX I/O
+**Current focus:** Phase 28 complete - ready for Phase 29
 
 ## Current Position
 
-Phase: 28 of 30 (Hot-Path POSIX I/O)
-Plan: 1 of 2 complete in current phase
-Status: Active (executing phase 28)
-Last activity: 2026-03-02 — Completed 28-01 (/proc/stat POSIX I/O conversion)
+Phase: 28 of 30 (Hot-Path POSIX I/O) -- COMPLETE
+Plan: 2 of 2 complete in current phase
+Status: Phase 28 complete, ready for Phase 29
+Last activity: 2026-03-02 — Completed 28-02 (Mem POSIX I/O conversion)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (v1.5)
+- Total plans completed: 2 (v1.5)
 
 **Cumulative (v1.0-v1.4):**
 - v1.0: 9 phases, 20 plans
@@ -53,6 +53,7 @@ Recent decisions affecting current work:
 - Phase 29 depends on 28 (draw decomposition should happen after perf changes to draw inputs)
 - Phase 30 depends on 29 (unified redraw touches all draw modules)
 - [Phase 28] Zero-allocation /proc/stat reads via read_proc_file() + string_view in Cpu::collect (32KB buf) and Proc::collect (1KB buf)
+- [Phase 28] Zero-allocation /proc/meminfo and arcstats reads via read_proc_file() + string_view in Mem::collect and get_totalMem(); line-start-aware label matching prevents substring false matches
 - [Phase 27] CpuOldField enum with 12 entries in shared header; cpu_old_to_field constexpr mapping bridges CpuOldField to CpuField
 - [Phase 26] Two-enum design: ColorKey (50 entries) for individual colors, GradientKey (11 entries) for gradient base names
 
@@ -67,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 28-01-PLAN.md
+Stopped at: Completed 28-02-PLAN.md (Phase 28 complete)
 Resume file: None
