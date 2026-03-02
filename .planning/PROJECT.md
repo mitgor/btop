@@ -8,14 +8,11 @@ An ongoing optimization and architectural improvement effort for btop++, the ter
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## Current Milestone: v1.4 Render & Collect Modernization
+## Current Milestone: v1.5 Render & Collect Completion
 
-**Goal:** Modernize the render and collect layers — enum-indexed theme colors, POSIX I/O for hot-path reads, decomposed god functions, unified redraw mechanism, and stale-state bug fixes.
+**Goal:** Complete the render and collect modernization started in v1.4 — POSIX I/O for hot-path reads, decomposed god functions, and unified redraw mechanism.
 
 **Target features:**
-- Fix stale static const bug in calcSizes() (freq_range/hasCpuHz)
-- ThemeKey enum + std::array replacing string-keyed color/gradient maps
-- cpu_old string-keyed map → std::array<long long, CpuField::COUNT> on all platforms
 - Hot-path ifstream → POSIX I/O for /proc/stat and /proc/meminfo
 - Split Proc::draw() (555 lines) into focused sub-functions
 - Split Cpu::draw() (478 lines), extract battery state tracking
@@ -51,14 +48,14 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Refactor input routing into typed Input FSM (Normal/Filtering/MenuActive) — v1.3
 - ✓ Comprehensive tests for menu PDA and input FSM — v1.3 (330/330 pass)
 - ✓ Fix stale static const in calcSizes() (freq_range/hasCpuHz baked at first call) — v1.4 Phase 25
+- ✓ Replace theme string-keyed maps with ThemeKey enum + std::array — v1.4 Phase 26
+- ✓ Convert cpu_old string-keyed unordered_map to std::array on all platforms — v1.4 Phase 27
 
 ### Active
-- [ ] Replace theme string-keyed maps with ThemeKey enum + std::array — v1.4
-- [ ] Convert cpu_old string-keyed unordered_map to std::array on all platforms — v1.4
-- [ ] Convert hot-path ifstream reads to POSIX I/O (Cpu::collect, Mem::collect) — v1.4
-- [ ] Split Proc::draw() into focused sub-functions — v1.4
-- [ ] Split Cpu::draw() and extract battery state tracking — v1.4
-- [ ] Consolidate scattered redraw flags into unified mechanism — v1.4
+- [ ] Convert hot-path ifstream reads to POSIX I/O (Cpu::collect, Mem::collect) — v1.5
+- [ ] Split Proc::draw() into focused sub-functions — v1.5
+- [ ] Split Cpu::draw() and extract battery state tracking — v1.5
+- [ ] Consolidate scattered redraw flags into unified mechanism — v1.5
 
 ### Out of Scope
 
@@ -114,4 +111,4 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-02 after Phase 25*
+*Last updated: 2026-03-02 after v1.5 milestone start*

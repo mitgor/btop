@@ -1,26 +1,16 @@
-# Requirements: btop++ v1.4
+# Requirements: btop++ v1.5
 
 **Defined:** 2026-03-02
 **Core Value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## v1.4 Requirements
+## v1.5 Requirements
 
-Requirements for v1.4 Render & Collect Modernization. Each maps to roadmap phases.
-
-### Correctness
-
-- [x] **CORR-01**: calcSizes() freq_range and hasCpuHz values refresh when config changes instead of being baked at first call
+Requirements for v1.5 Render & Collect Completion. Carried forward from v1.4 phases 28-30.
 
 ### Hot-Path Performance
 
-- [x] **PERF-01**: cpu_old string-keyed unordered_map replaced with std::array<long long, CpuField::COUNT> on Linux
-- [x] **PERF-02**: cpu_old equivalent replaced with enum-indexed array on macOS
-- [x] **PERF-03**: cpu_old equivalent replaced with enum-indexed array on FreeBSD
 - [ ] **PERF-04**: Cpu::collect /proc/stat reads use read_proc_file() instead of ifstream (Linux)
 - [ ] **PERF-05**: Mem::collect /proc/meminfo reads use read_proc_file() instead of ifstream (Linux)
-- [x] **PERF-06**: Theme colors map replaced with ThemeKey enum + std::array (~40 fixed color names)
-- [x] **PERF-07**: Theme rgbs map replaced with ThemeKey enum + std::array
-- [x] **PERF-08**: Theme gradients map replaced with ThemeKey enum + std::array
 
 ### Draw Decomposition
 
@@ -57,7 +47,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 | Feature | Reason |
 |---------|--------|
-| New state machines | v1.4 is modernization, not new FSM work |
+| New state machines | v1.5 is completion work, not new FSM scope |
 | Input dispatch rewrite | Deferred -- large scope, independent of render/collect work |
 | Platform collector decomposition | Deferred -- large scope, cross-platform testing needed |
 | Runner::pause_output refactor | Requires event queue changes, better as standalone work |
@@ -67,19 +57,12 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Carried forward from v1.4.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORR-01 | Phase 25 | Complete |
-| PERF-01 | Phase 27 | Complete |
-| PERF-02 | Phase 27 | Complete |
-| PERF-03 | Phase 27 | Complete |
 | PERF-04 | Phase 28 | Pending |
 | PERF-05 | Phase 28 | Pending |
-| PERF-06 | Phase 26 | Complete |
-| PERF-07 | Phase 26 | Complete |
-| PERF-08 | Phase 26 | Complete |
 | DRAW-01 | Phase 29 | Pending |
 | DRAW-02 | Phase 29 | Pending |
 | DRAW-03 | Phase 29 | Pending |
@@ -87,10 +70,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REND-02 | Phase 30 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 14 total
-- Mapped to phases: 14
-- Unmapped: 0
+- v1.5 requirements: 7 total
+- Mapped to phases: 7
+- Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after roadmap creation*
+*Requirements defined: 2026-03-02 (carried forward from v1.4)*
+*Last updated: 2026-03-02 after v1.5 milestone start*

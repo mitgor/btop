@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.4 Render & Collect Modernization (Shipped: 2026-03-02)
+
+**Phases:** 3 (25-27) | **Plans:** 5 | **Source files:** 12 | **LOC:** +777 / -572
+**Timeline:** 1 day (2026-03-02)
+**Tests:** 330/330 pass (zero sanitizer findings)
+
+**Key accomplishments:**
+1. Fixed stale static const bug in calcSizes() — freq_range/hasCpuHz now refresh on config change instead of being baked at first call
+2. Replaced theme string-keyed unordered_maps with ThemeKey enum arrays — ColorKey (50 entries) + GradientKey (11 entries) for O(1) color lookups
+3. Converted cpu_old from string-keyed unordered_map to enum-indexed std::array on all 5 platforms (Linux, macOS, FreeBSD, OpenBSD, NetBSD) with CpuOldField enum (12 entries)
+
+**Deferred to v1.5:** Phases 28-30 (Hot-Path POSIX I/O, Draw Decomposition, Unified Redraw)
+
+**Archive:** `milestones/v1.4-ROADMAP.md` | `milestones/v1.4-REQUIREMENTS.md`
+
+---
+
 ## v1.3 Menu PDA + Input FSM (Shipped: 2026-03-02)
 
 **Phases:** 5 | **Plans:** 9 | **Source files:** 11 | **LOC:** +1,698 / -234

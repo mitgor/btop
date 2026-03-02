@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Render & Collect Modernization
-status: unknown
-last_updated: "2026-03-02T18:49:03.511Z"
+milestone: v1.5
+milestone_name: Render & Collect Completion
+status: active
+last_updated: "2026-03-02"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 14
-  completed_plans: 14
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 0
 ---
 
 # Project State
@@ -18,37 +18,28 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 28 - POSIX I/O (next after Phase 27 completion)
+**Current focus:** Phase 28 - Hot-Path POSIX I/O
 
 ## Current Position
 
-Phase: 28 of 30 (POSIX I/O) -- Phase 27 complete
+Phase: 28 of 30 (Hot-Path POSIX I/O)
 Plan: 0 of ? complete in current phase
-Status: Ready
-Last activity: 2026-03-02 -- Phase 27 Plan 02 executed (BSD platform cpu_old enum arrays)
+Status: Not started (defining requirements)
+Last activity: 2026-03-02 — Milestone v1.5 started (carried forward phases 28-30 from v1.4)
 
-Progress: [####░░░░░░] 42%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (v1.4)
-- Average duration: ~7min
-- Total execution time: ~35min
+- Total plans completed: 0 (v1.5)
 
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 25-stale-static-const-fix | 1 | 1min | 1min |
-| 26-themekey-enum-arrays | 2 | ~30min | ~15min |
-| 27-cpu-old-enum-arrays | 2 | 5min | ~2.5min |
-
-**Recent Trend:**
-- Last 3 plans: ~12min avg
-- Trend: accelerating
-
-*Updated after each plan completion*
+**Cumulative (v1.0-v1.4):**
+- v1.0: 9 phases, 20 plans
+- v1.1: 6 phases, 13 plans
+- v1.2: 4 phases, 4 plans
+- v1.3: 5 phases, 9 plans
+- v1.4: 3 phases, 5 plans
 
 ## Accumulated Context
 
@@ -57,15 +48,12 @@ Progress: [####░░░░░░] 42%
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions affecting current work:
-- v1.4 scope: render/collect modernization (theme enum arrays, cpu_old conversion, POSIX I/O, draw decomposition, redraw consolidation, stale static const fix)
-- No new state machines in v1.4 -- bringing existing layers up to the standard set by v1.0-v1.3
-- Phases 26/27/28 can proceed in parallel after Phase 25 (independent subsystems)
-- Phase 29 depends on 26/27/28 (draw decomposition should happen after perf changes to draw inputs)
+- v1.5 scope: complete render/collect modernization (POSIX I/O, draw decomposition, redraw consolidation)
+- Phases 28-30 carried forward from v1.4 with same numbering
+- Phase 29 depends on 28 (draw decomposition should happen after perf changes to draw inputs)
 - Phase 30 depends on 29 (unified redraw touches all draw modules)
-- [Phase 25] Remove static from hasCpuHz and freq_range in calcSizes() to match the pattern already used in Cpu::draw()
-- [Phase 26] Two-enum design: ColorKey (50 entries) for individual colors, GradientKey (11 entries) for gradient base names. Constexpr name tables for theme file parsing bridge. GradientKey::COUNT used as "no gradient" sentinel in Graph class.
-- [Phase 27] CpuOldField enum with 12 entries in shared header; cpu_old_to_field constexpr mapping bridges CpuOldField to CpuField; kept unordered_map include (8+ other users)
-- [Phase 27] Kept #include <unordered_map> in all BSD platform files -- each has 8+ other unordered_map users beyond cpu_old
+- [Phase 27] CpuOldField enum with 12 entries in shared header; cpu_old_to_field constexpr mapping bridges CpuOldField to CpuField
+- [Phase 26] Two-enum design: ColorKey (50 entries) for individual colors, GradientKey (11 entries) for gradient base names
 
 ### Pending Todos
 
@@ -78,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 27-02-PLAN.md (BSD platform cpu_old enum arrays -- Phase 27 complete)
+Stopped at: Milestone v1.5 initialized
 Resume file: None
