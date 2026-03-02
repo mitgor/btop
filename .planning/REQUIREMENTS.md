@@ -9,7 +9,7 @@ Requirements for v1.5 Render & Collect Completion. Carried forward from v1.4 pha
 
 ### Hot-Path Performance
 
-- [ ] **PERF-04**: Cpu::collect /proc/stat reads use read_proc_file() instead of ifstream (Linux)
+- [x] **PERF-04**: Cpu::collect /proc/stat reads use read_proc_file() instead of ifstream (Linux)
 - [ ] **PERF-05**: Mem::collect /proc/meminfo reads use read_proc_file() instead of ifstream (Linux)
 
 ### Draw Decomposition
@@ -61,7 +61,7 @@ Which phases cover which requirements. Carried forward from v1.4.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-04 | Phase 28 | Pending |
+| PERF-04 | Phase 28 | Complete |
 | PERF-05 | Phase 28 | Pending |
 | DRAW-01 | Phase 29 | Pending |
 | DRAW-02 | Phase 29 | Pending |
