@@ -2765,7 +2765,7 @@ namespace Draw {
 			Proc::p_counters.clear();
 			Proc::p_graphs.clear();
 		}
-		if (Menu::active) Menu::redraw = true;
+		if (Input::is_menu_active()) Menu::redraw = true;
 
 		Input::mouse_mappings.clear();
 

@@ -768,7 +768,7 @@ namespace Runner {
 			}
 
 			//! DEBUG stats -->
-			if (Global::debug and not Menu::active) {
+			if (Global::debug and not Input::is_menu_active()) {
 				output += fmt::format("{pre}{box:5.5} {collect:>12.12} {draw:>12.12}{post}",
 					"pre"_a = debug_bg + Theme::c("title") + Fx::b,
 					"box"_a = "box", "collect"_a = "collect", "draw"_a = "draw",
@@ -903,7 +903,7 @@ namespace Runner {
 				current_conf.force_redraw = true;
 			}
 
-			if (Menu::active and not current_conf.background_update) Global::overlay.clear();
+			if (Runner::pause_output.load() and not current_conf.background_update) Global::overlay.clear();
 
 			thread_trigger();
 			//? Wait briefly for runner to leave Idle (i.e., it started work)
@@ -1006,8 +1006,12 @@ static void on_enter(state::Resizing&, TransitionCtx&) {
 	Draw::calcSizes();
 	Runner::screen_buffer.resize(Term::width, Term::height);
 	Draw::update_clock(true);
-	if (Menu::active) Menu::process();
-	else Runner::run("all", true, true);
+	if (Input::is_menu_active()) {
+		Menu::invalidate_layout();  // INTEG-01: prevent stale coordinates after resize
+		Menu::process();
+	} else {
+		Runner::run("all", true, true);
+	}
 	//? Wait for runner to finish (up to 1 second)
 	if (Runner::is_active()) {
 		atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Collecting, 1000);
@@ -1541,7 +1545,7 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 			}
 
 			//? 4. Update clock if needed
-			if (std::holds_alternative<state::Running>(app_var) and Draw::update_clock() and not Menu::active) {
+			if (std::holds_alternative<state::Running>(app_var) and Draw::update_clock() and not Input::is_menu_active()) {
 				Runner::run("clock");
 			}
 

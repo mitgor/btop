@@ -255,7 +255,8 @@ namespace Input {
 			//? MenuActive state: delegate to Menu::process(), transition back on PDA empty
 			if (std::holds_alternative<input_state::MenuActive>(fsm_state)) {
 				Menu::process(key);
-				if (!Menu::active) {
+				//? PDA empty-stack path clears pause_output -- use as atomic signal
+				if (!Runner::pause_output.load()) {
 					exit_menu();
 				}
 				return;
