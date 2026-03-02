@@ -91,11 +91,11 @@ Plans:
   2. invalidate_layout() zeros layout fields while preserving interaction fields (resize behavior preserved)
   3. A single-writer wrapper (menu_show/menu_close) updates both menuMask and PDA stack atomically, with assert(menuMask.none() == pda_stack.empty()) guard active during migration
   4. btop builds and runs with identical user-visible behavior — all menus open, navigate, and close correctly
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 21-01: TBD
-- [ ] 21-02: TBD
+- [ ] 21-01-PLAN.md — invalidate_layout() on frame structs, file-scope PDA instance, single-writer wrappers
+- [ ] 21-02-PLAN.md — Migrate all 8 menu functions from static locals to frame struct access
 
 ### Phase 22: PDA Dispatch
 **Goal**: The PDA is the sole dispatch authority for all menu rendering — menuMask, currentMenu, and menuFunc are fully replaced by std::visit on PDA top frame
