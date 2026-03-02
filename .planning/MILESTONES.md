@@ -1,5 +1,23 @@
 # Milestones
 
+## v1.3 Menu PDA + Input FSM (Shipped: 2026-03-02)
+
+**Phases:** 5 | **Plans:** 9 | **Source files:** 11 | **LOC:** +1,698 / -234
+**Timeline:** 1 day (2026-03-02)
+**Tests:** 330/330 pass (zero sanitizer findings across Debug, ASan+UBSan, TSan)
+
+**Key accomplishments:**
+1. Replaced menuMask bitset + currentMenu int + menuFunc dispatch with explicit pushdown automaton (MenuPDA with typed stack frames and std::visit dispatch)
+2. Migrated all 8 menu functions from function-static locals to per-frame state carried in typed frame structs (layout/interaction field separation)
+3. Built non-recursive process() loop with PDAAction return-value pattern replacing the Switch re-entrant call pattern
+4. Created Input FSM (Normal/Filtering/MenuActive) replacing all boolean-flag routing; Menu::active atomic fully eliminated
+5. Wired resize integration (invalidate_layout), Runner::pause_output bridge, and unified main loop dispatch
+6. Added 33 new tests (18 PDA invariant + 8 Input FSM + sanitizer verification), 330 total passing
+
+**Archive:** `milestones/v1.3-ROADMAP.md` | `milestones/v1.3-REQUIREMENTS.md` | `milestones/v1.3-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.2 Tech Debt (Shipped: 2026-03-02)
 
 **Phases:** 4 | **Plans:** 4 | **Tasks:** 10 | **Source files:** 10 | **LOC:** +686 / -145

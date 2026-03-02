@@ -8,16 +8,18 @@ An ongoing optimization and architectural improvement effort for btop++, the ter
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## Current Milestone: v1.3 Menu PDA + Input FSM
+## Current Milestone: v1.4 Render & Collect Modernization
 
-**Goal:** Replace the menu system's implicit bitset-driven state with an explicit pushdown automaton (typed stack frames, push/pop), and refactor input handling into a typed finite state machine (Normal/Filtering/MenuActive).
+**Goal:** Modernize the render and collect layers — enum-indexed theme colors, POSIX I/O for hot-path reads, decomposed god functions, unified redraw mechanism, and stale-state bug fixes.
 
 **Target features:**
-- Pushdown automaton for all 8 menus with typed stack frames (std::variant)
-- Clean push/pop semantics replacing menuMask bitset + currentMenu int
-- Per-frame state replacing function-static locals
-- Input FSM with typed states (Normal, Filtering, MenuActive)
-- Comprehensive tests for both state machines
+- Fix stale static const bug in calcSizes() (freq_range/hasCpuHz)
+- ThemeKey enum + std::array replacing string-keyed color/gradient maps
+- cpu_old string-keyed map → std::array<long long, CpuField::COUNT> on all platforms
+- Hot-path ifstream → POSIX I/O for /proc/stat and /proc/meminfo
+- Split Proc::draw() (555 lines) into focused sub-functions
+- Split Cpu::draw() (478 lines), extract battery state tracking
+- Consolidate 5 scattered redraw flags into unified mechanism
 - Zero regression in user-visible behavior
 
 ## Requirements
@@ -44,13 +46,20 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ RingBuffer.PushBackOnZeroCapacity test fixed — v1.2 (266/266 pass)
 - ✓ Stale phase documentation cleaned up — v1.2
 - ✓ CPU/memory measured: -4.4% wall, -6.3% collect, +13.7% RSS — v1.2
+- ✓ Replace menuMask + currentMenu with pushdown automaton (typed stack) — v1.3
+- ✓ Migrate all 8 menus to PDA frames with per-frame state — v1.3
+- ✓ Refactor input routing into typed Input FSM (Normal/Filtering/MenuActive) — v1.3
+- ✓ Comprehensive tests for menu PDA and input FSM — v1.3 (330/330 pass)
 
 ### Active
 
-- [ ] Replace menuMask + currentMenu with pushdown automaton (typed stack) — v1.3
-- [ ] Migrate all 8 menus to PDA frames with per-frame state — v1.3
-- [ ] Refactor input routing into typed Input FSM (Normal/Filtering/MenuActive) — v1.3
-- [ ] Comprehensive tests for menu PDA and input FSM — v1.3
+- [ ] Fix stale static const in calcSizes() (freq_range/hasCpuHz baked at first call) — v1.4
+- [ ] Replace theme string-keyed maps with ThemeKey enum + std::array — v1.4
+- [ ] Convert cpu_old string-keyed unordered_map to std::array on all platforms — v1.4
+- [ ] Convert hot-path ifstream reads to POSIX I/O (Cpu::collect, Mem::collect) — v1.4
+- [ ] Split Proc::draw() into focused sub-functions — v1.4
+- [ ] Split Cpu::draw() and extract battery state tracking — v1.4
+- [ ] Consolidate scattered redraw flags into unified mechanism — v1.4
 
 ### Out of Scope
 
@@ -106,4 +115,4 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-02 after v1.3 milestone start*
+*Last updated: 2026-03-02 after v1.4 milestone start*
