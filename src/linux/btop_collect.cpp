@@ -1045,110 +1045,160 @@ namespace Cpu {
 			Logger::error("failed to get load averages");
 		}
 
-		ifstream cread;
-
 		try {
-			//? Get cpu total times for all cores from /proc/stat
-			string cpu_name;
-			cread.open(Shared::procPath / "stat");
+			//? Get cpu total times for all cores from /proc/stat via POSIX read (zero heap allocation)
+			char stat_buf[32768];
+			ssize_t stat_n = Tools::read_proc_file("/proc/stat", stat_buf, sizeof(stat_buf));
+			if (stat_n <= 0) throw std::runtime_error("Failed to read /proc/stat");
+			std::string_view stat_view(stat_buf, stat_n);
+
+			//? Parse next integer from string_view, advancing pos past digits
+			auto parse_ll = [](std::string_view sv, size_t& pos) -> long long {
+				while (pos < sv.size() and sv[pos] == ' ') ++pos;
+				long long val = 0;
+				bool found = false;
+				while (pos < sv.size() and sv[pos] >= '0' and sv[pos] <= '9') {
+					val = val * 10 + (sv[pos] - '0');
+					++pos;
+					found = true;
+				}
+				return found ? val : -1;
+			};
+
 			int i = 0;
 			int target = Shared::coreCount;
-			for (; i <= target or (cread.good() and cread.peek() == 'c'); i++) {
-				//? Make sure to add zero value for missing core values if at end of file
-				if ((not cread.good() or cread.peek() != 'c') and i <= target) {
-					if (i == 0) throw std::runtime_error("Failed to parse /proc/stat");
-					else {
-						//? Fix container sizes if new cores are detected
-						while (cmp_less(cpu.core_percent.size(), i)) {
-							core_old_totals.push_back(0);
-							core_old_idles.push_back(0);
-							cpu.core_percent.emplace_back();
-						}
-						cpu.core_percent.at(i-1).push_back(0);
-					}
+			size_t line_start = 0;
+
+			for (; line_start < stat_view.size(); i++) {
+				//? Find end of current line
+				size_t line_end = stat_view.find('\n', line_start);
+				if (line_end == std::string_view::npos) line_end = stat_view.size();
+				std::string_view line = stat_view.substr(line_start, line_end - line_start);
+				line_start = line_end + 1;
+
+				//? Stop if line doesn't start with "cpu"
+				if (line.size() < 3 or line.substr(0, 3) != "cpu") break;
+
+				//? Check if we need to keep going past target (more cores in /proc/stat)
+				bool more_lines = (line_start < stat_view.size() and stat_view.size() > line_start + 2
+					and stat_view.substr(line_start, 3) == "cpu");
+
+				if (i > target and not more_lines) break;
+
+				size_t num_start;
+				int cpuNum = -1;
+
+				if (i == 0) {
+					//? Aggregate "cpu " line: skip "cpu " prefix
+					auto space = line.find(' ');
+					if (space == std::string_view::npos) throw std::runtime_error("Malformed /proc/stat");
+					num_start = space + 1;
 				}
 				else {
-					if (i == 0) cread.ignore(SSmax, ' ');
-					else {
-						cread >> cpu_name;
-						int cpuNum = std::stoi(cpu_name.substr(3));
-						if (cpuNum >= target - 1) target = cpuNum + (cread.peek() == 'c' ? 2 : 1);
-
-						//? Add zero value for core if core number is missing from /proc/stat
-						while (i - 1 < cpuNum) {
-							//? Fix container sizes if new cores are detected
-							while (cmp_less(cpu.core_percent.size(), i)) {
-								core_old_totals.push_back(0);
-								core_old_idles.push_back(0);
-								cpu.core_percent.emplace_back();
-							}
-							cpu.core_percent[i-1].push_back(0);
-							if (cpu.core_percent.at(i-1).capacity() != 40) cpu.core_percent.at(i-1).resize(40);
-							i++;
-						}
+					//? Per-core "cpuN " line: extract core number
+					auto space = line.find(' ');
+					if (space == std::string_view::npos or space <= 3) throw std::runtime_error("Malformed /proc/stat core line");
+					std::string_view core_num_sv = line.substr(3, space - 3);
+					cpuNum = 0;
+					for (char c : core_num_sv) {
+						if (c < '0' or c > '9') throw std::runtime_error("Malformed /proc/stat core number");
+						cpuNum = cpuNum * 10 + (c - '0');
 					}
+					if (cpuNum >= target - 1) target = cpuNum + (more_lines ? 2 : 1);
 
-					//? Expected on kernel 2.6.3> : 0=user, 1=nice, 2=system, 3=idle, 4=iowait, 5=irq, 6=softirq, 7=steal, 8=guest, 9=guest_nice
-					vector<long long> times;
-					long long total_sum = 0;
-
-					for (uint64_t val; cread >> val; total_sum += val) {
-						times.push_back(val);
-					}
-					cread.clear();
-					if (times.size() < 4) throw std::runtime_error("Malformed /proc/stat");
-
-					//? Subtract fields 8-9 and any future unknown fields
-					const long long totals = max(0ll, total_sum - (times.size() > 8 ? std::accumulate(times.begin() + 8, times.end(), 0ll) : 0));
-
-					//? Add iowait field if present
-					const long long idles = max(0ll, times.at(3) + (times.size() > 4 ? times.at(4) : 0));
-
-					//? Calculate values for totals from first line of stat
-					if (i == 0) {
-						const long long calc_totals = max(1ll, totals - cpu_old[std::to_underlying(CpuOldField::totals)]);
-						const long long calc_idles = max(0ll, idles - cpu_old[std::to_underlying(CpuOldField::idles)]);
-						cpu_old[std::to_underlying(CpuOldField::totals)] = totals;
-						cpu_old[std::to_underlying(CpuOldField::idles)] = idles;
-
-						//? Total usage of cpu
-						cpu.cpu_percent[std::to_underlying(CpuField::total)].push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
-
-						//? Reduce size if there are more values than needed for graph
-						if (cpu.cpu_percent[std::to_underlying(CpuField::total)].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(CpuField::total)].resize(width * 2);
-
-						//? Populate cpu.cpu_percent with all fields from stat
-						for (int ii = 0; const auto& val : times) {
-							const auto old_idx = static_cast<size_t>(CpuOldField::user) + ii;
-							cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].push_back(clamp((long long)round((double)(val - cpu_old[old_idx]) * 100 / calc_totals), 0ll, 100ll));
-							cpu_old[old_idx] = val;
-
-							//? Reduce size if there are more values than needed for graph
-							if (cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].resize(width * 2);
-
-							if (++ii == 10) break;
-						}
-						continue;
-					}
-					//? Calculate cpu total for each core
-					else {
+					//? Add zero value for core if core number is missing from /proc/stat
+					while (i - 1 < cpuNum) {
 						//? Fix container sizes if new cores are detected
 						while (cmp_less(cpu.core_percent.size(), i)) {
 							core_old_totals.push_back(0);
 							core_old_idles.push_back(0);
 							cpu.core_percent.emplace_back();
 						}
-						const long long calc_totals = max(1ll, totals - core_old_totals.at(i-1));
-						const long long calc_idles = max(0ll, idles - core_old_idles.at(i-1));
-						core_old_totals.at(i-1) = totals;
-						core_old_idles.at(i-1) = idles;
-
-						cpu.core_percent.at(i-1).push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
+						cpu.core_percent[i-1].push_back(0);
+						if (cpu.core_percent.at(i-1).capacity() != 40) cpu.core_percent.at(i-1).resize(40);
+						i++;
 					}
+
+					num_start = space + 1;
+				}
+
+				//? Expected on kernel 2.6.3> : 0=user, 1=nice, 2=system, 3=idle, 4=iowait, 5=irq, 6=softirq, 7=steal, 8=guest, 9=guest_nice
+				vector<long long> times;
+				long long total_sum = 0;
+				size_t pos = num_start;
+
+				while (pos < line.size()) {
+					long long val = parse_ll(line, pos);
+					if (val < 0) break;
+					times.push_back(val);
+					total_sum += val;
+				}
+				if (times.size() < 4) throw std::runtime_error("Malformed /proc/stat");
+
+				//? Subtract fields 8-9 and any future unknown fields
+				const long long totals = max(0ll, total_sum - (times.size() > 8 ? std::accumulate(times.begin() + 8, times.end(), 0ll) : 0));
+
+				//? Add iowait field if present
+				const long long idles = max(0ll, times.at(3) + (times.size() > 4 ? times.at(4) : 0));
+
+				//? Calculate values for totals from first line of stat
+				if (i == 0) {
+					const long long calc_totals = max(1ll, totals - cpu_old[std::to_underlying(CpuOldField::totals)]);
+					const long long calc_idles = max(0ll, idles - cpu_old[std::to_underlying(CpuOldField::idles)]);
+					cpu_old[std::to_underlying(CpuOldField::totals)] = totals;
+					cpu_old[std::to_underlying(CpuOldField::idles)] = idles;
+
+					//? Total usage of cpu
+					cpu.cpu_percent[std::to_underlying(CpuField::total)].push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
+
+					//? Reduce size if there are more values than needed for graph
+					if (cpu.cpu_percent[std::to_underlying(CpuField::total)].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(CpuField::total)].resize(width * 2);
+
+					//? Populate cpu.cpu_percent with all fields from stat
+					for (int ii = 0; const auto& val : times) {
+						const auto old_idx = static_cast<size_t>(CpuOldField::user) + ii;
+						cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].push_back(clamp((long long)round((double)(val - cpu_old[old_idx]) * 100 / calc_totals), 0ll, 100ll));
+						cpu_old[old_idx] = val;
+
+						//? Reduce size if there are more values than needed for graph
+						if (cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].resize(width * 2);
+
+						if (++ii == 10) break;
+					}
+					continue;
+				}
+				//? Calculate cpu total for each core
+				else {
+					//? Fix container sizes if new cores are detected
+					while (cmp_less(cpu.core_percent.size(), i)) {
+						core_old_totals.push_back(0);
+						core_old_idles.push_back(0);
+						cpu.core_percent.emplace_back();
+					}
+					const long long calc_totals = max(1ll, totals - core_old_totals.at(i-1));
+					const long long calc_idles = max(0ll, idles - core_old_idles.at(i-1));
+					core_old_totals.at(i-1) = totals;
+					core_old_idles.at(i-1) = idles;
+
+					cpu.core_percent.at(i-1).push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
 				}
 
 				//? Reduce size if there are more values than needed for graph
 				if (cpu.core_percent.at(i-1).capacity() != 40) cpu.core_percent.at(i-1).resize(40);
+			}
+
+			//? Handle missing cores if we exited the loop early (fewer lines than target)
+			while (i <= target) {
+				if (i == 0) throw std::runtime_error("Failed to parse /proc/stat");
+				//? Fix container sizes if new cores are detected
+				while (cmp_less(cpu.core_percent.size(), i)) {
+					core_old_totals.push_back(0);
+					core_old_idles.push_back(0);
+					cpu.core_percent.emplace_back();
+				}
+				cpu.core_percent.at(i-1).push_back(0);
+				if (cpu.core_percent.at(i-1).capacity() != 40) cpu.core_percent.at(i-1).resize(40);
+				i++;
 			}
 
 			//? Notify main thread to redraw screen if we found more cores than previously detected
@@ -1162,8 +1212,7 @@ namespace Cpu {
 		}
 		catch (const std::exception& e) {
 			Logger::debug("Cpu::collect() : {}", e.what());
-			if (cread.bad()) throw std::runtime_error("Failed to read /proc/stat");
-			else throw std::runtime_error(fmt::format("Cpu::collect() : {}", e.what()));
+			throw std::runtime_error(fmt::format("Cpu::collect() : {}", e.what()));
 		}
 
 		if (Config::getB(BoolKey::check_temp) and got_sensors)
