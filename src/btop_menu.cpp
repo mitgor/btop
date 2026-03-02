@@ -17,6 +17,7 @@ tab-size = 4
 */
 
 #include "btop_menu.hpp"
+#include "btop_menu_pda.hpp"
 
 #include "btop_config.hpp"
 #include "btop_draw.hpp"
@@ -62,6 +63,7 @@ namespace Menu {
    msgBox messageBox;
    int signalToSend{};
    int signalKillRet{};
+   menu::MenuPDA pda;
 
    const array<string, 32> P_Signals = {
 	   "0",
@@ -1819,6 +1821,25 @@ static int optionsMenu(const string& key) {
 	};
 	bitset<8> menuMask;
 
+	//? Single-writer wrappers — keep menuMask and PDA stack in sync (Phase 21).
+	static void menu_open(int menu_enum, menu::MenuFrameVar frame) {
+		menuMask.set(menu_enum);
+		pda.push(std::move(frame));
+		assert(menuMask.none() == pda.empty());
+	}
+
+	static void menu_close_current(int menu_enum) {
+		menuMask.reset(menu_enum);
+		if (!pda.empty()) pda.pop();
+		// Note: do NOT assert here -- process() may close and reopen in sequence
+	}
+
+	static void menu_clear_all() {
+		menuMask.reset();
+		while (!pda.empty()) pda.pop();
+		assert(menuMask.none() == pda.empty());
+	}
+
 	void process(const std::string_view key) {
 		if (menuMask.none()) {
 			Menu::active = false;
@@ -1827,9 +1848,12 @@ static int optionsMenu(const string& key) {
 			Runner::pause_output.store(false);
 			bg.clear();
 			bg.shrink_to_fit();
+			pda.clear_bg();
+			while (!pda.empty()) pda.pop();
 			currentMenu = -1;
 			Runner::run("all", true, true);
 			mouse_mappings.clear();
+			assert(pda.empty());
 			return;
 		}
 
@@ -1839,21 +1863,35 @@ static int optionsMenu(const string& key) {
 			if (((menuMask.test(Main) or menuMask.test(Options) or menuMask.test(Help) or menuMask.test(SignalChoose))
 			and (Term::width < 80 or Term::height < 24))
 			or (Term::width < 50 or Term::height < 20)) {
-				menuMask.reset();
-				menuMask.set(SizeError);
+				menu_clear_all();
+				menu_open(SizeError, menu::SizeErrorFrame{});
 			}
 
 			for (const auto& i : iota(0, (int)menuMask.size())) {
 				if (menuMask.test(i)) currentMenu = i;
 			}
 
+			if (pda.empty()) {
+				switch (currentMenu) {
+					case Main: pda.push(menu::MainFrame{}); break;
+					case Options: pda.push(menu::OptionsFrame{}); break;
+					case Help: pda.push(menu::HelpFrame{}); break;
+					case SizeError: pda.push(menu::SizeErrorFrame{}); break;
+					case SignalChoose: pda.push(menu::SignalChooseFrame{}); break;
+					case SignalSend: pda.push(menu::SignalSendFrame{}); break;
+					case SignalReturn: pda.push(menu::SignalReturnFrame{}); break;
+					case Renice: pda.push(menu::ReniceFrame{}); break;
+				}
+			}
+			assert(!pda.empty());
 		}
 
 		auto retCode = menuFunc.at(currentMenu)(key.data());
 		if (retCode == Closed) {
-			menuMask.reset(currentMenu);
+			menu_close_current(currentMenu);
 			mouse_mappings.clear();
 			bg.clear();
+			pda.clear_bg();
 			Runner::pause_output.store(false);
 			process();
 		}
@@ -1866,6 +1904,7 @@ static int optionsMenu(const string& key) {
 		else if (retCode == Switch) {
 			Runner::pause_output.store(false);
 			bg.clear();
+			pda.clear_bg();
 			redraw = true;
 			mouse_mappings.clear();
 			process();
@@ -1873,7 +1912,16 @@ static int optionsMenu(const string& key) {
 	}
 
 	void show(int menu, int signal) {
-		menuMask.set(menu);
+		switch (menu) {
+			case Main: menu_open(menu, menu::MainFrame{}); break;
+			case Options: menu_open(menu, menu::OptionsFrame{}); break;
+			case Help: menu_open(menu, menu::HelpFrame{}); break;
+			case SizeError: menu_open(menu, menu::SizeErrorFrame{}); break;
+			case SignalChoose: menu_open(menu, menu::SignalChooseFrame{}); break;
+			case SignalSend: menu_open(menu, menu::SignalSendFrame{}); break;
+			case SignalReturn: menu_open(menu, menu::SignalReturnFrame{}); break;
+			case Renice: menu_open(menu, menu::ReniceFrame{}); break;
+		}
 		signalToSend = signal;
 		process();
 	}

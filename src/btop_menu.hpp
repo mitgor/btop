@@ -77,6 +77,7 @@ namespace Menu {
 	};
 
 	extern bitset<8> menuMask;
+	// Note: file-scope menu::MenuPDA pda instance lives in btop_menu.cpp (Phase 21)
 
 	//* Enum for functions in vector menuFuncs
 	enum Menus {
