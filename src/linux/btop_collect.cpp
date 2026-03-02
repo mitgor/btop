@@ -2096,51 +2096,96 @@ namespace Mem {
 		//? Read ZFS ARC info from /proc/spl/kstat/zfs/arcstats
 		uint64_t arc_size = 0, arc_min_size = 0;
 		if (zfs_arc_cached) {
-			ifstream arcstats(Shared::procPath / "spl/kstat/zfs/arcstats");
-			if (arcstats.good()) {
-				for (string label; arcstats >> label;) {
-					if (label == "c_min") {
-						arcstats >> arc_min_size >> arc_min_size; // double read skips type column
+			char arc_buf[4096];  // arcstats file is typically ~2KB
+			ssize_t arc_n = Tools::read_proc_file("/proc/spl/kstat/zfs/arcstats", arc_buf, sizeof(arc_buf));
+			if (arc_n > 0) {
+				std::string_view arc_view(arc_buf, arc_n);
+				// Format: "name  type  data\n" - we need the data column (3rd)
+				// Use "\n" prefix to match field names at line start
+				auto parse_arc_field = [&](const char* name) -> uint64_t {
+					std::string_view search_key = std::string_view(name);
+					// Search for "\nname " to match at line start
+					size_t pos = 0;
+					while (pos < arc_view.size()) {
+						auto found = arc_view.find(search_key, pos);
+						if (found == std::string_view::npos) return 0;
+						// Verify it's at the start of a line (pos 0 or preceded by '\n')
+						if (found == 0 || arc_view[found - 1] == '\n') {
+							// Skip past the name
+							size_t p = found + search_key.size();
+							// Skip whitespace to type column
+							while (p < arc_view.size() && (arc_view[p] == ' ' || arc_view[p] == '\t')) ++p;
+							// Skip type column digits
+							while (p < arc_view.size() && arc_view[p] >= '0' && arc_view[p] <= '9') ++p;
+							// Skip whitespace to data column
+							while (p < arc_view.size() && (arc_view[p] == ' ' || arc_view[p] == '\t')) ++p;
+							// Parse data value
+							uint64_t val = 0;
+							while (p < arc_view.size() && arc_view[p] >= '0' && arc_view[p] <= '9') {
+								val = val * 10 + (arc_view[p] - '0');
+								++p;
+							}
+							return val;
+						}
+						pos = found + 1;
 					}
-					else if (label == "size") {
-						arcstats >> arc_size >> arc_size;
-						break;
-					}
-				}
+					return 0;
+				};
+				arc_min_size = parse_arc_field("c_min");
+				arc_size = parse_arc_field("size");
 			}
-			arcstats.close();
 		}
 
 		//? Read memory info from /proc/meminfo
-		ifstream meminfo(Shared::procPath / "meminfo");
-		if (meminfo.good()) {
+		char meminfo_buf[4096];  // /proc/meminfo is typically ~1.5KB
+		ssize_t meminfo_n = Tools::read_proc_file("/proc/meminfo", meminfo_buf, sizeof(meminfo_buf));
+		if (meminfo_n > 0) {
+			std::string_view mv(meminfo_buf, meminfo_n);
 			bool got_avail = false;
-			for (string label; meminfo.peek() != 'D' and meminfo >> label;) {
-				if (label == "MemFree:") {
-					meminfo >> mem.stats[std::to_underlying(MemField::free)];
-					mem.stats[std::to_underlying(MemField::free)] <<= 10;
+
+			// Helper: find "Label:" at start of line in meminfo, return integer value (in kB)
+			auto find_meminfo_val = [&](const char* label) -> int64_t {
+				std::string_view lbl(label);
+				size_t pos = 0;
+				while (pos < mv.size()) {
+					auto found = mv.find(lbl, pos);
+					if (found == std::string_view::npos) return -1;
+					// Verify it's at line start (pos 0 or preceded by '\n')
+					if (found == 0 || mv[found - 1] == '\n') {
+						size_t p = found + lbl.size();
+						while (p < mv.size() && mv[p] == ' ') ++p;
+						int64_t val = 0;
+						while (p < mv.size() && mv[p] >= '0' && mv[p] <= '9') {
+							val = val * 10 + (mv[p] - '0');
+							++p;
+						}
+						return val;
+					}
+					pos = found + 1;
 				}
-				else if (label == "MemAvailable:") {
-					meminfo >> mem.stats[std::to_underlying(MemField::available)];
-					mem.stats[std::to_underlying(MemField::available)] <<= 10;
-					got_avail = true;
-				}
-				else if (label == "Cached:") {
-					meminfo >> mem.stats[std::to_underlying(MemField::cached)];
-					mem.stats[std::to_underlying(MemField::cached)] <<= 10;
-					if (not show_swap and not swap_disk) break;
-				}
-				else if (label == "SwapTotal:") {
-					meminfo >> mem.stats[std::to_underlying(MemField::swap_total)];
-					mem.stats[std::to_underlying(MemField::swap_total)] <<= 10;
-				}
-				else if (label == "SwapFree:") {
-					meminfo >> mem.stats[std::to_underlying(MemField::swap_free)];
-					mem.stats[std::to_underlying(MemField::swap_free)] <<= 10;
-					break;
-				}
-				meminfo.ignore(SSmax, '\n');
+				return -1;
+			};
+
+			auto free_val = find_meminfo_val("MemFree:");
+			if (free_val >= 0) mem.stats[std::to_underlying(MemField::free)] = free_val << 10;
+
+			auto avail_val = find_meminfo_val("MemAvailable:");
+			if (avail_val >= 0) {
+				mem.stats[std::to_underlying(MemField::available)] = avail_val << 10;
+				got_avail = true;
 			}
+
+			auto cached_val = find_meminfo_val("Cached:");
+			if (cached_val >= 0) mem.stats[std::to_underlying(MemField::cached)] = cached_val << 10;
+
+			if (show_swap or swap_disk) {
+				auto swap_total_val = find_meminfo_val("SwapTotal:");
+				if (swap_total_val >= 0) mem.stats[std::to_underlying(MemField::swap_total)] = swap_total_val << 10;
+
+				auto swap_free_val = find_meminfo_val("SwapFree:");
+				if (swap_free_val >= 0) mem.stats[std::to_underlying(MemField::swap_free)] = swap_free_val << 10;
+			}
+
 			if (not got_avail) mem.stats[std::to_underlying(MemField::available)] = mem.stats[std::to_underlying(MemField::free)] + mem.stats[std::to_underlying(MemField::cached)];
 			if (zfs_arc_cached) {
 				mem.stats[std::to_underlying(MemField::cached)] += arc_size;
@@ -2154,8 +2199,6 @@ namespace Mem {
 		}
 		else
 			throw std::runtime_error("Failed to read /proc/meminfo");
-
-		meminfo.close();
 
 		//? Calculate percentages
 		for (const auto& name : mem_names) {
