@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
-current_phase: 22
-current_plan: Not started
-status: completed
-last_updated: "2026-03-02T12:49:56.493Z"
+current_phase: 23
+current_plan: 2
+status: executing
+last_updated: "2026-03-02T13:12:26.820Z"
 last_activity: 2026-03-02
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 22 — PDA Dispatch
+**Current focus:** Phase 23 — Input FSM
 
 ## Current Position
 
-**Current Phase:** 22
-**Current Plan:** Not started
+**Current Phase:** 23
+**Current Plan:** 2
 **Total Plans in Phase:** 2
-**Status:** Milestone complete
+**Status:** In progress
 **Last Activity:** 2026-03-02
 
-Progress: [█░░░░░░░░░] 9%
+Progress: [████████░░] 86%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [█░░░░░░░░░] 9%
 | Phase 21 P02 | 6min | 2 tasks | 1 files |
 | Phase 22 P01 | 6min | 2 tasks | 3 files |
 | Phase 22 P02 | 4min | 2 tasks | 2 files |
+| Phase 23 P01 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 22]: Non-recursive dispatch loop replaces recursive process() -- while(true) with std::visit and PDAAction switch
 - [Phase 22]: Mouse mappings from active frame copied to global Menu::mouse_mappings only on NoChange action
 - [Phase 22]: menuMask, currentMenu, menuFunc, menuReturnCodes, dispatch_legacy fully deleted -- PDA is sole dispatch authority
+- [Phase 23]: FSM transitions owned by Input code -- enter_menu() before Menu::show(), exit_menu() after PDA empties
+- [Phase 23]: Menu::active temporarily read in process() to detect PDA empty -- bridge until Plan 02 removes it
+- [Phase 23]: Filtering enter/exit paths replaced with transition functions; old_filter global deleted
 
 ### Pending Todos
 
@@ -93,5 +97,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 22-01-PLAN.md (PDA Dispatch Handlers)
+Stopped at: Completed 23-01-PLAN.md (Input FSM Core)
 Resume file: None

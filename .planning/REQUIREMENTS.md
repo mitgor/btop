@@ -26,19 +26,19 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 
 ### Input FSM
 
-- [ ] **INPUT-01**: InputStateVar std::variant defined with Normal, Filtering, and MenuActive states
-- [ ] **INPUT-02**: Filtering state carries old_filter as struct member (replacing file-scoped global)
-- [ ] **INPUT-03**: All input transitions typed: Normal↔Filtering, Normal↔MenuActive
-- [ ] **INPUT-04**: Input::process() dispatches via InputStateVar instead of if(filtering)/if(Menu::active) branches
+- [x] **INPUT-01**: InputStateVar std::variant defined with Normal, Filtering, and MenuActive states
+- [x] **INPUT-02**: Filtering state carries old_filter as struct member (replacing file-scoped global)
+- [x] **INPUT-03**: All input transitions typed: Normal↔Filtering, Normal↔MenuActive
+- [x] **INPUT-04**: Input::process() dispatches via InputStateVar instead of if(filtering)/if(Menu::active) branches
 - [ ] **INPUT-05**: Menu::active atomic bool removed — InputStateVar is sole authority for input routing
-- [ ] **INPUT-06**: Mouse routing in Input::get() reads InputStateVar instead of Menu::active bool
+- [x] **INPUT-06**: Mouse routing in Input::get() reads InputStateVar instead of Menu::active bool
 
 ### Integration
 
 - [ ] **INTEG-01**: App FSM on_enter(Resizing) calls menu_pda.invalidate_layout() to prevent stale coordinates
 - [ ] **INTEG-02**: Runner::pause_output cleared on all paths that empty the PDA stack
-- [ ] **INTEG-03**: Config::proc_filtering retained for display/persistence but FSM is routing authority
-- [ ] **INTEG-04**: Main loop btop.cpp:1572-1574 replaced with InputFSM-based dispatch
+- [x] **INTEG-03**: Config::proc_filtering retained for display/persistence but FSM is routing authority
+- [x] **INTEG-04**: Main loop btop.cpp:1572-1574 replaced with InputFSM-based dispatch
 
 ### Testing
 
@@ -91,16 +91,16 @@ Deferred to future release. Tracked but not in current roadmap.
 | FRAME-03 | Phase 21 | Complete |
 | FRAME-04 | Phase 20 | Complete |
 | FRAME-05 | Phase 20 | Complete |
-| INPUT-01 | Phase 23 | Pending |
-| INPUT-02 | Phase 23 | Pending |
-| INPUT-03 | Phase 23 | Pending |
-| INPUT-04 | Phase 23 | Pending |
+| INPUT-01 | Phase 23 | Complete |
+| INPUT-02 | Phase 23 | Complete |
+| INPUT-03 | Phase 23 | Complete |
+| INPUT-04 | Phase 23 | Complete |
 | INPUT-05 | Phase 23 | Pending |
-| INPUT-06 | Phase 23 | Pending |
+| INPUT-06 | Phase 23 | Complete |
 | INTEG-01 | Phase 23 | Pending |
 | INTEG-02 | Phase 23 | Pending |
-| INTEG-03 | Phase 23 | Pending |
-| INTEG-04 | Phase 23 | Pending |
+| INTEG-03 | Phase 23 | Complete |
+| INTEG-04 | Phase 23 | Complete |
 | TEST-01 | Phase 24 | Pending |
 | TEST-02 | Phase 24 | Pending |
 | TEST-03 | Phase 24 | Pending |
