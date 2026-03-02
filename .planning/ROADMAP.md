@@ -122,12 +122,11 @@ Plans:
   3. Filtering state carries old_filter as a struct member; the file-scoped old_filter global in btop_input.cpp is removed
   4. Mouse routing in Input::get() reads InputStateVar instead of Menu::active bool; only the top PDA frame's mouse_mappings are active
   5. App FSM on_enter(Resizing) calls menu_pda.invalidate_layout() and Runner::pause_output is cleared on all paths that empty the PDA stack
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 23-01: TBD
-- [ ] 23-02: TBD
-- [ ] 23-03: TBD
+- [ ] 23-01-PLAN.md — InputStateVar types, transition functions, FSM dispatch rewrite in process()/get(), main loop replacement
+- [ ] 23-02-PLAN.md — Menu::active removal, Menu::invalidate_layout() wrapper, integration wiring (resize, runner thread, draw)
 
 ### Phase 24: Tests
 **Goal**: Comprehensive test coverage validates PDA invariants, Input FSM transitions, and integration scenarios, with all sanitizers clean
@@ -172,6 +171,6 @@ Phases execute in numeric order: 20 -> 20.1 (if inserted) -> 21 -> ... -> 25
 | 20. PDA Types + Skeleton | 1/1 | Complete    | 2026-03-02 | - |
 | 21. Static Local Migration | 2/2 | Complete   | 2026-03-02 | - |
 | 22. PDA Dispatch | 2/2 | Complete    | 2026-03-02 | - |
-| 23. Input FSM | v1.3 | 0/3 | Not started | - |
+| 23. Input FSM | v1.3 | 0/2 | Not started | - |
 | 24. Tests | v1.3 | 0/2 | Not started | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |
