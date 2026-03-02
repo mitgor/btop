@@ -1569,8 +1569,7 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 						if (not Runner::is_active()) Config::unlock();
 						auto key = Input::get();
 						if (not key.empty()) {
-							if (Menu::active) Menu::process(key);
-							else Input::process(key);
+							Input::process(key);
 						}
 					}
 					else break;

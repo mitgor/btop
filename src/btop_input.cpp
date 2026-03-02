@@ -193,7 +193,7 @@ namespace Input {
 				else
 					key.clear();
 
-				if (Config::getB(BoolKey::proc_filtering)) {
+				if (is_filtering()) {
 					if (mouse_event == "mouse_click") return mouse_event;
 					else return "";
 				}
@@ -213,7 +213,7 @@ namespace Input {
 					if (key == "mouse_click" or key == "mouse_drag") {
 						const auto& [col, line] = mouse_pos;
 
-						for (const auto& [mapped_key, pos] : (Menu::active ? Menu::mouse_mappings : mouse_mappings)) {
+						for (const auto& [mapped_key, pos] : (is_menu_active() ? Menu::mouse_mappings : mouse_mappings)) {
 							if (col >= pos.col and col < pos.col + pos.width and line >= pos.line and line < pos.line + pos.height) {
 								key = mapped_key;
 								break;
@@ -252,7 +252,16 @@ namespace Input {
 	void process(const std::string_view key) {
 		if (key.empty()) return;
 		try {
-			auto filtering = Config::getB(BoolKey::proc_filtering);
+			//? MenuActive state: delegate to Menu::process(), transition back on PDA empty
+			if (std::holds_alternative<input_state::MenuActive>(fsm_state)) {
+				Menu::process(key);
+				if (!Menu::active) {
+					exit_menu();
+				}
+				return;
+			}
+
+			auto filtering = std::holds_alternative<input_state::Filtering>(fsm_state);
 			auto vim_keys = Config::getB(BoolKey::vim_keys);
 			auto help_key = (vim_keys ? "H" : "h");
 			auto kill_key = (vim_keys ? "K" : "k");
@@ -265,14 +274,17 @@ namespace Input {
 					return;
 				}
 				else if (is_in(key, "escape", "m")) {
+					enter_menu();
 					Menu::show(Menu::Menus::Main);
 					return;
 				}
 				else if (is_in(key, "f1", "?", help_key)) {
+					enter_menu();
 					Menu::show(Menu::Menus::Help);
 					return;
 				}
 				else if (is_in(key, "f2", "o")) {
+					enter_menu();
 					Menu::show(Menu::Menus::Options);
 					return;
 				}
@@ -290,6 +302,7 @@ namespace Input {
 					Runner::wait_idle();
 
 					if (not Config::toggle_box(boxes.at(intKey))) {
+						enter_menu();
 						Menu::show(Menu::Menus::SizeError);
 						return;
 					}
@@ -314,6 +327,7 @@ namespace Input {
 					if (Config::current_preset == old_preset) return;
 					Runner::wait_idle();
 					if (not Config::apply_preset(Config::preset_list.at(Config::current_preset.value()))) {
+						enter_menu();
 						Menu::show(Menu::Menus::SizeError);
 						Config::current_preset = old_preset;
 						return;
@@ -529,18 +543,21 @@ namespace Input {
 				else if (is_in(key, "t", kill_key) and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
 					Runner::wait_idle();
 					if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
+					enter_menu();
 					Menu::show(Menu::Menus::SignalSend, (key == "t" ? SIGTERM : SIGKILL));
 					return;
 				}
 				else if (key == "s" and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
 					Runner::wait_idle();
 					if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
+					enter_menu();
 					Menu::show(Menu::Menus::SignalChoose);
 					return;
 				}
 				else if (key == "N" and (Config::getB(BoolKey::show_detailed) or Config::getI(IntKey::selected_pid) > 0)) {
 					Runner::wait_idle();
 				    if (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::proc_selected) == 0 and Proc::detailed.status == "Dead") return;
+				    enter_menu();
 				    Menu::show(Menu::Menus::Renice);
 				    return;
 			    }
