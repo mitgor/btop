@@ -171,7 +171,7 @@ Phases execute in numeric order: 20 -> 20.1 (if inserted) -> 21 -> ... -> 25
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
 | 20. PDA Types + Skeleton | 1/1 | Complete    | 2026-03-02 | - |
 | 21. Static Local Migration | 2/2 | Complete   | 2026-03-02 | - |
-| 22. PDA Dispatch | v1.3 | 0/2 | Not started | - |
+| 22. PDA Dispatch | 1/2 | In Progress|  | - |
 | 23. Input FSM | v1.3 | 0/3 | Not started | - |
 | 24. Tests | v1.3 | 0/2 | Not started | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |

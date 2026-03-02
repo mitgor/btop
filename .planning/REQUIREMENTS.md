@@ -12,9 +12,9 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 - [x] **PDA-01**: MenuFrameVar std::variant defined with alternatives for all 8 menus (Main, Options, Help, SizeError, SignalChoose, SignalSend, SignalReturn, Renice)
 - [x] **PDA-02**: MenuPDA class provides push(), pop(), replace(), top(), empty() operations on std::stack<MenuFrameVar, std::vector<MenuFrameVar>>
 - [x] **PDA-03**: Frame handlers return PDAAction enum (Push/Pop/Replace/NoChange) instead of modifying stack during std::visit
-- [ ] **PDA-04**: PDA dispatch replaces menuMask bitset + currentMenu int + menuFunc dispatch vector
+- [x] **PDA-04**: PDA dispatch replaces menuMask bitset + currentMenu int + menuFunc dispatch vector
 - [x] **PDA-05**: bg string lifecycle tied to stack depth (captured on first push, cleared on final pop)
-- [ ] **PDA-06**: replace() operation handles Main→Options and Main→Help transitions (ESC returns to Normal, not Main)
+- [x] **PDA-06**: replace() operation handles Main→Options and Main→Help transitions (ESC returns to Normal, not Main)
 
 ### Frame Data
 
@@ -83,9 +83,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | PDA-01 | Phase 20 | Complete |
 | PDA-02 | Phase 20 | Complete |
 | PDA-03 | Phase 20 | Complete |
-| PDA-04 | Phase 22 | Pending |
+| PDA-04 | Phase 22 | Complete |
 | PDA-05 | Phase 20 | Complete |
-| PDA-06 | Phase 22 | Pending |
+| PDA-06 | Phase 22 | Complete |
 | FRAME-01 | Phase 21 | Complete |
 | FRAME-02 | Phase 20 | Complete |
 | FRAME-03 | Phase 21 | Complete |

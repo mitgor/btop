@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
 current_phase: 22 of 25 (PDA Dispatch)
-current_plan: 0
-status: ready
-last_updated: "2026-03-02T11:44:21.625Z"
+current_plan: 1 of 2 (Plan 01 complete)
+status: executing
+last_updated: "2026-03-02T12:38:36.144Z"
 last_activity: 2026-03-02
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 21 — Static Local Migration
+**Current focus:** Phase 22 — PDA Dispatch
 
 ## Current Position
 
-**Current Phase:** 21 of 25 (Static Local Migration)
-**Current Plan:** 2
+**Current Phase:** 22 of 25 (PDA Dispatch)
+**Current Plan:** 1 of 2 (Plan 01 complete)
 **Total Plans in Phase:** 2
-**Status:** Phase complete — ready for verification
+**Status:** In progress
 **Last Activity:** 2026-03-02
 
 Progress: [█░░░░░░░░░] 9%
@@ -53,6 +53,7 @@ Progress: [█░░░░░░░░░] 9%
 *Updated after each plan completion*
 | Phase 21 P01 | 4min | 2 tasks | 4 files |
 | Phase 21 P02 | 6min | 2 tasks | 1 files |
+| Phase 22 P01 | 6min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 21]: menu_close_current omits invariant assert since process() may close and reopen in sequence
 - [Phase 21]: Moved Theme::updateThemes() into optionsMenu redraw block guarded by pda.bg().empty() instead of standalone sentinel
 - [Phase 21]: Removed file-scope string bg entirely -- PDA owns bg lifecycle exclusively after all functions migrated
+- [Phase 22]: dispatch_legacy bridge translates PDAResult to int codes, keeping process() unchanged for Plan 02
+- [Phase 22]: Replace actions applied inside dispatch_legacy with menuMask/currentMenu sync for correct re-dispatch
+- [Phase 22]: Handler rendered flag (bool did_render) replaces legacy int retval pattern (Changed/NoChange)
 
 ### Pending Todos
 
@@ -85,5 +89,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 21-01-PLAN.md (PDA Infrastructure)
+Stopped at: Completed 22-01-PLAN.md (PDA Dispatch Handlers)
 Resume file: None
