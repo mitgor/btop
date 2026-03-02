@@ -57,7 +57,6 @@ namespace fs = std::filesystem;
 namespace Menu {
 
    atomic<bool> active (false);
-   string bg;
    bool redraw{true};
    int currentMenu = -1;
    msgBox messageBox;
@@ -988,21 +987,22 @@ namespace Menu {
 	};
 
 	static int signalChoose(const string& key) {
-		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
-		static int x{};
-		static int y{};
-		static int selected_signal = -1;
+		auto& frame = std::get<menu::SignalChooseFrame>(pda.top());
+		auto& x = frame.x;
+		auto& y = frame.y;
+		auto& selected_signal = frame.selected_signal;
 
-		if (bg.empty()) selected_signal = -1;
+		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		auto& out = Global::overlay;
 		int retval = Changed;
 
 		if (redraw) {
 			x = Term::width/2 - 40;
 			y = Term::height/2 - 9;
-			bg = Draw::createBox(x + 2, y, 78, 19, Theme::c("hi_fg"), true, "signals");
-			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Send signal to PID " + to_string(s_pid) + " ("
+			string local_bg = Draw::createBox(x + 2, y, 78, 19, Theme::c("hi_fg"), true, "signals");
+			local_bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Send signal to PID " + to_string(s_pid) + " ("
 				+ uresize((s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name)), 30) + ")", 76);
+			pda.set_bg(std::move(local_bg));
 		}
 		else if (is_in(key, "escape", "q")) {
 			return Closed;
@@ -1066,7 +1066,7 @@ namespace Menu {
 
 		if (retval == Changed) {
 			int cy = y+4, cx = x+4;
-			out = bg + Mv::to(cy++, x+3) + Theme::c("main_fg") + Fx::ub
+			out = pda.bg() + Mv::to(cy++, x+3) + Theme::c("main_fg") + Fx::ub
 				+ rjust("Enter signal number: ", 48) + Theme::c("hi_fg") + (selected_signal >= 0 ? to_string(selected_signal) : "") + Theme::c("main_fg") + Fx::bl + "█" + Fx::ubl;
 
 			auto sig_str = to_string(selected_signal);
@@ -1076,7 +1076,7 @@ namespace Menu {
 				out += Mv::to(cy, cx);
 				if (count == selected_signal) out += Theme::c("selected_bg") + Theme::c("selected_fg") + Fx::b + ljust(to_string(count), 3) + ljust('(' + sig + ')', 12) + Fx::reset;
 				else out += Theme::c("hi_fg") + ljust(to_string(count), 3) + Theme::c("main_fg") + ljust('(' + sig + ')', 12);
-				if (redraw) mouse_mappings["button_" + to_string(count)] = {cy, cx, 1, 15};
+				if (redraw) frame.mouse_mappings["button_" + to_string(count)] = {cy, cx, 1, 15};
 				count++;
 				cx += 15;
 			}
@@ -1085,9 +1085,9 @@ namespace Menu {
 			out += Mv::to(++cy, x+3) + Fx::b + Theme::c("hi_fg") + rjust( "↑ ↓ ← →", 33, true) + Theme::c("main_fg") + Fx::ub + " | To choose signal.";
 			out += Mv::to(++cy, x+3) + Fx::b + Theme::c("hi_fg") + rjust("0-9", 33) + Theme::c("main_fg") + Fx::ub + " | Enter manually.";
 			out += Mv::to(++cy, x+3) + Fx::b + Theme::c("hi_fg") + rjust("ENTER", 33) + Theme::c("main_fg") + Fx::ub + " | To send signal.";
-			mouse_mappings["enter"] = {cy, x, 1, 73};
+			frame.mouse_mappings["enter"] = {cy, x, 1, 73};
 			out += Mv::to(++cy, x+3) + Fx::b + Theme::c("hi_fg") + rjust("ESC or \"q\"", 33) + Theme::c("main_fg") + Fx::ub + " | To abort.";
-			mouse_mappings["escape"] = {cy, x, 1, 73};
+			frame.mouse_mappings["escape"] = {cy, x, 1, 73};
 
 			out += Fx::reset;
 		}
@@ -1096,6 +1096,7 @@ namespace Menu {
 	}
 
 	static int sizeError(const string& key) {
+		// auto& frame = std::get<menu::SizeErrorFrame>(pda.top()); // available if needed
 		if (redraw) {
 			vector<string> cont_vec {
 				Fx::b + Theme::g("used")[100] + "Error:" + Theme::c("main_fg") + Fx::ub,
@@ -1118,6 +1119,7 @@ namespace Menu {
 	}
 
 	static int signalSend(const string& key) {
+		// auto& frame = std::get<menu::SignalSendFrame>(pda.top()); // available if needed
 		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		if (s_pid == 0) return Closed;
 		if (redraw) {
@@ -1158,6 +1160,7 @@ namespace Menu {
 	}
 
 	static int signalReturn(const string& key) {
+		// auto& frame = std::get<menu::SignalReturnFrame>(pda.top()); // available if needed
 		if (redraw) {
 			vector<string> cont_vec;
 			cont_vec.push_back(Fx::b + Theme::g("used")[100] + "Failure:" + Theme::c("main_fg") + Fx::ub);
@@ -1190,18 +1193,19 @@ namespace Menu {
 	}
 
 	static int mainMenu(const string& key) {
+		auto& frame = std::get<menu::MainFrame>(pda.top());
+		auto& y = frame.y;
+		auto& selected = frame.selected;
+		auto& colors_selected = frame.colors_selected;
+		auto& colors_normal = frame.colors_normal;
+
 		enum MenuItems { Options, Help, Quit };
-		static int y{};
-		static int selected{};
-		static vector<string> colors_selected;
-		static vector<string> colors_normal;
 		auto tty_mode = Config::getB(BoolKey::tty_mode);
-		if (bg.empty()) selected = 0;
 		int retval = Changed;
 
 		if (redraw) {
 			y = Term::height/2 - 10;
-			bg = Draw::banner_gen(y, 0, true);
+			pda.set_bg(Draw::banner_gen(y, 0, true));
 			if (not tty_mode) {
 				colors_selected = {
 					Theme::hex_to_color(Global::Banner_src.at(0).at(0)),
@@ -1230,10 +1234,12 @@ namespace Menu {
 				case Options:
 					menuMask.set(Menus::Options);
 					currentMenu = Menus::Options;
+					pda.replace(menu::OptionsFrame{});
 					return Switch;
 				case Help:
 					menuMask.set(Menus::Help);
 					currentMenu = Menus::Help;
+					pda.replace(menu::HelpFrame{});
 					return Switch;
 				case Quit:
 					Global::event_queue.push(event::Quit{0});
@@ -1253,13 +1259,13 @@ namespace Menu {
 
 		if (retval == Changed) {
 			auto& out = Global::overlay;
-			out = bg + Fx::reset + Fx::b;
+			out = pda.bg() + Fx::reset + Fx::b;
 			auto cy = y + 7;
 			for (const auto& i : iota(0, 3)) {
 				if (tty_mode) out += (i == selected ? Theme::c("hi_fg") : Theme::c("main_fg"));
 				const auto& menu = (not tty_mode and i == selected ? menu_selected[i] : menu_normal[i]);
 				const auto& colors = (i == selected ? colors_selected : colors_normal);
-				if (redraw) mouse_mappings["button_" + to_string(i)] = {cy, Term::width/2 - menu_width[i]/2, 3, menu_width[i]};
+				if (redraw) frame.mouse_mappings["button_" + to_string(i)] = {cy, Term::width/2 - menu_width[i]/2, 3, menu_width[i]};
 				for (int ic = 0; const auto& line : menu) {
 					out += Mv::to(cy++, Term::width/2 - menu_width[i]/2) + (tty_mode ? "" : colors[ic++]) + line;
 				}
@@ -1271,22 +1277,24 @@ namespace Menu {
 	}
 
 static int optionsMenu(const string& key) {
+		auto& frame = std::get<menu::OptionsFrame>(pda.top());
+		auto& y = frame.y;
+		auto& x = frame.x;
+		auto& height = frame.height;
+		auto& page = frame.page;
+		auto& pages = frame.pages;
+		auto& selected = frame.selected;
+		auto& select_max = frame.select_max;
+		auto& item_height = frame.item_height;
+		auto& selected_cat = frame.selected_cat;
+		auto& max_items = frame.max_items;
+		auto& last_sel = frame.last_sel;
+		auto& editing = frame.editing;
+		auto& editor = frame.editor;
+		auto& warnings = frame.warnings;
+		auto& selPred = frame.selPred;
+
  		enum Predispositions { isBool, isInt, isString, is2D, isBrowsable, isEditable};
-		static int y{};
-		static int x{};
-		static int height{};
-		static int page{};
-		static int pages{};
-		static int selected{};
-		static int select_max{};
-		static int item_height{};
-		static int selected_cat{};
-		static int max_items{};
-		static int last_sel{};
-		static bool editing{};
-		static Draw::TextEdit editor;
-		static string warnings;
-		static bitset<8> selPred;
 		static const std::unordered_map<string, std::reference_wrapper<const vector<string>>> optionsList = {
 			{"color_theme", std::cref(Theme::themes)},
 			{"log_level", std::cref(Logger::log_levels)},
@@ -1318,11 +1326,6 @@ static int optionsMenu(const string& key) {
 				if ((int)cat.size() > max_items) max_items = cat.size();
 			}
 		}
-		if (bg.empty()) {
-			page = selected = selected_cat = last_sel = 0;
-			redraw = true;
-			Theme::updateThemes();
-		}
 		int retval = Changed;
 		bool recollect{};
 		bool screen_redraw{};
@@ -1330,20 +1333,22 @@ static int optionsMenu(const string& key) {
 
 		//? Draw background if needed else process input
 		if (redraw) {
-			mouse_mappings.clear();
+			if (pda.bg().empty()) Theme::updateThemes();
+			frame.mouse_mappings.clear();
 			selPred.reset();
 			y = max(1, Term::height/2 - 3 - max_items);
 			x = Term::width/2 - 39;
 			height = min(Term::height - 7, max_items * 2 + 4);
 			if (height % 2 != 0) height--;
-			bg 	= Draw::banner_gen(y, 0, true)
+			string local_bg = Draw::banner_gen(y, 0, true)
 				+ Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, fmt::format("{}tab{}", Theme::c("hi_fg"), Theme::c("main_fg")) + Symbols::right)
 				+ Mv::to(y+8, x) + Theme::c("hi_fg") + Symbols::div_left + Theme::c("div_line") + Symbols::h_line * 29
 				+ Symbols::div_up + Symbols::h_line * (78 - 32) + Theme::c("hi_fg") + Symbols::div_right
 				+ Mv::to(y+6+height - 1, x+30) + Symbols::div_down + Theme::c("div_line");
 			for (const auto& i : iota(0, height - 4)) {
-				bg += Mv::to(y+9 + i, x + 30) + Symbols::v_line;
+				local_bg += Mv::to(y+9 + i, x + 30) + Symbols::v_line;
 			}
+			pda.set_bg(std::move(local_bg));
 		}
 		else if (not warnings.empty() and not key.empty()) {
 			auto ret = messageBox.input(key);
@@ -1407,7 +1412,7 @@ static int optionsMenu(const string& key) {
 			const auto& option = categories[selected_cat][item_height * page + selected][0];
 			editor = Draw::TextEdit{Config::getAsString(option), selPred.test(isInt)};
 			editing = true;
-			mouse_mappings.clear();
+			frame.mouse_mappings.clear();
 		}
 		else if (is_in(key, "escape", "q", "o", "backspace")) {
 			return Closed;
@@ -1536,7 +1541,7 @@ static int optionsMenu(const string& key) {
 		if (retval == Changed) {
 			Config::unlock();
 			auto& out = Global::overlay;
-			out = bg;
+			out = pda.bg();
 			item_height = min((int)categories[selected_cat].size(), (int)floor((double)(height - 4) / 2));
 			pages = ceil((double)categories[selected_cat].size() / item_height);
 			if (page > pages - 1) page = pages - 1;
@@ -1587,8 +1592,8 @@ static int optionsMenu(const string& key) {
 #else
 				constexpr static auto option_menu_tab_width = 12;
 #endif
-				if (const auto button_name = fmt::format("select_cat_{}", i + 1); not editing and not mouse_mappings.contains(button_name)) {
-					mouse_mappings[button_name] = {
+				if (const auto button_name = fmt::format("select_cat_{}", i + 1); not editing and not frame.mouse_mappings.contains(button_name)) {
+					frame.mouse_mappings[button_name] = {
 						.line = y + 6,
 						.col = x + 2 + (option_menu_tab_width * i),
 						.height = 3,
@@ -1618,8 +1623,8 @@ static int optionsMenu(const string& key) {
 				if (c-1 == selected) {
 					if (not editing and (selPred.test(is2D) or selPred.test(isBrowsable))) {
 						out += Fx::b + Mv::to(cy-1, x+2) + Symbols::left + Mv::to(cy-1, x+28) + Symbols::right;
-						mouse_mappings["left"] = {cy-2, x, 2, 5};
-						mouse_mappings["right"] = {cy-2, x+25, 2, 5};
+						frame.mouse_mappings["left"] = {cy-2, x, 2, 5};
+						frame.mouse_mappings["right"] = {cy-2, x+25, 2, 5};
 					}
 					if (selPred.test(isEditable)) {
 						out += Fx::b + Mv::to(cy-1, x+28 - (not editing and selPred.test(isInt) ? 2 : 0)) + (tty_mode ? "E" : Symbols::enter);
@@ -1668,13 +1673,13 @@ static int optionsMenu(const string& key) {
 	}
 
 	static int helpMenu(const string& key) {
-		static int y{};
-		static int x{};
-		static int height{};
-		static int page{};
-		static int pages{};
+		auto& frame = std::get<menu::HelpFrame>(pda.top());
+		auto& y = frame.y;
+		auto& x = frame.x;
+		auto& height = frame.height;
+		auto& page = frame.page;
+		auto& pages = frame.pages;
 
-		if (bg.empty()) page = 0;
 		int retval = Changed;
 
 		if (redraw) {
@@ -1683,8 +1688,9 @@ static int optionsMenu(const string& key) {
 			height = min(Term::height - 6, (int)help_text.size() + 3);
 			pages = ceil((double)help_text.size() / (height - 3));
 			page = 0;
-			bg = Draw::banner_gen(y, 0, true);
-			bg += Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, "help");
+			string local_bg = Draw::banner_gen(y, 0, true);
+			local_bg += Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, "help");
+			pda.set_bg(std::move(local_bg));
 		}
 		else if (is_in(key, "escape", "q", "h", "backspace", "space", "enter", "mouse_click")) {
 			return Closed;
@@ -1702,7 +1708,7 @@ static int optionsMenu(const string& key) {
 
 		if (retval == Changed) {
 			auto& out = Global::overlay;
-			out = bg;
+			out = pda.bg();
 			if (pages > 1) {
 				out += Mv::to(y+height+6, x + 2) + Theme::c("hi_fg") + Symbols::title_left_down + Fx::b + Symbols::up + Theme::c("title") + " page "
 					+ to_string(page+1) + '/' + to_string(pages) + ' ' + Theme::c("hi_fg") + Symbols::down + Fx::ub + Symbols::title_right_down;
@@ -1721,25 +1727,23 @@ static int optionsMenu(const string& key) {
 	}
 
 	static int reniceMenu(const string& key) {
-		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
-		static int x{};
-		static int y{};
-		static int selected_nice = 0;
-		static string nice_edit;
+		auto& frame = std::get<menu::ReniceFrame>(pda.top());
+		auto& x = frame.x;
+		auto& y = frame.y;
+		auto& selected_nice = frame.selected_nice;
+		auto& nice_edit = frame.nice_edit;
 
-		if (bg.empty()) {
-			selected_nice = 0;
-			nice_edit.clear();
-		}
+		auto s_pid = (Config::getB(BoolKey::show_detailed) and Config::getI(IntKey::selected_pid) == 0 ? Config::getI(IntKey::detailed_pid) : Config::getI(IntKey::selected_pid));
 		auto& out = Global::overlay;
 		int retval = Changed;
 
 		if (redraw) {
 			x = Term::width/2 - 25;
 			y = Term::height/2 - 6;
-			bg = Draw::createBox(x + 2, y, 50, 13, Theme::c("hi_fg"), true, "renice");
-			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Renice PID " + to_string(s_pid) + " ("
+			string local_bg = Draw::createBox(x + 2, y, 50, 13, Theme::c("hi_fg"), true, "renice");
+			local_bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Renice PID " + to_string(s_pid) + " ("
 				+ uresize((s_pid == Config::getI(IntKey::detailed_pid) ? Proc::detailed.entry.name : Config::getS(StringKey::selected_name)), 15) + ")", 48);
+			pda.set_bg(std::move(local_bg));
 		}
 		else if (is_in(key, "escape", "q")) {
 			return Closed;
@@ -1792,7 +1796,7 @@ static int optionsMenu(const string& key) {
 				}
 				catch (...) { selected_nice = 0; }
 			}
-			out = bg + Mv::to(cy++, x+3) + Theme::c("main_fg") + Fx::ub
+			out = pda.bg() + Mv::to(cy++, x+3) + Theme::c("main_fg") + Fx::ub
 				+ rjust("Enter nice value: ", 30) + Theme::c("hi_fg") + (nice_edit.empty() ? to_string(selected_nice) : nice_edit) + Theme::c("main_fg") + Fx::bl + "█" + Fx::ubl;
 
 			cy++;
@@ -1846,8 +1850,6 @@ static int optionsMenu(const string& key) {
 			Global::overlay.clear();
 			Global::overlay.shrink_to_fit();
 			Runner::pause_output.store(false);
-			bg.clear();
-			bg.shrink_to_fit();
 			pda.clear_bg();
 			while (!pda.empty()) pda.pop();
 			currentMenu = -1;
@@ -1890,7 +1892,6 @@ static int optionsMenu(const string& key) {
 		if (retCode == Closed) {
 			menu_close_current(currentMenu);
 			mouse_mappings.clear();
-			bg.clear();
 			pda.clear_bg();
 			Runner::pause_output.store(false);
 			process();
@@ -1903,7 +1904,6 @@ static int optionsMenu(const string& key) {
 			Runner::run("overlay");
 		else if (retCode == Switch) {
 			Runner::pause_output.store(false);
-			bg.clear();
 			pda.clear_bg();
 			redraw = true;
 			mouse_mappings.clear();
