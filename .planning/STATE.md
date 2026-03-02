@@ -2,13 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
-status: unknown
-last_updated: "2026-03-02T11:07:54.629Z"
+current_phase: 21 of 25 (Static Local Migration)
+current_plan: 2
+status: executing
+last_updated: "2026-03-02T11:34:27.610Z"
+last_activity: 2026-03-02
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
 ---
 
 # Project State
@@ -18,14 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 20 — PDA Types + Skeleton
+**Current focus:** Phase 21 — Static Local Migration
 
 ## Current Position
 
-Phase: 20 of 25 (PDA Types + Skeleton) -- COMPLETE
-Plan: 1 of 1 in current phase
-Status: In Progress
-Last activity: 2026-03-02 — Completed 20-01 PDA Types + Skeleton
+**Current Phase:** 21 of 25 (Static Local Migration)
+**Current Plan:** 2
+**Total Plans in Phase:** 2
+**Status:** Ready to execute
+**Last Activity:** 2026-03-02
 
 Progress: [█░░░░░░░░░] 9%
 
@@ -47,6 +51,7 @@ Progress: [█░░░░░░░░░] 9%
 - Trend: Starting
 
 *Updated after each plan completion*
+| Phase 21 P01 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -62,6 +67,9 @@ Recent decisions affecting current work:
 - 20-01: Placed all PDA types in menu namespace following btop_state.hpp pattern
 - 20-01: Used std::stack with vector backing for contiguous memory
 - 20-01: Assert-based preconditions on pop/replace/top rather than exceptions
+- [Phase 21]: Coexistence of bg and pda.bg() during migration -- both cleared in parallel until Plan 02 migrates functions
+- [Phase 21]: PDA seeded lazily on first dispatch in process() via switch on currentMenu
+- [Phase 21]: menu_close_current omits invariant assert since process() may close and reopen in sequence
 
 ### Pending Todos
 
@@ -74,5 +82,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 20-01-PLAN.md (PDA Types + Skeleton)
+Stopped at: Completed 21-01-PLAN.md (PDA Infrastructure)
 Resume file: None
