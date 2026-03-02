@@ -4,14 +4,14 @@ milestone: v1.3
 milestone_name: Menu PDA + Input FSM
 current_phase: 21 of 25 (Static Local Migration)
 current_plan: 2
-status: executing
-last_updated: "2026-03-02T11:34:27.610Z"
+status: verifying
+last_updated: "2026-03-02T11:44:21.625Z"
 last_activity: 2026-03-02
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 **Current Phase:** 21 of 25 (Static Local Migration)
 **Current Plan:** 2
 **Total Plans in Phase:** 2
-**Status:** Ready to execute
+**Status:** Phase complete — ready for verification
 **Last Activity:** 2026-03-02
 
 Progress: [█░░░░░░░░░] 9%
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 9%
 
 *Updated after each plan completion*
 | Phase 21 P01 | 4min | 2 tasks | 4 files |
+| Phase 21 P02 | 6min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,8 @@ Recent decisions affecting current work:
 - [Phase 21]: Coexistence of bg and pda.bg() during migration -- both cleared in parallel until Plan 02 migrates functions
 - [Phase 21]: PDA seeded lazily on first dispatch in process() via switch on currentMenu
 - [Phase 21]: menu_close_current omits invariant assert since process() may close and reopen in sequence
+- [Phase 21]: Moved Theme::updateThemes() into optionsMenu redraw block guarded by pda.bg().empty() instead of standalone sentinel
+- [Phase 21]: Removed file-scope string bg entirely -- PDA owns bg lifecycle exclusively after all functions migrated
 
 ### Pending Todos
 

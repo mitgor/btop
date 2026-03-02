@@ -18,7 +18,7 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 
 ### Frame Data
 
-- [ ] **FRAME-01**: Each frame struct carries per-frame state as members (replacing function-static locals)
+- [x] **FRAME-01**: Each frame struct carries per-frame state as members (replacing function-static locals)
 - [x] **FRAME-02**: Frame structs split into layout fields (x, y, width, height) and interaction fields (selected, page, entered text)
 - [x] **FRAME-03**: invalidate_layout() zeros layout fields while preserving interaction fields
 - [x] **FRAME-04**: Frame constructors unconditionally initialize all fields (eliminating bg.empty() reset sentinel)
@@ -86,7 +86,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | PDA-04 | Phase 22 | Pending |
 | PDA-05 | Phase 20 | Complete |
 | PDA-06 | Phase 22 | Pending |
-| FRAME-01 | Phase 21 | Pending |
+| FRAME-01 | Phase 21 | Complete |
 | FRAME-02 | Phase 20 | Complete |
 | FRAME-03 | Phase 21 | Complete |
 | FRAME-04 | Phase 20 | Complete |
