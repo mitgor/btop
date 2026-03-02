@@ -754,16 +754,7 @@ namespace Cpu {
 	bool macM1 = false;
 	tuple<int, float, long, string> current_bat;
 
-	const array<string, 10> time_names = {"user", "nice", "system", "idle"};
-
-	std::unordered_map<string, long long> cpu_old = {
-		{"totals", 0},
-		{"idles", 0},
-		{"user", 0},
-		{"nice", 0},
-		{"system", 0},
-		{"idle", 0}
-	};
+	std::array<long long, static_cast<size_t>(CpuOldField::COUNT)> cpu_old{};
 
 	string get_cpuName() {
 		string name;
@@ -1035,8 +1026,8 @@ namespace Cpu {
 			}
 		}
 
-		const long long calc_totals = max(1ll, global_totals - cpu_old.at("totals"));
-		const long long calc_idles = max(1ll, global_idles - cpu_old.at("idles"));
+		const long long calc_totals = max(1ll, global_totals - cpu_old[std::to_underlying(CpuOldField::totals)]);
+		const long long calc_idles = max(1ll, global_idles - cpu_old[std::to_underlying(CpuOldField::idles)]);
 
 		//? Populate cpu.cpu_percent with all fields from syscall
 		constexpr std::array<CpuField, 4> bsd_time_fields = {
@@ -1046,14 +1037,15 @@ namespace Cpu {
 			auto field = bsd_time_fields[ii];
 			auto& buf = cpu.cpu_percent[std::to_underlying(field)];
 			if (width > 0 and buf.capacity() != static_cast<size_t>(width * 2)) buf.resize(width * 2);
-			buf.push_back(clamp((long long)round((double)(val - cpu_old.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
-			cpu_old.at(time_names.at(ii)) = val;
+			const auto old_idx = static_cast<size_t>(CpuOldField::user) + ii;
+			buf.push_back(clamp((long long)round((double)(val - cpu_old[old_idx]) * 100 / calc_totals), 0ll, 100ll));
+			cpu_old[old_idx] = val;
 
 			ii++;
 		}
 
-		cpu_old.at("totals") = global_totals;
-		cpu_old.at("idles") = global_idles;
+		cpu_old[std::to_underlying(CpuOldField::totals)] = global_totals;
+		cpu_old[std::to_underlying(CpuOldField::idles)] = global_idles;
 
 		//? Total usage of cpu
 		auto& total_buf = cpu.cpu_percent[std::to_underlying(CpuField::total)];
