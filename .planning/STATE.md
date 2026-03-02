@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
 current_phase: 22 of 25 (PDA Dispatch)
-current_plan: 1 of 2 (Plan 01 complete)
+current_plan: 2
 status: executing
-last_updated: "2026-03-02T12:38:36.144Z"
+last_updated: "2026-03-02T12:45:26.719Z"
 last_activity: 2026-03-02
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 **Current Phase:** 22 of 25 (PDA Dispatch)
-**Current Plan:** 1 of 2 (Plan 01 complete)
+**Current Plan:** 2
 **Total Plans in Phase:** 2
-**Status:** In progress
+**Status:** Ready to execute
 **Last Activity:** 2026-03-02
 
 Progress: [█░░░░░░░░░] 9%
@@ -54,6 +54,7 @@ Progress: [█░░░░░░░░░] 9%
 | Phase 21 P01 | 4min | 2 tasks | 4 files |
 | Phase 21 P02 | 6min | 2 tasks | 1 files |
 | Phase 22 P01 | 6min | 2 tasks | 3 files |
+| Phase 22 P02 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase 22]: dispatch_legacy bridge translates PDAResult to int codes, keeping process() unchanged for Plan 02
 - [Phase 22]: Replace actions applied inside dispatch_legacy with menuMask/currentMenu sync for correct re-dispatch
 - [Phase 22]: Handler rendered flag (bool did_render) replaces legacy int retval pattern (Changed/NoChange)
+- [Phase 22]: Non-recursive dispatch loop replaces recursive process() -- while(true) with std::visit and PDAAction switch
+- [Phase 22]: Mouse mappings from active frame copied to global Menu::mouse_mappings only on NoChange action
+- [Phase 22]: menuMask, currentMenu, menuFunc, menuReturnCodes, dispatch_legacy fully deleted -- PDA is sole dispatch authority
 
 ### Pending Todos
 
