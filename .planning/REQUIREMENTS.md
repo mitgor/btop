@@ -42,12 +42,12 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 
 ### Testing
 
-- [ ] **TEST-01**: PDA transition tests: push/pop/replace invariants, frame isolation, reopen-fresh-state
-- [ ] **TEST-02**: Input FSM transition tests: all state transitions, key routing per state, mouse routing
-- [ ] **TEST-03**: SizeError override test (push over existing menu)
-- [ ] **TEST-04**: SignalSend→SignalReturn sequence test (post-pop push pattern)
-- [ ] **TEST-05**: Resize-with-menu-open preserves interaction, invalidates layout
-- [ ] **TEST-06**: All Filtering exit paths tested (keyboard ESC, mouse click, enter)
+- [x] **TEST-01**: PDA transition tests: push/pop/replace invariants, frame isolation, reopen-fresh-state
+- [x] **TEST-02**: Input FSM transition tests: all state transitions, key routing per state, mouse routing
+- [x] **TEST-03**: SizeError override test (push over existing menu)
+- [x] **TEST-04**: SignalSend→SignalReturn sequence test (post-pop push pattern)
+- [x] **TEST-05**: Resize-with-menu-open preserves interaction, invalidates layout
+- [x] **TEST-06**: All Filtering exit paths tested (keyboard ESC, mouse click, enter)
 - [ ] **TEST-07**: ASan + UBSan + TSan clean builds; all existing tests passing
 
 ### Cleanup
@@ -101,12 +101,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | INTEG-02 | Phase 23 | Complete |
 | INTEG-03 | Phase 23 | Complete |
 | INTEG-04 | Phase 23 | Complete |
-| TEST-01 | Phase 24 | Pending |
-| TEST-02 | Phase 24 | Pending |
-| TEST-03 | Phase 24 | Pending |
-| TEST-04 | Phase 24 | Pending |
-| TEST-05 | Phase 24 | Pending |
-| TEST-06 | Phase 24 | Pending |
+| TEST-01 | Phase 24 | Complete |
+| TEST-02 | Phase 24 | Complete |
+| TEST-03 | Phase 24 | Complete |
+| TEST-04 | Phase 24 | Complete |
+| TEST-05 | Phase 24 | Complete |
+| TEST-06 | Phase 24 | Complete |
 | TEST-07 | Phase 24 | Pending |
 | CLEAN-01 | Phase 25 | Pending |
 | CLEAN-02 | Phase 25 | Pending |

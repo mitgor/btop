@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
-current_phase: 23
-current_plan: Not started
-status: completed
-last_updated: "2026-03-02T13:23:43.913Z"
+current_phase: 24
+current_plan: 2
+status: in_progress
+last_updated: "2026-03-02T13:58:05Z"
 last_activity: 2026-03-02
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 23 — Input FSM
+**Current focus:** Phase 24 — Tests
 
 ## Current Position
 
-**Current Phase:** 23
-**Current Plan:** Not started
+**Current Phase:** 24
+**Current Plan:** 2
 **Total Plans in Phase:** 2
-**Status:** Milestone complete
+**Status:** In progress
 **Last Activity:** 2026-03-02
 
-Progress: [████████░░] 86%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [████████░░] 86%
 | Phase 22 P02 | 4min | 2 tasks | 2 files |
 | Phase 23 P01 | 3min | 2 tasks | 3 files |
 | Phase 23 P02 | 4min | 2 tasks | 5 files |
+| Phase 24 P01 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase 23]: Filtering enter/exit paths replaced with transition functions; old_filter global deleted
 - [Phase 23]: Runner::pause_output.load() replaces Menu::active as atomic cross-thread menu-activity signal
 - [Phase 23]: Menu::invalidate_layout() wrapper keeps PDA file-scoped while exposing layout reset for resize
+- [Phase 24]: Pure unit tests through public API only -- no extern of file-scoped fsm_state
+- [Phase 24]: Test fixtures with SetUp/TearDown to prevent global state pollution between tests
+- [Phase 24]: Config::set/getS works without Config::load for test fixtures -- static arrays have compile-time defaults
 
 ### Pending Todos
 
@@ -100,5 +104,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 23-01-PLAN.md (Input FSM Core)
+Stopped at: Completed 24-01-PLAN.md (PDA Invariant and Input FSM Tests)
 Resume file: None
