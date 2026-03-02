@@ -52,10 +52,10 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 
 ### Cleanup
 
-- [ ] **CLEAN-01**: menuMask bitset, currentMenu int, menuFunc vector removed
-- [ ] **CLEAN-02**: Menu::active atomic bool declaration removed from btop_menu.hpp
-- [ ] **CLEAN-03**: old_filter file-scope variable removed from btop_input.cpp
-- [ ] **CLEAN-04**: All function-static locals in menu functions removed
+- [x] **CLEAN-01**: menuMask bitset, currentMenu int, menuFunc vector removed
+- [x] **CLEAN-02**: Menu::active atomic bool declaration removed from btop_menu.hpp
+- [x] **CLEAN-03**: old_filter file-scope variable removed from btop_input.cpp
+- [x] **CLEAN-04**: All function-static locals in menu functions removed
 
 ## v1.4 Requirements
 
@@ -108,10 +108,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | TEST-05 | Phase 24 | Complete |
 | TEST-06 | Phase 24 | Complete |
 | TEST-07 | Phase 24 | Complete |
-| CLEAN-01 | Phase 25 | Pending |
-| CLEAN-02 | Phase 25 | Pending |
-| CLEAN-03 | Phase 25 | Pending |
-| CLEAN-04 | Phase 25 | Pending |
+| CLEAN-01 | Phase 22 | Complete |
+| CLEAN-02 | Phase 23 | Complete |
+| CLEAN-03 | Phase 23 | Complete |
+| CLEAN-04 | Phase 21 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 32 total
