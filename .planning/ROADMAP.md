@@ -73,7 +73,7 @@ Full details: `milestones/v1.3-ROADMAP.md` | `milestones/v1.3-REQUIREMENTS.md`
 **Phase Numbering:** Integer phases 25-30. Decimal phases (e.g., 25.1) reserved for urgent insertions.
 
 - [x] **Phase 25: Stale Static Const Fix** - Fix calcSizes() freq_range/hasCpuHz values that are baked at first call instead of refreshing on config change (completed 2026-03-02)
-- [ ] **Phase 26: ThemeKey Enum Arrays** - Replace theme string-keyed maps (colors, rgbs, gradients) with ThemeKey enum + std::array
+- [x] **Phase 26: ThemeKey Enum Arrays** - Replace theme string-keyed maps (colors, rgbs, gradients) with ThemeKey enum + std::array (completed 2026-03-02)
 - [ ] **Phase 27: cpu_old Enum Arrays** - Convert cpu_old string-keyed unordered_map to enum-indexed std::array on all platforms
 - [ ] **Phase 28: Hot-Path POSIX I/O** - Convert Cpu::collect and Mem::collect ifstream reads to read_proc_file() on Linux
 - [ ] **Phase 29: Draw Decomposition** - Split Proc::draw() and Cpu::draw() god functions into focused sub-functions
@@ -104,11 +104,11 @@ Plans:
   3. Theme::rgbs and Theme::gradients are std::array-backed with enum indexing -- no string hashing on the draw hot path
   4. Theme switching (user changes theme in options menu) populates the new arrays correctly; all colors render identically before and after
   5. btop builds and runs on all platforms with identical visual output -- no missing or wrong colors
-**Plans**: TBD
+**Plans**: 2/2 complete
 
 Plans:
-- [ ] 26-01: TBD
-- [ ] 26-02: TBD
+- [x] 26-01: Define ThemeKey Enums and Convert Theme Storage
+- [x] 26-02: Migrate All Call Sites to Enum Keys
 
 ### Phase 27: cpu_old Enum Arrays
 **Goal**: The cpu_old data structure uses enum-indexed std::array instead of string-keyed unordered_map on all three platforms
@@ -181,7 +181,7 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25. Stale Static Const Fix | 1/1 | Complete   | 2026-03-02 | - |
-| 26. ThemeKey Enum Arrays | v1.4 | 0/2 | Not started | - |
+| 26. ThemeKey Enum Arrays | 2/2 | Complete   | 2026-03-02 | - |
 | 27. cpu_old Enum Arrays | v1.4 | 0/2 | Not started | - |
 | 28. Hot-Path POSIX I/O | v1.4 | 0/1 | Not started | - |
 | 29. Draw Decomposition | v1.4 | 0/2 | Not started | - |

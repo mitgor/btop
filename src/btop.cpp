@@ -88,7 +88,6 @@ using Config::BoolKey;
 using Config::IntKey;
 using Config::StringKey;
 using Theme::ColorKey;
-using Theme::GradientKey;
 using namespace std::chrono_literals;
 using namespace std::literals;
 

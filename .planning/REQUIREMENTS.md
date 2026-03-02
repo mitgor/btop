@@ -18,9 +18,9 @@ Requirements for v1.4 Render & Collect Modernization. Each maps to roadmap phase
 - [ ] **PERF-03**: cpu_old equivalent replaced with enum-indexed array on FreeBSD
 - [ ] **PERF-04**: Cpu::collect /proc/stat reads use read_proc_file() instead of ifstream (Linux)
 - [ ] **PERF-05**: Mem::collect /proc/meminfo reads use read_proc_file() instead of ifstream (Linux)
-- [ ] **PERF-06**: Theme colors map replaced with ThemeKey enum + std::array (~40 fixed color names)
-- [ ] **PERF-07**: Theme rgbs map replaced with ThemeKey enum + std::array
-- [ ] **PERF-08**: Theme gradients map replaced with ThemeKey enum + std::array
+- [x] **PERF-06**: Theme colors map replaced with ThemeKey enum + std::array (~40 fixed color names)
+- [x] **PERF-07**: Theme rgbs map replaced with ThemeKey enum + std::array
+- [x] **PERF-08**: Theme gradients map replaced with ThemeKey enum + std::array
 
 ### Draw Decomposition
 
@@ -77,9 +77,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-03 | Phase 27 | Pending |
 | PERF-04 | Phase 28 | Pending |
 | PERF-05 | Phase 28 | Pending |
-| PERF-06 | Phase 26 | Pending |
-| PERF-07 | Phase 26 | Pending |
-| PERF-08 | Phase 26 | Pending |
+| PERF-06 | Phase 26 | Complete |
+| PERF-07 | Phase 26 | Complete |
+| PERF-08 | Phase 26 | Complete |
 | DRAW-01 | Phase 29 | Pending |
 | DRAW-02 | Phase 29 | Pending |
 | DRAW-03 | Phase 29 | Pending |

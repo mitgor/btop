@@ -30,6 +30,8 @@ tab-size = 4
 #include "btop_theme.hpp"
 #include "btop_tools.hpp"
 
+using Theme::GradientKey;
+
 class GraphCacheTest : public ::testing::Test {
 protected:
 	static void SetUpTestSuite() {
@@ -53,7 +55,7 @@ TEST_F(GraphCacheTest, SameDataReturnsIdenticalOutput) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(i * 5);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	std::string first = g(data, false);
 
 	// Call again with same back() value -- should return cached output
@@ -65,7 +67,7 @@ TEST_F(GraphCacheTest, DataSameReturnsSameRef) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(50);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	std::string& first = g(data, false);
 	std::string& same = g(data, true);
 	EXPECT_EQ(&first, &same);  // Same reference via data_same early return
@@ -75,7 +77,7 @@ TEST_F(GraphCacheTest, ChangedDataProducesDifferentOutput) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(50);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	std::string first = g(data, false);
 
 	data.push_back(90);
@@ -87,7 +89,7 @@ TEST_F(GraphCacheTest, MultiHeightCacheWorks) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(i * 5);
 
-	Draw::Graph g(10, 3, "cpu", data);
+	Draw::Graph g(10, 3, GradientKey::cpu, data);
 	std::string first = g(data, false);
 
 	// Same data.back(), should return cached
@@ -99,7 +101,7 @@ TEST_F(GraphCacheTest, CacheHitReturnsSameReference) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(42);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	std::string& first = g(data, false);
 
 	// Second call with unchanged data.back() should hit last_data_back cache
@@ -112,7 +114,7 @@ TEST_F(GraphCacheTest, ConstructorInitializesLastDataBack) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(75);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	// First call after constructor -- data.back() matches constructor's last value
 	// Should hit the last_data_back cache since constructor initializes it
 	std::string& result = g(data, false);
@@ -127,7 +129,7 @@ TEST_F(GraphCacheTest, OutputNotEmptyAfterConstruction) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(i * 5);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	std::string& out = g();
 	EXPECT_FALSE(out.empty());
 }
@@ -136,7 +138,7 @@ TEST_F(GraphCacheTest, RepeatedUpdatesWithSameValueAreCached) {
 	RingBuffer<long long> data(20);
 	for (int i = 0; i < 20; i++) data.push_back(60);
 
-	Draw::Graph g(10, 1, "cpu", data);
+	Draw::Graph g(10, 1, GradientKey::cpu, data);
 	std::string first = g(data, false);
 
 	// Push same value multiple times -- each call should return cached
