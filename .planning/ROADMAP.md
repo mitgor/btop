@@ -74,7 +74,7 @@ Full details: `milestones/v1.3-ROADMAP.md` | `milestones/v1.3-REQUIREMENTS.md`
 
 - [x] **Phase 25: Stale Static Const Fix** - Fix calcSizes() freq_range/hasCpuHz values that are baked at first call instead of refreshing on config change (completed 2026-03-02)
 - [x] **Phase 26: ThemeKey Enum Arrays** - Replace theme string-keyed maps (colors, rgbs, gradients) with ThemeKey enum + std::array (completed 2026-03-02)
-- [ ] **Phase 27: cpu_old Enum Arrays** - Convert cpu_old string-keyed unordered_map to enum-indexed std::array on all platforms
+- [x] **Phase 27: cpu_old Enum Arrays** - Convert cpu_old string-keyed unordered_map to enum-indexed std::array on all platforms (completed 2026-03-02)
 - [ ] **Phase 28: Hot-Path POSIX I/O** - Convert Cpu::collect and Mem::collect ifstream reads to read_proc_file() on Linux
 - [ ] **Phase 29: Draw Decomposition** - Split Proc::draw() and Cpu::draw() god functions into focused sub-functions
 - [ ] **Phase 30: Unified Redraw** - Consolidate scattered redraw booleans into a single mechanism with all trigger sites wired through it
@@ -182,7 +182,7 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25. Stale Static Const Fix | 1/1 | Complete   | 2026-03-02 | - |
 | 26. ThemeKey Enum Arrays | 2/2 | Complete   | 2026-03-02 | - |
-| 27. cpu_old Enum Arrays | 1/2 | In Progress|  | - |
+| 27. cpu_old Enum Arrays | 2/2 | Complete   | 2026-03-02 | - |
 | 28. Hot-Path POSIX I/O | v1.4 | 0/1 | Not started | - |
 | 29. Draw Decomposition | v1.4 | 0/2 | Not started | - |
 | 30. Unified Redraw | v1.4 | 0/2 | Not started | - |
