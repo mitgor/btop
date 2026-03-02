@@ -77,11 +77,10 @@ Full details: `milestones/v1.2-ROADMAP.md`
   3. Frame handlers return PDAAction enum values (Push/Pop/Replace/NoChange) — no stack mutation occurs inside std::visit
   4. Each frame struct separates layout fields (x, y, width, height, bg) from interaction fields (selected, page, entered text), with constructors that unconditionally initialize all fields
   5. Per-frame mouse_mappings are owned as value members of each frame struct
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 20-01: TBD
-- [ ] 20-02: TBD
+- [ ] 20-01-PLAN.md — PDA types, frame structs, MenuPDA class, and unit tests
 
 ### Phase 21: Static Local Migration
 **Goal**: All 8 menu rendering functions consume per-frame state from frame structs instead of function-static locals, while menuMask/currentMenu remain the dispatch authority during migration
@@ -170,7 +169,7 @@ Phases execute in numeric order: 20 -> 20.1 (if inserted) -> 21 -> ... -> 25
 | 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
 | 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
-| 20. PDA Types + Skeleton | v1.3 | 0/2 | Not started | - |
+| 20. PDA Types + Skeleton | v1.3 | 0/1 | Not started | - |
 | 21. Static Local Migration | v1.3 | 0/2 | Not started | - |
 | 22. PDA Dispatch | v1.3 | 0/2 | Not started | - |
 | 23. Input FSM | v1.3 | 0/3 | Not started | - |

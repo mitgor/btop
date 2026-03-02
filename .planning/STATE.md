@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Menu PDA + Input FSM
-status: ready_to_plan
+status: planned
 last_updated: "2026-03-02"
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 12
+  total_plans: 11
   completed_plans: 0
 ---
 
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 20 of 25 (PDA Types + Skeleton)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
+Plan: 0 of 1 in current phase
+Status: Planned
 Last activity: 2026-03-02 — Roadmap created for v1.3
 
 Progress: [░░░░░░░░░░] 0%
