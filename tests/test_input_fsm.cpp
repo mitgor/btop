@@ -16,8 +16,6 @@ indent = tab
 tab-size = 4
 */
 
-#include <string>
-
 #include <gtest/gtest.h>
 #include "btop_input.hpp"
 #include "btop_config.hpp"
