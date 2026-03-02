@@ -2862,11 +2862,11 @@ namespace Draw {
 			box = createBox(x, y, width, height, Theme::c("cpu_box"), true, (cpu_bottom ? "" : "cpu"), (cpu_bottom ? "cpu" : ""), 1);
 
 			auto& custom = Config::getS(StringKey::custom_cpu_name);
-			static const bool hasCpuHz = not Cpu::get_cpuHz().empty();
+			const bool hasCpuHz = not Cpu::get_cpuHz().empty();
 		#ifdef __linux__
-			static const bool freq_range = Config::getS(StringKey::freq_mode) == "range";
+			const bool freq_range = Config::getS(StringKey::freq_mode) == "range";
 		#else
-			static const bool freq_range = false;
+			const bool freq_range = false;
 		#endif
 			const string cpu_title = uresize(
 					(custom.empty() ? Cpu::cpuName : custom),
