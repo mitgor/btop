@@ -3029,15 +3029,34 @@ namespace Proc {
 				pread.close();
 			}
 
-			//? Get cpu total times from /proc/stat
+			//? Get cpu total times from /proc/stat via POSIX read (zero heap allocation)
 			cputimes = 0;
-			pread.open(Shared::procPath / "stat");
-			if (pread.good()) {
-				pread.ignore(SSmax, ' ');
-				for (uint64_t times; pread >> times; cputimes += times);
+			{
+				char proc_stat_buf[1024];  // Only need first line (~80 bytes)
+				ssize_t proc_stat_n = Tools::read_proc_file("/proc/stat", proc_stat_buf, sizeof(proc_stat_buf));
+				if (proc_stat_n <= 0) throw std::runtime_error("Failure to read /proc/stat");
+				std::string_view stat_line(proc_stat_buf, proc_stat_n);
+				//? Skip "cpu " prefix (find first space)
+				auto space_pos = stat_line.find(' ');
+				if (space_pos == std::string_view::npos) throw std::runtime_error("Malformed /proc/stat");
+				size_t pos = space_pos + 1;
+				//? Find end of first line
+				size_t line_end = stat_line.find('\n', pos);
+				if (line_end == std::string_view::npos) line_end = stat_line.size();
+				//? Sum all time fields on first line
+				while (pos < line_end) {
+					while (pos < line_end and stat_line[pos] == ' ') ++pos;
+					uint64_t val = 0;
+					bool found = false;
+					while (pos < line_end and stat_line[pos] >= '0' and stat_line[pos] <= '9') {
+						val = val * 10 + (stat_line[pos] - '0');
+						++pos;
+						found = true;
+					}
+					if (found) cputimes += val;
+					else break;
+				}
 			}
-			else throw std::runtime_error("Failure to read /proc/stat");
-			pread.close();
 
 			//? Iterate over all pids in /proc
 			for (const auto& d: fs::directory_iterator(Shared::procPath)) {
