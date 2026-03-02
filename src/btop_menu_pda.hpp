@@ -38,7 +38,7 @@ namespace menu {
 	// ========================================================================
 	// Frame structs — typed per-menu-screen state.
 	// Each frame owns its layout geometry, interaction state, and mouse mappings.
-	// No behavior methods — these are pure data carriers (Phase 20 scope).
+	// Layout invalidation method only (Phase 21).
 	// ========================================================================
 
 	struct MainFrame {
@@ -52,6 +52,8 @@ namespace menu {
 
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { y = 0; mouse_mappings.clear(); }
 	};
 
 	struct OptionsFrame {
@@ -76,6 +78,8 @@ namespace menu {
 
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { x = 0; y = 0; height = 0; mouse_mappings.clear(); }
 	};
 
 	struct HelpFrame {
@@ -90,11 +94,15 @@ namespace menu {
 
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { x = 0; y = 0; height = 0; mouse_mappings.clear(); }
 	};
 
 	struct SizeErrorFrame {
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { mouse_mappings.clear(); }
 	};
 
 	struct SignalChooseFrame {
@@ -107,16 +115,22 @@ namespace menu {
 
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { x = 0; y = 0; mouse_mappings.clear(); }
 	};
 
 	struct SignalSendFrame {
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { mouse_mappings.clear(); }
 	};
 
 	struct SignalReturnFrame {
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { mouse_mappings.clear(); }
 	};
 
 	struct ReniceFrame {
@@ -130,6 +144,8 @@ namespace menu {
 
 		// --- Per-frame mouse mappings ---
 		std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings{};
+
+		void invalidate_layout() { x = 0; y = 0; mouse_mappings.clear(); }
 	};
 
 	// ========================================================================
@@ -224,6 +240,14 @@ namespace menu {
 		/// Clear the background string (on final pop in Phase 21+).
 		void clear_bg() {
 			bg_.clear();
+		}
+
+		/// Invalidate layout of the top frame via std::visit dispatch.
+		/// No-op if the stack is empty.
+		void invalidate_layout() {
+			if (!stack_.empty()) {
+				std::visit([](auto& frame) { frame.invalidate_layout(); }, stack_.top());
+			}
 		}
 	};
 
