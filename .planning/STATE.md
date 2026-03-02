@@ -4,14 +4,14 @@ milestone: v1.3
 milestone_name: Menu PDA + Input FSM
 current_phase: 23
 current_plan: 2
-status: executing
-last_updated: "2026-03-02T13:12:26.820Z"
+status: verifying
+last_updated: "2026-03-02T13:19:40.704Z"
 last_activity: 2026-03-02
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 **Current Phase:** 23
 **Current Plan:** 2
 **Total Plans in Phase:** 2
-**Status:** In progress
+**Status:** Phase complete — ready for verification
 **Last Activity:** 2026-03-02
 
 Progress: [████████░░] 86%
@@ -56,6 +56,7 @@ Progress: [████████░░] 86%
 | Phase 22 P01 | 6min | 2 tasks | 3 files |
 | Phase 22 P02 | 4min | 2 tasks | 2 files |
 | Phase 23 P01 | 3min | 2 tasks | 3 files |
+| Phase 23 P02 | 4min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 23]: FSM transitions owned by Input code -- enter_menu() before Menu::show(), exit_menu() after PDA empties
 - [Phase 23]: Menu::active temporarily read in process() to detect PDA empty -- bridge until Plan 02 removes it
 - [Phase 23]: Filtering enter/exit paths replaced with transition functions; old_filter global deleted
+- [Phase 23]: Runner::pause_output.load() replaces Menu::active as atomic cross-thread menu-activity signal
+- [Phase 23]: Menu::invalidate_layout() wrapper keeps PDA file-scoped while exposing layout reset for resize
 
 ### Pending Todos
 

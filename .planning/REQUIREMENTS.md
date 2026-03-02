@@ -30,13 +30,13 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 - [x] **INPUT-02**: Filtering state carries old_filter as struct member (replacing file-scoped global)
 - [x] **INPUT-03**: All input transitions typed: Normal↔Filtering, Normal↔MenuActive
 - [x] **INPUT-04**: Input::process() dispatches via InputStateVar instead of if(filtering)/if(Menu::active) branches
-- [ ] **INPUT-05**: Menu::active atomic bool removed — InputStateVar is sole authority for input routing
+- [x] **INPUT-05**: Menu::active atomic bool removed — InputStateVar is sole authority for input routing
 - [x] **INPUT-06**: Mouse routing in Input::get() reads InputStateVar instead of Menu::active bool
 
 ### Integration
 
-- [ ] **INTEG-01**: App FSM on_enter(Resizing) calls menu_pda.invalidate_layout() to prevent stale coordinates
-- [ ] **INTEG-02**: Runner::pause_output cleared on all paths that empty the PDA stack
+- [x] **INTEG-01**: App FSM on_enter(Resizing) calls menu_pda.invalidate_layout() to prevent stale coordinates
+- [x] **INTEG-02**: Runner::pause_output cleared on all paths that empty the PDA stack
 - [x] **INTEG-03**: Config::proc_filtering retained for display/persistence but FSM is routing authority
 - [x] **INTEG-04**: Main loop btop.cpp:1572-1574 replaced with InputFSM-based dispatch
 
@@ -95,10 +95,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | INPUT-02 | Phase 23 | Complete |
 | INPUT-03 | Phase 23 | Complete |
 | INPUT-04 | Phase 23 | Complete |
-| INPUT-05 | Phase 23 | Pending |
+| INPUT-05 | Phase 23 | Complete |
 | INPUT-06 | Phase 23 | Complete |
-| INTEG-01 | Phase 23 | Pending |
-| INTEG-02 | Phase 23 | Pending |
+| INTEG-01 | Phase 23 | Complete |
+| INTEG-02 | Phase 23 | Complete |
 | INTEG-03 | Phase 23 | Complete |
 | INTEG-04 | Phase 23 | Complete |
 | TEST-01 | Phase 24 | Pending |
