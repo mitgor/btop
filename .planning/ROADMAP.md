@@ -182,7 +182,7 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25. Stale Static Const Fix | 1/1 | Complete   | 2026-03-02 | - |
 | 26. ThemeKey Enum Arrays | 2/2 | Complete   | 2026-03-02 | - |
-| 27. cpu_old Enum Arrays | v1.4 | 0/2 | Not started | - |
+| 27. cpu_old Enum Arrays | 1/2 | In Progress|  | - |
 | 28. Hot-Path POSIX I/O | v1.4 | 0/1 | Not started | - |
 | 29. Draw Decomposition | v1.4 | 0/2 | Not started | - |
 | 30. Unified Redraw | v1.4 | 0/2 | Not started | - |

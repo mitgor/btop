@@ -13,7 +13,7 @@ Requirements for v1.4 Render & Collect Modernization. Each maps to roadmap phase
 
 ### Hot-Path Performance
 
-- [ ] **PERF-01**: cpu_old string-keyed unordered_map replaced with std::array<long long, CpuField::COUNT> on Linux
+- [x] **PERF-01**: cpu_old string-keyed unordered_map replaced with std::array<long long, CpuField::COUNT> on Linux
 - [ ] **PERF-02**: cpu_old equivalent replaced with enum-indexed array on macOS
 - [ ] **PERF-03**: cpu_old equivalent replaced with enum-indexed array on FreeBSD
 - [ ] **PERF-04**: Cpu::collect /proc/stat reads use read_proc_file() instead of ifstream (Linux)
@@ -72,7 +72,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CORR-01 | Phase 25 | Complete |
-| PERF-01 | Phase 27 | Pending |
+| PERF-01 | Phase 27 | Complete |
 | PERF-02 | Phase 27 | Pending |
 | PERF-03 | Phase 27 | Pending |
 | PERF-04 | Phase 28 | Pending |
