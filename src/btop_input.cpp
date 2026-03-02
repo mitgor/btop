@@ -93,8 +93,42 @@ namespace Input {
 	bool dragging_scroll;
 
 	deque<string> history(50, "");
-	string old_filter;
+	InputStateVar fsm_state{input_state::Normal{}};
 	string input;
+
+	bool is_menu_active() {
+		return std::holds_alternative<input_state::MenuActive>(fsm_state);
+	}
+
+	bool is_filtering() {
+		return std::holds_alternative<input_state::Filtering>(fsm_state);
+	}
+
+	void enter_filtering() {
+		Proc::filter = Draw::TextEdit{Config::getS(StringKey::proc_filter)};
+		fsm_state = input_state::Filtering{Proc::filter.text};
+		Config::set(BoolKey::proc_filtering, true);
+	}
+
+	void exit_filtering(bool accept) {
+		if (auto* f = std::get_if<input_state::Filtering>(&fsm_state)) {
+			if (accept) {
+				Config::set(StringKey::proc_filter, Proc::filter.text);
+			} else {
+				Config::set(StringKey::proc_filter, f->old_filter);
+			}
+		}
+		Config::set(BoolKey::proc_filtering, false);
+		fsm_state = input_state::Normal{};
+	}
+
+	void enter_menu() {
+		fsm_state = input_state::MenuActive{};
+	}
+
+	void exit_menu() {
+		fsm_state = input_state::Normal{};
+	}
 
 	bool poll(const uint64_t timeout) {
 		atomic_lock lck(polling);
@@ -306,9 +340,7 @@ namespace Input {
 				bool redraw = true;
 				if (filtering) {
 					if (key == "enter" or key == "down") {
-						Config::set(StringKey::proc_filter, Proc::filter.text);
-						Config::set(BoolKey::proc_filtering, false);
-						old_filter.clear();
+						exit_filtering(true);
 						if(key == "down"){
 							Config::unlock();
 							Config::lock();
@@ -317,9 +349,7 @@ namespace Input {
 						}
 					}
 					else if (key == "escape" or key == "mouse_click") {
-						Config::set(StringKey::proc_filter, old_filter);
-						Config::set(BoolKey::proc_filtering, false);
-						old_filter.clear();
+						exit_filtering(false);
 					}
 					else if (Proc::filter.command(key)) {
 						if (Config::getS(StringKey::proc_filter) != Proc::filter.text)
@@ -343,9 +373,7 @@ namespace Input {
 					Config::set(BoolKey::update_following, true);
 				}
 				else if (is_in(key, "f", "/")) {
-					Config::flip(BoolKey::proc_filtering);
-					Proc::filter = Draw::TextEdit{Config::getS(StringKey::proc_filter)};
-					old_filter = Proc::filter.text;
+					enter_filtering();
 				}
 				else if (key == "e") {
 					Config::flip(BoolKey::proc_tree);

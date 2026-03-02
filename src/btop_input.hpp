@@ -24,6 +24,7 @@ tab-size = 4
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 
 using std::array;
 using std::atomic;
@@ -42,6 +43,27 @@ namespace Input {
 	struct Mouse_loc {
 		int line, col, height, width;
 	};
+
+	//* Input FSM state types
+	namespace input_state {
+		struct Normal {};
+		struct Filtering {
+			std::string old_filter;  //< Saved filter text for ESC restoration
+		};
+		struct MenuActive {};
+	}
+
+	using InputStateVar = std::variant<input_state::Normal, input_state::Filtering, input_state::MenuActive>;
+
+	//* Query functions for external code (replaces Menu::active / Config::proc_filtering reads for routing)
+	bool is_menu_active();
+	bool is_filtering();
+
+	//* FSM transition functions
+	void enter_filtering();
+	void exit_filtering(bool accept);
+	void enter_menu();
+	void exit_menu();
 
 	//? line, col, height, width
 	extern std::unordered_map<string, Mouse_loc> mouse_mappings;
