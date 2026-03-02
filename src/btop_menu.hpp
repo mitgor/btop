@@ -19,7 +19,6 @@ tab-size = 4
 #pragma once
 
 #include <atomic>
-#include <bitset>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,14 +26,12 @@ tab-size = 4
 #include "btop_input.hpp"
 
 using std::atomic;
-using std::bitset;
 using std::string;
 using std::vector;
 
 namespace Menu {
 
 	extern atomic<bool> active;
-	extern string output;
 	extern int signalToSend;
 	extern bool redraw;
 
@@ -76,10 +73,9 @@ namespace Menu {
         int getY() const { return y; }
 	};
 
-	extern bitset<8> menuMask;
-	// Note: file-scope menu::MenuPDA pda instance lives in btop_menu.cpp (Phase 21)
+	// Menu PDA (file-scope in btop_menu.cpp) is the sole dispatch authority
 
-	//* Enum for functions in vector menuFuncs
+	//* Enum for menu types used by show()
 	enum Menus {
 		SizeError,
 		SignalChoose,
