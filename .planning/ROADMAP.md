@@ -99,10 +99,11 @@ Full details: `milestones/v1.4-ROADMAP.md` | `milestones/v1.4-REQUIREMENTS.md`
   2. Mem::collect reads /proc/meminfo via read_proc_file() with a stack buffer -- no ifstream construction or heap allocation per collect cycle
   3. CPU and memory metrics displayed in btop are identical before and after the conversion (verified by comparing output values)
   4. macOS and FreeBSD builds are unaffected (their collectors use sysctl APIs, not /proc)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 28-01: TBD
+- [ ] 28-01-PLAN.md -- Convert Cpu::collect and Proc::collect /proc/stat reads to read_proc_file()
+- [ ] 28-02-PLAN.md -- Convert Mem::collect /proc/meminfo and arcstats reads to read_proc_file()
 
 ### Phase 29: Draw Decomposition
 **Goal**: Proc::draw() and Cpu::draw() god functions are split into focused sub-functions with no change in rendered output
@@ -146,6 +147,6 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25-27 | v1.4 | 5/5 | Complete | 2026-03-02 |
-| 28. Hot-Path POSIX I/O | v1.5 | 0/1 | Not started | - |
+| 28. Hot-Path POSIX I/O | v1.5 | 0/2 | Not started | - |
 | 29. Draw Decomposition | v1.5 | 0/2 | Not started | - |
 | 30. Unified Redraw | v1.5 | 0/2 | Not started | - |
