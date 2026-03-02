@@ -48,7 +48,7 @@ Requirements for the Menu PDA + Input FSM milestone. Each maps to roadmap phases
 - [x] **TEST-04**: SignalSend→SignalReturn sequence test (post-pop push pattern)
 - [x] **TEST-05**: Resize-with-menu-open preserves interaction, invalidates layout
 - [x] **TEST-06**: All Filtering exit paths tested (keyboard ESC, mouse click, enter)
-- [ ] **TEST-07**: ASan + UBSan + TSan clean builds; all existing tests passing
+- [x] **TEST-07**: ASan + UBSan + TSan clean builds; all existing tests passing
 
 ### Cleanup
 
@@ -107,7 +107,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | TEST-04 | Phase 24 | Complete |
 | TEST-05 | Phase 24 | Complete |
 | TEST-06 | Phase 24 | Complete |
-| TEST-07 | Phase 24 | Pending |
+| TEST-07 | Phase 24 | Complete |
 | CLEAN-01 | Phase 25 | Pending |
 | CLEAN-02 | Phase 25 | Pending |
 | CLEAN-03 | Phase 25 | Pending |

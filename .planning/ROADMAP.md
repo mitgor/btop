@@ -62,7 +62,7 @@ Full details: `milestones/v1.2-ROADMAP.md`
 - [x] **Phase 21: Static Local Migration** - Refactor all 8 menu functions to receive frame data by reference, replacing function-static locals with frame struct members (completed 2026-03-02)
 - [x] **Phase 22: PDA Dispatch** - Replace menuMask/currentMenu/menuFunc with std::visit dispatch on PDA top frame; eliminate Switch re-entrant call pattern (completed 2026-03-02)
 - [x] **Phase 23: Input FSM** - Define InputStateVar variant, wire all transitions, replace if(filtering)/if(Menu::active) routing with FSM dispatch, integrate with App FSM resize path (completed 2026-03-02)
-- [ ] **Phase 24: Tests** - PDA transition tests, Input FSM transition tests, integration scenarios, sanitizer-clean builds
+- [x] **Phase 24: Tests** - PDA transition tests, Input FSM transition tests, integration scenarios, sanitizer-clean builds (completed 2026-03-02)
 - [ ] **Phase 25: Cleanup** - Remove menuMask, Menu::active, old_filter global, function-static locals; all migration scaffolding deleted
 
 ## Phase Details
@@ -172,5 +172,5 @@ Phases execute in numeric order: 20 -> 20.1 (if inserted) -> 21 -> ... -> 25
 | 21. Static Local Migration | 2/2 | Complete   | 2026-03-02 | - |
 | 22. PDA Dispatch | 2/2 | Complete    | 2026-03-02 | - |
 | 23. Input FSM | 2/2 | Complete    | 2026-03-02 | - |
-| 24. Tests | 1/2 | In Progress|  | - |
+| 24. Tests | 2/2 | Complete   | 2026-03-02 | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |
