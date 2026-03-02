@@ -23,6 +23,7 @@ tab-size = 4
 #include <bitset>
 #include <cassert>
 #include <cstddef>
+#include <optional>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -174,6 +175,18 @@ namespace menu {
 		Push,      ///< Push a new frame onto the stack
 		Pop,       ///< Pop the current frame, reveal frame underneath
 		Replace,   ///< Replace the current frame with a new one
+	};
+
+	// ========================================================================
+	// PDAResult — return value from handler functions (Phase 22+).
+	// Carries the desired stack action, an optional replacement frame,
+	// and a flag indicating whether the handler wrote to Global::overlay.
+	// ========================================================================
+
+	struct PDAResult {
+		PDAAction action{PDAAction::NoChange};
+		std::optional<MenuFrameVar> next_frame{};
+		bool rendered{false};
 	};
 
 	// ========================================================================

@@ -97,6 +97,42 @@ TEST(PDAAction, HasFourValues) {
 }
 
 // ========================================================================
+// PDAResult tests (PDA-04, PDA-06)
+// ========================================================================
+
+TEST(PDAResult, DefaultConstruction) {
+	menu::PDAResult r;
+	EXPECT_EQ(r.action, menu::PDAAction::NoChange);
+	EXPECT_FALSE(r.next_frame.has_value());
+	EXPECT_FALSE(r.rendered);
+}
+
+TEST(PDAResult, PopHasNoPayload) {
+	menu::PDAResult r{menu::PDAAction::Pop};
+	EXPECT_EQ(r.action, menu::PDAAction::Pop);
+	EXPECT_FALSE(r.next_frame.has_value());
+}
+
+TEST(PDAResult, ReplaceCarriesFrame) {
+	menu::PDAResult r{menu::PDAAction::Replace, menu::OptionsFrame{}};
+	EXPECT_EQ(r.action, menu::PDAAction::Replace);
+	ASSERT_TRUE(r.next_frame.has_value());
+	EXPECT_TRUE(std::holds_alternative<menu::OptionsFrame>(*r.next_frame));
+}
+
+TEST(PDAResult, PushCarriesFrame) {
+	menu::PDAResult r{menu::PDAAction::Push, menu::SignalReturnFrame{}};
+	EXPECT_EQ(r.action, menu::PDAAction::Push);
+	ASSERT_TRUE(r.next_frame.has_value());
+	EXPECT_TRUE(std::holds_alternative<menu::SignalReturnFrame>(*r.next_frame));
+}
+
+TEST(PDAResult, RenderedFlag) {
+	menu::PDAResult r{menu::PDAAction::NoChange, {}, true};
+	EXPECT_TRUE(r.rendered);
+}
+
+// ========================================================================
 // MenuPDA tests (PDA-01, PDA-02)
 // ========================================================================
 
