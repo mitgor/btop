@@ -2063,16 +2063,22 @@ namespace Mem {
 	mem_info current_mem {};
 
 	uint64_t get_totalMem() {
-		ifstream meminfo(Shared::procPath / "meminfo");
+		char buf[256];  // MemTotal line is ~30 bytes; 256 is ample
+		ssize_t n = Tools::read_proc_file("/proc/meminfo", buf, sizeof(buf));
+		if (n <= 0) throw std::runtime_error("Could not get total memory size from /proc/meminfo");
+		// First line is "MemTotal:       NNNNN kB\n"
+		std::string_view sv(buf, n);
+		auto colon = sv.find(':');
+		if (colon == std::string_view::npos) throw std::runtime_error("Could not get total memory size from /proc/meminfo");
+		size_t pos = colon + 1;
+		while (pos < sv.size() && sv[pos] == ' ') ++pos;
 		int64_t totalMem = 0;
-		if (meminfo.good()) {
-			meminfo.ignore(SSmax, ':');
-			meminfo >> totalMem;
-			totalMem <<= 10;
+		while (pos < sv.size() && sv[pos] >= '0' && sv[pos] <= '9') {
+			totalMem = totalMem * 10 + (sv[pos] - '0');
+			++pos;
 		}
-		if (not meminfo.good() or totalMem == 0)
-			throw std::runtime_error("Could not get total memory size from /proc/meminfo");
-
+		totalMem <<= 10;  // kB to bytes
+		if (totalMem == 0) throw std::runtime_error("Could not get total memory size from /proc/meminfo");
 		return totalMem;
 	}
 
