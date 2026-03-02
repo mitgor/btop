@@ -26,7 +26,7 @@ Requirements for v1.4 Render & Collect Modernization. Each maps to roadmap phase
 
 - [ ] **DRAW-01**: Proc::draw() split into focused sub-functions (detailed view, list rendering, filter display)
 - [ ] **DRAW-02**: Cpu::draw() split with battery state tracking extracted into separate function
-- [ ] **DRAW-03**: No regression in rendered output — visual diff confirms identical terminal output
+- [ ] **DRAW-03**: No regression in rendered output -- visual diff confirms identical terminal output
 
 ### Render Architecture
 
@@ -58,8 +58,8 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | Feature | Reason |
 |---------|--------|
 | New state machines | v1.4 is modernization, not new FSM work |
-| Input dispatch rewrite | Deferred — large scope, independent of render/collect work |
-| Platform collector decomposition | Deferred — large scope, cross-platform testing needed |
+| Input dispatch rewrite | Deferred -- large scope, independent of render/collect work |
+| Platform collector decomposition | Deferred -- large scope, cross-platform testing needed |
 | Runner::pause_output refactor | Requires event queue changes, better as standalone work |
 | UI/UX changes | Architecture only, no user-facing modifications |
 | New dependencies | Prefer zero-cost or header-only if needed |
@@ -71,26 +71,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORR-01 | — | Pending |
-| PERF-01 | — | Pending |
-| PERF-02 | — | Pending |
-| PERF-03 | — | Pending |
-| PERF-04 | — | Pending |
-| PERF-05 | — | Pending |
-| PERF-06 | — | Pending |
-| PERF-07 | — | Pending |
-| PERF-08 | — | Pending |
-| DRAW-01 | — | Pending |
-| DRAW-02 | — | Pending |
-| DRAW-03 | — | Pending |
-| REND-01 | — | Pending |
-| REND-02 | — | Pending |
+| CORR-01 | Phase 25 | Pending |
+| PERF-01 | Phase 27 | Pending |
+| PERF-02 | Phase 27 | Pending |
+| PERF-03 | Phase 27 | Pending |
+| PERF-04 | Phase 28 | Pending |
+| PERF-05 | Phase 28 | Pending |
+| PERF-06 | Phase 26 | Pending |
+| PERF-07 | Phase 26 | Pending |
+| PERF-08 | Phase 26 | Pending |
+| DRAW-01 | Phase 29 | Pending |
+| DRAW-02 | Phase 29 | Pending |
+| DRAW-03 | Phase 29 | Pending |
+| REND-01 | Phase 30 | Pending |
+| REND-02 | Phase 30 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14 ⚠️
+- Mapped to phases: 14
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after initial definition*
+*Last updated: 2026-03-02 after roadmap creation*
