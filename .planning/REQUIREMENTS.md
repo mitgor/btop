@@ -60,32 +60,32 @@ None — this milestone completes the unified redraw consolidation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FLAG-01 | — | Pending |
-| FLAG-02 | — | Pending |
-| FLAG-03 | — | Pending |
-| FLAG-04 | — | Pending |
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| CLEAN-03 | — | Pending |
-| WIRE-01 | — | Pending |
-| WIRE-02 | — | Pending |
-| WIRE-03 | — | Pending |
-| WIRE-04 | — | Pending |
-| DECPL-01 | — | Pending |
-| DECPL-02 | — | Pending |
-| DECPL-03 | — | Pending |
-| MIGR-01 | — | Pending |
-| MIGR-02 | — | Pending |
-| MIGR-03 | — | Pending |
-| MIGR-04 | — | Pending |
-| MIGR-05 | — | Pending |
-| MIGR-06 | — | Pending |
+| FLAG-01 | Phase 31 | Pending |
+| FLAG-02 | Phase 31 | Pending |
+| FLAG-03 | Phase 31 | Pending |
+| FLAG-04 | Phase 31 | Pending |
+| CLEAN-01 | Phase 31 | Pending |
+| CLEAN-02 | Phase 31 | Pending |
+| CLEAN-03 | Phase 31 | Pending |
+| WIRE-01 | Phase 32 | Pending |
+| WIRE-02 | Phase 32 | Pending |
+| WIRE-03 | Phase 32 | Pending |
+| WIRE-04 | Phase 32 | Pending |
+| DECPL-01 | Phase 33 | Pending |
+| DECPL-02 | Phase 33 | Pending |
+| DECPL-03 | Phase 33 | Pending |
+| MIGR-01 | Phase 34 | Pending |
+| MIGR-02 | Phase 34 | Pending |
+| MIGR-03 | Phase 34 | Pending |
+| MIGR-04 | Phase 34 | Pending |
+| MIGR-05 | Phase 34 | Pending |
+| MIGR-06 | Phase 34 | Pending |
 
 **Coverage:**
 - v1.6 requirements: 20 total
-- Mapped to phases: 0
-- Unmapped: 20 ⚠️
+- Mapped to phases: 20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after initial definition*
+*Last updated: 2026-03-03 after roadmap creation*

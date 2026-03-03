@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Unified Redraw
-status: defining_requirements
+status: ready_to_plan
 last_updated: "2026-03-03"
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,14 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Defining requirements for v1.6 Unified Redraw
+**Current focus:** Phase 31 — DirtyFlags Foundation
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-03 — Milestone v1.6 started
+Phase: 31 of 34 (DirtyFlags Foundation)
+Plan: — (phase not yet planned)
+Status: Ready to plan
+Last activity: 2026-03-03 — Roadmap created for v1.6
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -47,9 +49,11 @@ Last activity: 2026-03-03 — Milestone v1.6 started
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions affecting current work:
-- v1.6 scope: unified redraw flags (DirtyFlags bitset), dead code removal, naming fixes, calcSizes() decoupling
-- Current redraw landscape: 5 per-box bool flags, force_redraw struct field, pending_redraw atomic, ScreenBuffer::force_full latch, Menu::redraw, dead Proc::resized
-- Proc::resized is declared as atomic<bool> but never set to true anywhere — dead flag
+- Single DirtyBit::Gpu for all GPU panels (not per-panel) — matches existing force_redraw behavior
+- Menu::redraw stays separate (main-thread-only, out of DirtyFlags scope)
+- Conservative approach: keep draw function signatures, pass dirty via parameter
+- std::atomic<uint32_t> with fetch_or/exchange; release/acquire memory ordering
+- Phase 30 (from v1.5) descoped; v1.6 starts at Phase 31
 
 ### Pending Todos
 
@@ -62,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Milestone v1.6 initialization
+Stopped at: Roadmap created for v1.6 Unified Redraw
 Resume file: None
