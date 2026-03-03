@@ -2,11 +2,21 @@
 
 ## What This Is
 
-An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM). v1.4 modernized render and collect paths (ThemeKey enum arrays, cpu_old enum arrays, stale static const fix). v1.5 completed the modernization — hot-path POSIX I/O for /proc reads and decomposed draw god functions (Proc::draw 553→75 lines, Cpu::draw 454→93 lines).
+An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM). v1.4 modernized render and collect paths (ThemeKey enum arrays, cpu_old enum arrays, stale static const fix). v1.5 completed the modernization — hot-path POSIX I/O for /proc reads and decomposed draw god functions (Proc::draw 553→75 lines, Cpu::draw 454→93 lines). v1.6 consolidates scattered redraw flags into a unified dirty-flag mechanism, removes dead code, fixes naming collisions, and decouples layout recomputation from redraw forcing.
 
 ## Core Value
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
+
+## Current Milestone: v1.6 Unified Redraw
+
+**Goal:** Consolidate scattered redraw flags into a unified dirty-flag mechanism with broader cleanup
+
+**Target features:**
+- Unified DirtyFlags bitset replacing per-box bool redraw flags, force_redraw, and pending_redraw
+- Remove dead Proc::resized flag (declared, never written)
+- Fix naming collisions (redraw locals in btop_input.cpp)
+- Decouple calcSizes() from redraw forcing (separate layout recomputation from dirty marking)
 
 ## Current State
 
@@ -52,7 +62,10 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Split Cpu::draw() and extract battery state tracking (454→93 lines) — v1.5
 
 ### Active
-- [ ] Consolidate scattered redraw flags into unified mechanism — deferred from v1.5
+- [ ] Replace per-box bool redraw flags with unified DirtyFlags bitset
+- [ ] Remove dead Proc::resized atomic flag
+- [ ] Fix redraw naming collisions in btop_input.cpp
+- [ ] Decouple calcSizes() layout recomputation from redraw/dirty marking
 
 ### Out of Scope
 
@@ -108,4 +121,4 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-03 after v1.5 milestone completion*
+*Last updated: 2026-03-03 after v1.6 milestone start*
