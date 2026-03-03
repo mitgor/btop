@@ -1,0 +1,91 @@
+# Requirements: btop Unified Redraw
+
+**Defined:** 2026-03-03
+**Core Value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
+
+## v1.6 Requirements
+
+Requirements for unified redraw milestone. Each maps to roadmap phases.
+
+### DirtyFlags Infrastructure
+
+- [ ] **FLAG-01**: DirtyBit enum defined with per-box bits (Cpu, Mem, Net, Proc, Gpu) plus ForceFullEmit
+- [ ] **FLAG-02**: PendingDirty struct wraps atomic<uint32_t> with mark()/take() API using fetch_or/exchange
+- [ ] **FLAG-03**: Single DirtyBit::Gpu covers all GPU panels (replaces vector<bool>)
+- [ ] **FLAG-04**: Unit tests verify bit operations, mark/take semantics, and concurrent access
+
+### Cleanup
+
+- [ ] **CLEAN-01**: Dead Proc::resized atomic<bool> removed from declaration and read site
+- [ ] **CLEAN-02**: calcSizes() guard simplified after Proc::resized removal
+- [ ] **CLEAN-03**: Local `bool redraw` vars in btop_input.cpp renamed to `force_redraw`
+
+### Runner Integration
+
+- [ ] **WIRE-01**: pending_redraw atomic<bool> replaced by PendingDirty instance
+- [ ] **WIRE-02**: runner_conf::force_redraw replaced by per-box dirty bits from take()
+- [ ] **WIRE-03**: Draw functions receive per-box dirty state instead of single force_redraw bool
+- [ ] **WIRE-04**: ScreenBuffer::force_full driven by ForceFullEmit bit, kept separate from per-box bits
+
+### calcSizes() Decoupling
+
+- [ ] **DECPL-01**: calcSizes() uses mark(All) instead of direct per-namespace bool assignment
+- [ ] **DECPL-02**: All 5 calcSizes() call sites verified to produce correct dirty state
+- [ ] **DECPL-03**: request_redraw() uses mark() on PendingDirty instead of separate atomic
+
+### Per-Box Migration
+
+- [ ] **MIGR-01**: Cpu::redraw namespace bool removed, draw() derives state from dirty parameter
+- [ ] **MIGR-02**: Mem::redraw namespace bool removed, draw() derives state from dirty parameter
+- [ ] **MIGR-03**: Net::redraw namespace bool removed (self-invalidation on IP change preserved)
+- [ ] **MIGR-04**: Proc::redraw namespace bool removed, draw() derives state from dirty parameter
+- [ ] **MIGR-05**: Gpu::redraw vector<bool> removed, draw() derives state from dirty parameter
+- [ ] **MIGR-06**: Per-box extern declarations removed from btop_shared.hpp
+
+## Future Requirements
+
+None — this milestone completes the unified redraw consolidation.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Sub-box dirty tracking | ScreenBuffer already handles cell-level differential rendering |
+| Observer/listener pattern | Over-engineering for 5 boxes with simple dirty bits |
+| Async dirty propagation | Single producer-consumer pattern is sufficient |
+| Menu::redraw consolidation | Main-thread-only, no cross-thread concern, stays separate |
+| Draw function signature changes | Conservative approach: keep existing signatures, pass dirty via parameter |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FLAG-01 | — | Pending |
+| FLAG-02 | — | Pending |
+| FLAG-03 | — | Pending |
+| FLAG-04 | — | Pending |
+| CLEAN-01 | — | Pending |
+| CLEAN-02 | — | Pending |
+| CLEAN-03 | — | Pending |
+| WIRE-01 | — | Pending |
+| WIRE-02 | — | Pending |
+| WIRE-03 | — | Pending |
+| WIRE-04 | — | Pending |
+| DECPL-01 | — | Pending |
+| DECPL-02 | — | Pending |
+| DECPL-03 | — | Pending |
+| MIGR-01 | — | Pending |
+| MIGR-02 | — | Pending |
+| MIGR-03 | — | Pending |
+| MIGR-04 | — | Pending |
+| MIGR-05 | — | Pending |
+| MIGR-06 | — | Pending |
+
+**Coverage:**
+- v1.6 requirements: 20 total
+- Mapped to phases: 0
+- Unmapped: 20 ⚠️
+
+---
+*Requirements defined: 2026-03-03*
+*Last updated: 2026-03-03 after initial definition*
