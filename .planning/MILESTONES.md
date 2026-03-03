@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.5 Render & Collect Completion (Shipped: 2026-03-03)
+
+**Phases completed:** 2 phases, 4 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.4 Render & Collect Modernization (Shipped: 2026-03-02)
 
 **Phases:** 3 (25-27) | **Plans:** 5 | **Source files:** 12 | **LOC:** +777 / -572

@@ -2,22 +2,19 @@
 
 ## What This Is
 
-An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM).
+An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM). v1.4 modernized render and collect paths (ThemeKey enum arrays, cpu_old enum arrays, stale static const fix). v1.5 completed the modernization — hot-path POSIX I/O for /proc reads and decomposed draw god functions (Proc::draw 553→75 lines, Cpu::draw 454→93 lines).
 
 ## Core Value
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## Current Milestone: v1.5 Render & Collect Completion
+## Current State
 
-**Goal:** Complete the render and collect modernization started in v1.4 — POSIX I/O for hot-path reads, decomposed god functions, and unified redraw mechanism.
-
-**Target features:**
-- Hot-path ifstream → POSIX I/O for /proc/stat and /proc/meminfo
-- Split Proc::draw() (555 lines) into focused sub-functions
-- Split Cpu::draw() (478 lines), extract battery state tracking
-- Consolidate 5 scattered redraw flags into unified mechanism
-- Zero regression in user-visible behavior
+**Latest shipped:** v1.5 Render & Collect Completion (2026-03-03)
+- Hot-path /proc/stat and /proc/meminfo reads converted to zero-allocation POSIX I/O
+- Proc::draw() (553 lines) decomposed into 5 sub-functions, orchestrator reduced to 75 lines
+- Cpu::draw() (454 lines) decomposed into 5 sub-functions, battery state encapsulated, orchestrator reduced to 93 lines
+- 330 tests passing, zero regressions
 
 ## Requirements
 
@@ -50,12 +47,12 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Fix stale static const in calcSizes() (freq_range/hasCpuHz baked at first call) — v1.4 Phase 25
 - ✓ Replace theme string-keyed maps with ThemeKey enum + std::array — v1.4 Phase 26
 - ✓ Convert cpu_old string-keyed unordered_map to std::array on all platforms — v1.4 Phase 27
+- ✓ Convert hot-path ifstream reads to POSIX I/O (Cpu::collect, Mem::collect) — v1.5
+- ✓ Split Proc::draw() into focused sub-functions (553→75 lines) — v1.5
+- ✓ Split Cpu::draw() and extract battery state tracking (454→93 lines) — v1.5
 
 ### Active
-- [ ] Convert hot-path ifstream reads to POSIX I/O (Cpu::collect, Mem::collect) — v1.5
-- [ ] Split Proc::draw() into focused sub-functions — v1.5
-- [ ] Split Cpu::draw() and extract battery state tracking — v1.5
-- [ ] Consolidate scattered redraw flags into unified mechanism — v1.5
+- [ ] Consolidate scattered redraw flags into unified mechanism — deferred from v1.5
 
 ### Out of Scope
 
@@ -111,4 +108,4 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
 
 ---
-*Last updated: 2026-03-02 after v1.5 milestone start*
+*Last updated: 2026-03-03 after v1.5 milestone completion*

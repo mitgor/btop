@@ -7,7 +7,7 @@
 - ✅ **v1.2 Tech Debt** — Phases 16-19 (shipped 2026-03-02)
 - ✅ **v1.3 Menu PDA + Input FSM** — Phases 20-24 (shipped 2026-03-02)
 - ✅ **v1.4 Render & Collect Modernization** — Phases 25-27 (shipped 2026-03-02)
-- [ ] **v1.5 Render & Collect Completion** — Phases 28-29
+- ✅ **v1.5 Render & Collect Completion** — Phases 28-29 (shipped 2026-03-03)
 
 ## Phases
 
@@ -78,58 +78,12 @@ Full details: `milestones/v1.4-ROADMAP.md` | `milestones/v1.4-REQUIREMENTS.md`
 
 </details>
 
-### v1.5 Render & Collect Completion
+<details>
+<summary>v1.5 Render & Collect Completion (Phases 28-29) -- SHIPPED 2026-03-03</summary>
 
-**Milestone Goal:** Complete the render and collect modernization started in v1.4 -- POSIX I/O for hot-path reads and decomposed god functions. Zero regression in user-visible behavior.
+- [x] Phase 28: Hot-Path POSIX I/O (2/2 plans) -- completed 2026-03-02
+- [x] Phase 29: Draw Decomposition (2/2 plans) -- completed 2026-03-02
 
-**Phase Numbering:** Phases 28-29 (continued from v1.4).
+Full details: `milestones/v1.5-ROADMAP.md` | `milestones/v1.5-REQUIREMENTS.md`
 
-- [x] **Phase 28: Hot-Path POSIX I/O** - Convert Cpu::collect and Mem::collect ifstream reads to read_proc_file() on Linux (completed 2026-03-02)
-- [x] **Phase 29: Draw Decomposition** - Split Proc::draw() and Cpu::draw() god functions into focused sub-functions (completed 2026-03-02)
-
-## Phase Details
-
-### Phase 28: Hot-Path POSIX I/O
-**Goal**: Linux hot-path proc file reads in Cpu::collect and Mem::collect use zero-allocation POSIX read() via read_proc_file() instead of ifstream
-**Depends on**: Phase 27 (v1.4 complete)
-**Requirements**: PERF-04, PERF-05
-**Success Criteria** (what must be TRUE):
-  1. Cpu::collect reads /proc/stat via read_proc_file() with a stack buffer -- no ifstream construction or heap allocation per collect cycle
-  2. Mem::collect reads /proc/meminfo via read_proc_file() with a stack buffer -- no ifstream construction or heap allocation per collect cycle
-  3. CPU and memory metrics displayed in btop are identical before and after the conversion (verified by comparing output values)
-  4. macOS and FreeBSD builds are unaffected (their collectors use sysctl APIs, not /proc)
-**Plans**: 2 plans
-
-Plans:
-- [ ] 28-01-PLAN.md -- Convert Cpu::collect and Proc::collect /proc/stat reads to read_proc_file()
-- [ ] 28-02-PLAN.md -- Convert Mem::collect /proc/meminfo and arcstats reads to read_proc_file()
-
-### Phase 29: Draw Decomposition
-**Goal**: Proc::draw() and Cpu::draw() god functions are split into focused sub-functions with no change in rendered output
-**Depends on**: Phase 28
-**Requirements**: DRAW-01, DRAW-02, DRAW-03
-**Success Criteria** (what must be TRUE):
-  1. Proc::draw() is decomposed into named sub-functions (detailed view rendering, process list rendering, filter bar display) with the top-level function under 100 lines
-  2. Cpu::draw() is decomposed with battery state tracking extracted into a separate function; top-level function under 100 lines
-  3. Terminal output is byte-identical before and after decomposition (verified by capturing and diffing draw output)
-  4. All existing tests pass; btop builds on all three platforms
-**Plans**: TBD
-
-Plans:
-- [ ] 29-01: TBD
-- [ ] 29-02: TBD
-
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 28 -> 29
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1-8 | v1.0 | 20/20 | Complete | 2026-02-27 |
-| 10-15 | v1.1 | 13/13 | Complete | 2026-03-01 |
-| 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
-| 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
-| 25-27 | v1.4 | 5/5 | Complete | 2026-03-02 |
-| 28. Hot-Path POSIX I/O | v1.5 | 2/2 | Complete | 2026-03-02 |
-| 29. Draw Decomposition | v1.5 | 2/2 | Complete | 2026-03-02 |
+</details>
