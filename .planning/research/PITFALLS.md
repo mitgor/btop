@@ -1,214 +1,245 @@
 # Pitfalls Research
 
-**Domain:** C++ terminal UI — pushdown automaton menu system + input FSM added to existing explicit-FSM architecture (btop++ v1.3)
-**Researched:** 2026-03-02
-**Confidence:** HIGH — based on direct btop++ source analysis, established C++ FSM literature, and lessons from v1.1/v1.2 milestones
+**Domain:** C++ terminal UI — unified dirty-flag consolidation added to existing multi-path rendering pipeline (btop++ v1.6)
+**Researched:** 2026-03-03
+**Confidence:** HIGH — based on direct btop++ source analysis (five per-box redraw bools, force_redraw per-cycle field, pending_redraw atomic, ScreenBuffer::force_full latch, Menu::redraw, dead Proc::resized), established literature on dirty-flag patterns (Game Programming Patterns), and lessons from v1.1/v1.2 shadow-atomic desync experience
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Variant Self-Modification During std::visit (Dangling Reference UB)
+### Pitfall 1: Atomicity Gap During Migration — Dual-Write Window Between Old Flags and New Bitset
 
 **What goes wrong:**
-A visitor lambda takes the current state by reference (e.g., `const MenuFrame& top_frame`), then modifies the stack or PDA variant from inside that lambda. The modification destroys the old variant contents. The reference the lambda holds now points to freed memory. Accessing it is undefined behavior — no compiler warning, no sanitizer catch in all paths, silent data corruption or crash.
+The migration from five per-box `bool redraw` globals (`Cpu::redraw`, `Mem::redraw`, `Net::redraw`, `Proc::redraw`, `Gpu::redraw[i]`) plus `runner_conf::force_redraw` to a unified `DirtyFlags` bitset will be incremental. During the transition, any call site that sets the old bool but does not set the corresponding bitset bit — or vice versa — creates a window where the flag system is inconsistent.
 
-This is especially dangerous in the PDA because `process(key)` needs to pop the top frame, which destroys the old frame while still in the call chain derived from inspecting it.
+This is exactly the v1.2 bug pattern: `runner_var` (the variant) was stale because all writes went through the shadow atomic, leaving the variant dead. Here the reverse happens: code that has been migrated reads from `DirtyFlags`, while not-yet-migrated callers still write to the per-box bools. The runner, reading only `DirtyFlags`, sees "no redraw requested" even though `Proc::redraw` is `true`.
+
+Concrete example: `Runner::run()` passes `force_redraw` into `runner_conf`, which each `draw()` function checks. If `Proc::draw()` is migrated to read from `DirtyFlags::Proc` but `btop_input.cpp` still writes `Proc::redraw = true` (the old path), the redraw never fires under the new system.
 
 **Why it happens:**
-The pattern feels natural: visit the current state, decide what to do based on it, then do it. In simple FSMs where the state never has pointers into itself this is safe. Once the variant is reallocated or destroyed during the visit, any captured references go dangling. The v1.1 App FSM avoided this because `dispatch_event` returns a new `AppStateVar` rather than mutating in place — the same discipline must apply to the PDA.
+There are at least 20 write sites across `btop_input.cpp`, `btop_menu.cpp`, `btop_draw.cpp` (in `calcSizes()`), and `btop.cpp` (in `on_enter(Resizing)` and `on_enter(Reloading)`). Migrating the reader before all writers, or migrating writers in batches without removing old writes in the same commit, creates a temporary state where both systems exist but only one is consulted.
 
 **How to avoid:**
-- Never mutate the PDA stack from inside a `std::visit` call on that same stack's top frame
-- Follow the v1.1 pattern exactly: `process(key)` returns a new `MenuPDAVar` (or `std::optional<MenuPDAFrame>`) and the caller applies it after the visit completes
-- If the logic requires inspecting the top frame to decide whether to pop, extract the decision as a pure function returning a `PDAAction` enum (Push/Pop/Replace/NoChange), then apply the action outside the visitor
-- Run with `-fsanitize=address,undefined` and test rapid menu open/close/open sequences
+- Define the `DirtyFlags` enum/bitset type and its write API (e.g., `DirtyFlags::mark(Box)`) before migrating any read site.
+- Migrate writes and reads for one box at a time within a single atomic commit. Never leave a partial migration where a box's write path uses the old bool but the read path uses `DirtyFlags`.
+- Immediately after each box is migrated, delete the old `bool redraw` declaration from the box namespace. Compile errors from remaining old-style write sites are the migration checklist.
+- Do not keep both the old bool and the new bitset bit alive in parallel longer than one plan. The v1.2 retrospective: "shadow atomics create consistency debt" — dual representation is a bug factory.
 
 **Warning signs:**
-- Crash only under certain frame sequences (signal choose → signal send → escape)
-- Heisenbugs that disappear under ASan (allocator padding changes addresses)
-- Valgrind reports use-after-free in `Menu::process`
+- A box that should redraw (e.g., after pressing a key that sets `Proc::redraw = true`) does not redraw after migration.
+- TSan reports no data race (both paths are on the runner thread), but the behavior is silently wrong — the flag was set on the old path and read on the new path.
+- `redraw = true` assignments remain in files after the per-box bool declaration has been removed — these cause compile errors that catch the problem before it runs.
 
 **Phase to address:**
-PDA frame data structure phase (earliest menu design phase). The visitor pattern must be settled before any menu frame is implemented.
+First implementation phase (DirtyFlags type definition). The write API must be finalized and the deletion-on-migrate rule established before any per-box bool is touched.
 
 ---
 
-### Pitfall 2: Static Local State Survives Re-Entry — The Hidden Persistent Menu Bug
+### Pitfall 2: Under-Invalidation — Missing Write Sites Produce Stale Frames
 
 **What goes wrong:**
-The current `signalChoose`, `optionsMenu`, `helpMenu`, `reniceMenu`, and `mainMenu` functions each carry `static int x`, `static int y`, `static int selected_signal`, `static int page`, `static vector<string> colors_selected`, and similar locals that persist between calls. The existing code resets them when `bg.empty()` (a proxy for "first call of this menu activation"). When these statics are migrated to per-frame struct members, the reset logic must be replicated exactly. If even one field is missed, the menu reopens in a stale visual state — wrong scroll position, wrong selection highlight, wrong page number.
+The system currently works correctly. The goal is architectural consolidation, not bug fixes. Every existing write to a per-box `redraw` bool represents a legitimate and necessary invalidation. If any write site is missed during migration — left out of the new `DirtyFlags::mark()` call — the corresponding box silently stops invalidating when that trigger fires.
 
-The specific risk: the PDA push-on-show path calls the constructor for the new frame struct, which zero-initializes POD members. But any non-POD member with a non-trivial default constructor (e.g., a `std::string nice_edit`) must be explicitly reset. If a frame struct is ever recycled (stored in a pool or re-pushed from a closed state), old string values survive.
+The risk is not obvious because the box still redraws on resize (handled by `calcSizes()` which does a bulk `Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true` at line 2938 of `btop_draw.cpp`). Resize-triggered redraws mask the missing invalidation. The regression only surfaces when the specific trigger (e.g., an interface change in Net::draw that sets `redraw = true` when `old_ip != ip_addr`) fires in steady-state operation without a preceding resize.
+
+Concrete current write sites that are easy to miss:
+- `Net::draw()` sets `redraw = true` when `old_ip != ip_addr` (line 2107 in `btop_draw.cpp`) — a data-triggered self-invalidation inside the draw function itself.
+- `Net::draw()` sets `redraw = true` on interface change (line 2247) — same pattern.
+- `Proc::draw()` sets `redraw = true` in `selection()` when `follow_process` logic fires (line 2247 in `btop_draw.cpp`).
+- Input handler local `bool redraw` variables in `btop_input.cpp` (lines 355, 587, 618, 640) — these shadow the namespace-scoped `Proc::redraw`, `Cpu::redraw`, etc. They are passed to `Runner::run(box, no_update, redraw)` as the `force_redraw` argument, not set on the per-box bool directly.
 
 **Why it happens:**
-Static locals are reset by condition (`if (bg.empty())`) rather than by construction. When rewriting to struct-based frames, developers frequently translate the condition-based reset into the constructor but miss non-obvious reset points: `signalChoose` resets `selected_signal = -1` in the `bg.empty()` branch, but that branch also rebuilds `bg` — so missing the bg rebuild is equivalent to missing the reset. The two concerns are tangled in the original code.
+The per-box redraw bools serve two different roles: (a) a persistent "needs redraw" flag carried across frames (the namespace-scoped `bool redraw = true` in each box), and (b) a per-invocation override passed as `force_redraw` parameter into `draw()` functions. A unified `DirtyFlags` bitset must cover both roles — or the architecture must explicitly separate them. Conflating them produces a design where some bits need to persist until consumed (like (a)) and others are cycle-ephemeral (like (b)). Missing this distinction leads to either bits that are never cleared or bits that are cleared too early.
 
 **How to avoid:**
-- Audit every `static` local in every menu function before writing any frame struct. Record each field, its type, its initial value, and when it is reset. This produces the authoritative field list for the frame struct.
-- Implement frame struct constructors that unconditionally initialize every field to its "fresh open" value — not conditionally
-- Delete the `bg.empty()` reset pattern entirely; replace it with construction semantics: "a new frame is always fresh"
-- Treat `bg` (the box drawing string) as a renderable output computed on the first call, not as a state-reset flag
-- Write a test for each menu that: opens the menu, interacts with it (changes selected item, page, etc.), closes it, reopens it — and asserts the reopened state matches a fresh open
+- Before writing any code, enumerate all write sites for each per-box bool. The authoritative source is `grep -rn "redraw\s*=" src/`. There are at least 15 distinct sites.
+- Distinguish data-triggered self-invalidations (inside `draw()`) from externally-triggered invalidations (from `btop_input.cpp`, `btop_menu.cpp`, `calcSizes()`). The architecture must handle both.
+- For self-invalidations inside `draw()`: the draw function must still write the flag; the only change is where the flag lives (bitset bit vs. namespace bool). Do not delete these writes.
+- For the `force_redraw` parameter pattern: this is per-cycle ephemeral and can be collapsed into the bitset if the bitset is consumed-and-cleared each cycle. Ensure the clearing happens at the right point (after draw, not before).
+- Test each trigger independently: resize, interface change, IP change, filter change, sort change. Do not rely only on resize tests.
 
 **Warning signs:**
-- Menu reopens on wrong page or with previous selection highlighted
-- Signal choose dialog shows last signal number instead of -1 after reopening
-- Renice menu shows previous nice value after reopening with a different process selected
-- Options menu opens at last scroll position instead of top
+- Net box fails to redraw its header when the active network interface changes (IP address change).
+- Proc box fails to redraw after sort order is toggled.
+- Box appears frozen at previous visual state despite new data arriving.
+- All boxes redraw correctly on resize but not on key-triggered config changes — indicates `calcSizes()` path was migrated but input handler path was not.
 
 **Phase to address:**
-The static-locals audit must happen in the first PDA implementation phase, before any frame struct is coded. The test for each menu's fresh-open state must be in the test phase.
+Pre-implementation audit phase (write-site inventory). The full list of write sites must be enumerated and classified before any migration begins.
 
 ---
 
-### Pitfall 3: Dual Menu State — Variant and Bitset Desync During Incremental Migration
+### Pitfall 3: Over-Invalidation — Bitset Granularity Too Coarse Defeats Differential Rendering
 
 **What goes wrong:**
-The migration from `menuMask` + `currentMenu` to a PDA stack will be incremental — some menus converted, others not. During the transition, both systems may be live simultaneously. The existing `Menu::process()` reads `menuMask` and `currentMenu` to determine what to display. If the PDA stack says "Options is active" but `menuMask` has been cleared, `Menu::process` sees no active menu and exits. If `menuMask` is set but the PDA stack is empty, `Menu::active` may be set while the PDA has nothing to display.
+The current system has fine-grained per-box redraw bools. `runner_conf::force_redraw` is a separate concept: when true, it forces all boxes to redraw AND sets `screen_buffer.set_force_full()`, which bypasses the differential cell-buffer comparison and emits the full terminal frame. These are two different mechanisms with different effects:
+- Per-box `redraw = true`: causes a box to regenerate its `string` output (expensive string building).
+- `force_full`: causes the output emitter to bypass the cell-buffer diff and write all cells unconditionally (expensive terminal I/O).
 
-This is structurally identical to the v1.2 shadow-atomic desync bug (variant and `app_state` atomic diverging), which caused hard-to-reproduce failures before `transition_to()` enforced single-writer invariant. The v1.1 retrospective explicitly flagged this: "shadow atomics create consistency debt."
+If `DirtyFlags` conflates per-box invalidation with screen-buffer invalidation into a single bit, or if the bitset's `all-boxes` variant always triggers `force_full`, the result is that any single-box key-press (e.g., toggling proc sort order) forces a full terminal repaint — undoing the differential rendering work from v1.0.
+
+Concrete current architecture: `runner_conf::force_redraw = true` causes both (1) all per-box `draw()` calls to receive `force_redraw = true` and (2) `screen_buffer.set_force_full()` to be called (line 737 of `btop.cpp`). These are currently tied together. The unified bitset must preserve the ability to invalidate individual boxes without triggering `force_full`.
 
 **Why it happens:**
-Incremental migration requires both old and new representations to be maintained simultaneously. Any code path that writes one but not the other creates a window of inconsistency. In the v1.2 case it was the runner error path writing the shadow atomic directly. Here the risk is any call site that calls `menuMask.set()` without also pushing a PDA frame, or that pops a PDA frame without clearing the corresponding `menuMask` bit.
+When consolidating flags, the temptation is to create a single "dirty" concept: if dirty → redraw everything. This is safe (no under-invalidation) but wasteful. The existing system's granularity — where toggling proc sorting redraws only the proc box, not cpu/mem/net — is a deliberate performance property. A DirtyFlags bitset with per-box bits naturally preserves this if the runner checks each bit independently. The problem arises if the "force full screen repaint" logic (currently tied to `force_redraw`) is accidentally attached to the per-box dirty path.
 
 **How to avoid:**
-- Apply the single-writer invariant immediately: at the start of the migration, wrap all `menuMask` mutations and `currentMenu` assignments inside a single function (`menu_show()` / `menu_close()`) that updates both representations atomically
-- Never let PDA push/pop calls exist without a corresponding `menuMask` update in the same function, or vice versa
-- After each menu is migrated, remove the `menuMask.set()` call for that menu and replace it with PDA push only — do not run both in parallel longer than one phase
-- Add an assertion at the top of `Menu::process()` that verifies: `menuMask.none() == pda_stack.empty()` during the transition period
+- Keep the two concerns explicitly separate in the DirtyFlags design: per-box content invalidation (bits 0–N for each box) and full-screen emit (a separate flag or mechanism).
+- `ScreenBuffer::force_full` should only be set when: (a) a resize event fires, (b) a reload event fires, or (c) an explicit "full repaint requested" signal. It must NOT be set for normal per-box content invalidation.
+- Verify the runner loop: after migration, a dirty-proc-only cycle must call only `Proc::draw(force_redraw=true)` with the other boxes getting `force_redraw=false`, and `screen_buffer.needs_full()` must return `false` (so `diff_and_emit` is used, not `full_emit`).
+- Write a benchmark or metric assertion: single-key-press redraw should not cause `full_emit`; only resize/reload should.
 
 **Warning signs:**
-- `Menu::active` is false but PDA stack is non-empty (or vice versa)
-- Menu appears briefly then immediately closes without user input
-- Escape from a menu puts the system in a partially-active state where background renders incorrectly
+- After migration, all key presses cause a visible full-terminal flicker (the tell-tale sign of `full_emit` instead of `diff_and_emit`).
+- TSan or perf profiles show `write_stdout` call volume increasing significantly after migration (more bytes written per cycle).
+- The `screen_buffer.needs_full()` branch is taken on cycles where no resize occurred.
 
 **Phase to address:**
-First migration phase. The wrapper function must be written before the first menu is migrated, not after.
+DirtyFlags API design phase. The per-box bits and the full-screen-emit flag must be specified as separate concerns before any runner-loop code is touched.
 
 ---
 
-### Pitfall 4: Mouse Mapping Ownership Ambiguity Between Menu PDA and Input FSM
+### Pitfall 4: Cross-Thread Ordering — `pending_redraw` Folding Loses Ordering Guarantee
 
 **What goes wrong:**
-The current code has two `mouse_mappings` maps: `Menu::mouse_mappings` (used when `Menu::active` is true) and `Input::mouse_mappings` (used otherwise). The dispatching in `Input::get()` at line 182 reads:
+The current system has `Runner::pending_redraw` (an `atomic<bool>`) that is set by `Runner::request_redraw()` and folded into `runner_conf::force_redraw` at the start of each run cycle (line 903 of `btop.cpp`). The folding uses `pending_redraw.exchange(false, std::memory_order_relaxed)`. This is intentionally relaxed because `force_redraw` is then carried as a struct field accessed only on the runner thread.
+
+If the unified `DirtyFlags` bitset is made a plain `std::bitset<N>` (not atomic), and `request_redraw()` is rewritten to set a bit directly on this bitset from the main thread while the runner thread is reading it, a data race occurs. `std::bitset` provides no thread-safety guarantees.
+
+The current `pending_redraw` atomic exists precisely because `request_redraw()` is called from the main thread (e.g., from `on_enter(Reloading&)` in `btop.cpp` line 1279 context), while the runner thread reads and processes the flag. Any migration that moves from an atomic to a plain bitset must maintain the thread-safety boundary.
+
+**Why it happens:**
+The per-box `bool redraw` variables are only written and read on the runner thread (inside `draw()` and `Runner::run()`). They are not atomic because they are thread-local in practice. The per-box bools being non-atomic is correct. But `pending_redraw` is genuinely cross-thread. If a unified bitset merges these two — per-box runner-local bits and the cross-thread request-redraw bit — without making the cross-thread bits atomic, a race is introduced.
+
+**How to avoid:**
+- Separate the design into two components: (1) `RunnerDirtyFlags` — a plain (non-atomic) bitset accessed only on the runner thread, holding per-box content-dirty bits; (2) an atomic mechanism for cross-thread "request full redraw" (either keep `pending_redraw` as-is or make the relevant bitset bits atomic).
+- Alternatively: make `DirtyFlags` an `atomic<uint32_t>` and use `fetch_or` for setting bits and `exchange(0)` for consuming them. This is correct for `std::atomic<uint32_t>` when the bitset width fits in 32 bits (5 boxes + menu + force_full = 7 bits, comfortably fits).
+- Run TSan on the migrated code. The existing codebase is TSan-clean; any new race introduced by the migration will be caught.
+- Do not use `std::atomic<std::bitset<N>>` — `std::bitset` is not trivially copyable in all implementations; use `std::atomic<uint32_t>` with manual bit manipulation or per-bit `std::atomic<bool>` for cross-thread bits.
+
+**Warning signs:**
+- TSan reports: "data race on DirtyFlags" or "read of size N by thread T1, write by thread T2".
+- Intermittent missed redraws that are not reproducible with TSan disabled (TSan slows threads, masking the race).
+- The migration compiles and appears to work but the race is latent.
+
+**Phase to address:**
+DirtyFlags type design phase. Thread ownership of each bit must be documented before the type is coded. TSan-clean requirement (existing) means any race will be caught in CI.
+
+---
+
+### Pitfall 5: `calcSizes()` Decoupling — Layout Recomputation Silently Coupled to Redraw Forcing
+
+**What goes wrong:**
+`Draw::calcSizes()` currently does two things in one call: (1) it recomputes all box geometries (x, y, width, height) based on current terminal size and config, and (2) it sets `Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true` (line 2938 of `btop_draw.cpp`). The v1.6 goal explicitly includes decoupling these: "Decouple calcSizes() from redraw forcing."
+
+The pitfall is decoupling them in the wrong order. If the redraw-forcing is removed from `calcSizes()` before the `DirtyFlags` mechanism reliably marks all boxes dirty after a layout change, there is a window where layout recomputes but boxes are not marked dirty — producing a frame where boxes render at new geometry coordinates but with stale content strings (which were generated at the old geometry).
+
+Concrete risk: the caller of `calcSizes()` is responsible for marking boxes dirty. If `on_enter(Resizing)` is the expected location for this marking, but some call site (e.g., `btop_menu.cpp:1647` calling `Draw::calcSizes()` on `screen_redraw`) does not also call `DirtyFlags::mark_all()`, that particular resize path leaves boxes with stale content.
+
+**Why it happens:**
+The coupling in `calcSizes()` is a defensive design: whoever calls `calcSizes()` gets redraw forcing "for free." Removing it makes the caller responsible for marking dirty flags. With 5+ call sites for `calcSizes()` across `btop.cpp`, `btop_input.cpp`, and `btop_menu.cpp`, missing one is easy.
+
+**How to avoid:**
+- Enumerate all `calcSizes()` call sites before decoupling (there are 5: `on_enter(Resizing)`, `on_enter(Reloading)`, initialization in `main()`, two in `btop_input.cpp` for preset changes, one in `btop_menu.cpp` for screen_redraw). Each must either: (a) call `DirtyFlags::mark_all()` after `calcSizes()`, or (b) rely on a higher-level path (e.g., `on_enter(Resizing)` calls `Runner::run("all", true, force_redraw=true)` which already marks all dirty).
+- Do not decouple the redraw-forcing from `calcSizes()` until the `DirtyFlags` API is complete and all call sites have been audited and updated.
+- Write a test or assertion: after `calcSizes()` is called, `DirtyFlags::any()` must return `true`. Add a `[[nodiscard]]` check or a debug assertion that fires if `calcSizes()` returns without any dirty flags being set.
+- The decoupling phase should be a separate, focused plan that changes only `calcSizes()` and its callers — not bundled with other flag migration work.
+
+**Warning signs:**
+- After resize, boxes render at correct new sizes but content (graphs, text) has not been regenerated — ghosting or visual artifacts from stale content at new coordinates.
+- The `btop_menu.cpp:screen_redraw` path (which calls `calcSizes()` directly after options menu close) produces incorrect display after changing a layout-affecting config option.
+- Tests that cover the resize path pass, but tests that cover the options-menu-layout-change path fail.
+
+**Phase to address:**
+A dedicated decoupling phase (must follow the DirtyFlags-for-all-boxes phase). Never bundled with the atomicity migration.
+
+---
+
+### Pitfall 6: `Menu::redraw` Semantic Mismatch — Menu Redraw Is Not a Box Dirty Flag
+
+**What goes wrong:**
+The current system has `Menu::redraw` (a plain `bool` in `btop_menu.cpp`) which tells `Menu::process()` to regenerate the overlay string. This is semantically different from the per-box redraw bools: the menu overlay is rendered as an overlay over the main boxes, not as a box itself. It does not feed into `Runner::run()`'s box loop. It is consumed by `Menu::process()` directly when input is processed.
+
+If `DirtyFlags` is extended to include a `Menu` bit as one of the box flags, and the runner loop checks it like other boxes, the menu redraw will be processed in the wrong context (wrong thread, wrong timing). The menu overlay rendering is tied to the input event loop, not the collect/draw cycle.
+
+Additionally, `Menu::redraw = true` is set in `calcSizes()` at line 2930 only if `Input::is_menu_active()`. This conditional set is the correct behavior. A unified bitset that sets the Menu bit unconditionally in all resize paths would trigger spurious `Menu::process()` calls when no menu is active.
+
+**Why it happens:**
+When creating a `DirtyFlags` type with one bit per "thing that needs updating," it is tempting to include `Menu` as one of the flags for uniformity. But menu rendering has a different owner, different timing, and different consumption pattern than box rendering.
+
+**How to avoid:**
+- Keep `Menu::redraw` separate from the box-level `DirtyFlags` bitset. The bitset covers: Cpu, Mem, Net, Proc, Gpu (per-panel). Menu remains its own bool.
+- Document this boundary explicitly: "DirtyFlags covers Runner-thread box content. Menu::redraw is consumed by the main-thread input loop via Menu::process()."
+- When migrating `calcSizes()` to use `DirtyFlags::mark_all()` for box bits, retain the conditional `if (Input::is_menu_active()) Menu::redraw = true;` line as-is. Do not fold it into the bitset.
+
+**Warning signs:**
+- Menu overlay disappears or fails to redraw after terminal resize when menu is open (indicates `Menu::redraw = true` was removed or conditional was lost).
+- `Menu::process()` is called from the runner thread instead of the main thread (architecture violation; would be flagged by TSan if thread identities are checked).
+- Menu redraw state leaks between cycles — a menu redraw is triggered even when no menu is open.
+
+**Phase to address:**
+DirtyFlags design phase. The Menu exclusion must be specified in the type definition before any migration begins.
+
+---
+
+### Pitfall 7: Dead Code Removal Race — `Proc::resized` Has Latent Read in `calcSizes()`
+
+**What goes wrong:**
+`Proc::resized` is declared as `atomic<bool>` in `btop_shared.hpp` (line 721) and in `btop_draw.cpp` (line 2220). The v1.6 plan is to remove it as dead code (it is "never written"). However, there is one read of it: `calcSizes()` at line 2926 of `btop_draw.cpp`:
 
 ```cpp
-for (const auto& [mapped_key, pos] : (Menu::active ? Menu::mouse_mappings : mouse_mappings))
+if (not (Proc::resized or Global::app_state.load() == AppStateTag::Resizing)) {
+    Proc::p_counters.clear();
+    Proc::p_graphs.clear();
+}
 ```
 
-This binary choice will not scale to a PDA stack with multiple frames that each have their own mouse regions. If a modal dialog (SignalSend) is open on top of the Main Menu, the input system must consult only `SignalSend`'s mouse mappings — not the underlying Main Menu's mappings, and not the global input mappings.
-
-If the PDA frame's mouse mappings are merged into a single flat map for efficiency, a key collision between frames (e.g., both Main Menu and Options define a "button1" mapping) silently overwrites one with the other, creating incorrect click targets.
-
-If the Input FSM introduces a `MenuActive` state that holds a reference to the top-frame's mappings, but the PDA stack is modified between key parsing and click dispatch, the reference goes stale.
+This read guards the clearing of `p_counters` and `p_graphs`. If `Proc::resized` is removed without understanding this guard, the removal changes behavior: `p_counters` and `p_graphs` will always be cleared on non-resize `calcSizes()` calls (since `Proc::resized` was always `false`, the condition `not (false or ...)` is always `not (app_state == Resizing)`). Since `Proc::resized` was never written (always `false`), removing it and simplifying the condition to `app_state != Resizing` is semantically correct — but this analysis must be explicit, not assumed.
 
 **Why it happens:**
-The original code assumes at most one active menu, making the binary `Menu::active` check sufficient. The PDA introduces a hierarchy — the top frame is what the user sees, lower frames are hidden. The input system needs to be aware of this hierarchy without coupling directly to PDA internals. Developers tend to resolve this by passing a pointer or reference to the top frame's mappings, which creates a lifetime issue when the stack is modified.
+"Dead code" means "never written" but the variable is still read. A read of a variable whose value is always the default (`false`) is not dead — it silently controls a branch. Removing it without simplifying the branch incorrectly preserves or incorrectly eliminates downstream behavior. The "dead" label applies to the write side only; the read side has observable effects via the branch it guards.
 
 **How to avoid:**
-- Each PDA frame struct owns its mouse mappings as a value member (`std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings`)
-- `Menu::process()` returns (or sets) a single `const std::unordered_map<string, Mouse_loc>*` pointing to the top frame's mappings after each transition
-- `Input::get()` reads this pointer exactly once per input event, before any state modification
-- The Input FSM's `MenuActive` state stores a pointer to the stable mappings; the pointer is refreshed by `Menu::process()` after every PDA transition, not during input parsing
-- No merging of mouse mappings across frames: only the topmost frame's mappings are ever active
+- Before removing `Proc::resized`, trace every read site and determine the effect when the value is always `false`. In this case: the condition `not (Proc::resized or ...)` simplifies to `not (...)` — the `Proc::resized` term is vacuously `false` and the condition becomes `app_state != Resizing`.
+- Write the simplified condition explicitly rather than just deleting the variable and hoping the compiler eliminates the dead branch.
+- Add a comment explaining why the guard was simplified: "Proc::resized removed (was never written, always false); the guard now depends only on app_state."
+- Test the `p_counters.clear()` / `p_graphs.clear()` path specifically after `Proc::resized` removal to verify graph continuity across non-resize `calcSizes()` calls.
 
 **Warning signs:**
-- Clicking a button in a modal dialog triggers an action in the underlying menu
-- Mouse regions don't update after pushing/popping a PDA frame
-- Click coordinates map to the wrong action after terminal resize with menu open
+- Compilation error after removing the declaration from `btop_shared.hpp` due to remaining read in `btop_draw.cpp` — this is the correct outcome and will catch the issue before it runs.
+- After removal, process graph histories reset on config changes that call `calcSizes()` but are not resize events (e.g., toggling `show_disks` in Mem box).
+- Process CPU graphs show discontinuities after options are changed in menu.
 
 **Phase to address:**
-Input FSM design phase. The mappings ownership model must be settled before implementing any Input FSM state struct.
+Dead code removal phase. Must be a separate, focused plan with explicit simplification of the `calcSizes()` condition documented in the plan.
 
 ---
 
-### Pitfall 5: Input FSM `proc_filtering` State Encoded in Config, Not FSM
+### Pitfall 8: Naming Collision Shadowing — Local `bool redraw` Shadows Namespace `bool redraw` Silently
 
 **What goes wrong:**
-The current `Input::process()` checks `Config::getB(BoolKey::proc_filtering)` at the top to decide whether to enter filter-editing logic. This boolean lives in the config system, not in an FSM state. When the Input FSM is introduced with a `Filtering` state, there will be two representations of the same fact: the FSM state and the config value. If the FSM transitions to `Filtering` but `proc_filtering` is not set, or vice versa, the behavior diverges.
+In `btop_input.cpp`, each key-handler block declares a local `bool redraw = true` (lines 355, 587, 618, 640). These are passed to `Runner::run(box, no_update, redraw)` as the `force_redraw` argument. They shadow the namespace-scoped `Proc::redraw`, `Cpu::redraw`, `Mem::redraw`, `Net::redraw` without the compiler warning (same type, different scope).
 
-Further: `Input::process()` calls `Config::set(BoolKey::proc_filtering, false)` to exit filtering mode. After the Input FSM exists, this write must also trigger an FSM transition to `Normal`. If the write happens but the transition does not (or happens in the wrong order), the FSM is in `Filtering` state while the config says `false` — the next key press will be handled by `Normal` handlers but the filtering UI is still visible.
+The current behavior: the local `bool redraw` is initialized to `true`, set to `false` if the key press requires no redraw, then passed to `Runner::run()` as the cycle's `force_redraw`. This is correct. The namespace-scoped `Xxx::redraw` is a separate persistent flag.
 
-**Why it happens:**
-The config system is the original source of truth for all stateful toggles in btop. Introducing a separate FSM that tracks the same fact creates dual-write responsibility. Developers tend to add FSM transitions in some code paths but miss others (keyboard shortcut, mouse click, escape, programmatic config set). The v1.2 milestone had the same issue: `runner_var` was a dead variant because all writes went through the shadow atomic, leaving the variant stale.
-
-**How to avoid:**
-- Decide before coding: is `proc_filtering` a config value or an FSM state? Recommendation: make it an FSM state (`InputFSM::Filtering`) that is the authoritative source; remove the `proc_filtering` config key or make it a read-only view of the FSM state at save time
-- All code paths that previously called `Config::set(BoolKey::proc_filtering, true/false)` must be replaced with FSM transitions
-- Grep for every read of `proc_filtering` and verify each one is replaced by FSM state check
-- Run the full test suite after migration to verify all entry/exit points to filtering mode are correct
-
-**Warning signs:**
-- Entering filter mode and pressing escape leaves the filter text box visible but the FSM in `Normal` state
-- Typing characters after pressing 'f' does nothing (FSM thinks it's in `Normal` state)
-- `proc_filtering` config file entry is written as `true` after program exit despite filter not being active
-
-**Phase to address:**
-Input FSM implementation phase. The config key removal or aliasing must happen in the same phase as the FSM introduction, not deferred.
-
----
-
-### Pitfall 6: Existing App FSM Resize Handling Calls `Menu::process()` Without PDA Awareness
-
-**What goes wrong:**
-The `on_enter(state::Resizing&, ...)` function in `btop.cpp` line 1009 calls:
-
-```cpp
-if (Menu::active) Menu::process();
-```
-
-This call is designed to re-render the current menu after a resize. It works with the current bitset model because `menuMask` and `currentMenu` survive the resize. With a PDA, the same call must re-render the top frame. But the PDA frame structs store absolute screen coordinates (`x`, `y`, `height`, `width`) computed at push time from `Term::width` and `Term::height`. After a resize, these stored coordinates are stale — they reference a terminal size that no longer exists.
-
-If the frame struct is re-rendered using stale coordinates but the frame is not reconstructed (re-pushed), the menu appears at wrong coordinates or overflows the terminal boundary.
-
-If the frame is reconstructed on resize (coordinates recomputed), the frame's non-coordinate state (current page, current selection, signal being chosen) must be preserved. The existing static-local approach handles this naturally because the statics survive. Frame struct-based PDA must explicitly separate "layout state" (coordinates, renderable strings) from "interaction state" (selection, page, entered values).
+If the migration removes the namespace-scoped `bool redraw` variables (replaced by `DirtyFlags`) but leaves the local `bool redraw` declarations in `btop_input.cpp` with the same name, no compile error occurs — they still compile cleanly. However, they no longer shadow anything meaningful (the namespace bool is gone), and if a later developer adds `using namespace Cpu;` or similar, the shadowing semantics may silently re-emerge. The naming collision is also confusing for maintenance: the local `bool redraw` in the Proc key handler means "should this key press trigger a force-redraw this cycle" while the now-removed `Proc::redraw` meant "has the proc box been invalidated persistently." Two different concepts, same name.
 
 **Why it happens:**
-Coordinates are convenient to precompute and store in the frame because they are used on every render. But computing them at push time means they are only valid for the terminal size at the time of the push. The existing code treats `redraw = true` on resize as a cue to recompute, and `bg.empty()` as the trigger to reinitialize all layout state. PDA frames will not have a `bg.empty()` signal by design.
+The v1.6 requirements explicitly call out "Fix redraw naming collisions in btop_input.cpp." The collision exists by design in the original code (the local `bool redraw` in each key handler is intentionally local). The migration must rename these locals (e.g., `bool trigger_redraw` or `bool force_this_cycle`) to prevent future confusion and to make the distinction between ephemeral per-cycle force and persistent dirty flags unambiguous.
 
 **How to avoid:**
-- Separate PDA frame data into two categories in the struct:
-  - `layout`: `x`, `y`, `width`, `height`, `bg` (the rendered box string) — all derived from terminal size
-  - `interaction`: selection index, page number, entered text, chosen signal — user interaction state
-- On resize, invalidate only `layout` fields (e.g., set `bg.clear()`, zero coordinates) while preserving `interaction` fields
-- Give each frame struct an `invalidate_layout()` method that `Menu::process()` calls when it detects a resize
-- Write a test that: opens SignalChoose, resizes terminal, verifies signal list redraws at correct coordinates but `selected_signal` is preserved
+- Rename all four local `bool redraw` variables in `btop_input.cpp` to `bool force_redraw` (or `bool request_redraw`) at the start of the v1.6 work, as a standalone rename commit. This has zero behavioral change and eliminates the namespace collision risk.
+- After renaming, the compile errors (if any) reveal any accidental `Xxx::redraw` reads that were being shadowed by the local.
+- Do the rename as the very first commit of v1.6, before any flag migration, so that subsequent diffs are clean.
 
 **Warning signs:**
-- Menu appears at top-left corner (0,0) after resize
-- Menu overflows terminal boundary after resize to smaller terminal
-- Selection resets to default after resize
-- Resize while menu is open causes double-draw artifacts
+- `grep -n "bool redraw" src/btop_input.cpp` still returns results after namespace `bool redraw` declarations have been removed — these are the locally-scoped ones.
+- A developer reading `btop_input.cpp` after migration cannot distinguish "this `redraw` is the force-this-cycle parameter" from "this `redraw` is the persistent dirty flag" without looking at the declaration context.
+- A future change that adds `using namespace Proc;` in a handler block silently makes the local shadow a now-meaningless namespace symbol.
 
 **Phase to address:**
-PDA frame struct design phase. The layout/interaction separation must be in the initial struct definition, not added as a retrofit.
-
----
-
-### Pitfall 7: `Menu::show()` Called from Input::process() Creates a Re-Entrant Call Chain
-
-**What goes wrong:**
-The existing call chain is: main loop → `Input::process(key)` → `Menu::show(Menu::Menus::SignalSend, SIGTERM)` → `menuMask.set(menu)` → `Menu::process()`. This is a re-entrant call into the menu system from inside the input processor. With a PDA, `Menu::show()` would push a frame onto the PDA stack. But `Input::process()` is called when `Menu::active` is false. If the Input FSM has a `Normal` state, the `Menu::show()` call transitions the menu PDA and sets `Menu::active = true`. On the next loop iteration, `Menu::process()` runs. This is coherent.
-
-The dangerous case: if `Menu::show()` is called from inside `Menu::process()` (e.g., Main Menu choosing Options pushes the Options frame directly via `menuMask.set(Menus::Options)` in `mainMenu()`). With a PDA, this becomes a push-inside-process call. If `Menu::process()` dispatches to the top frame via `std::visit`, and that visitor calls `Menu::show()` which pushes a new frame, the stack is modified during iteration. If `std::visit` holds a reference to the old top frame, it is now dangling (see Pitfall 1).
-
-**Why it happens:**
-The existing `Switch` return code from `menuFunc` triggers `Menu::process()` recursive call (lines 1866-1872). This is an undocumented re-entrant call pattern. The `mainMenu` function calls `menuMask.set(Menus::Options)` and `currentMenu = Menus::Options` directly (lines 1229-1234), then returns `Changed`. The `process()` function's response to `Switch` reinvokes `process()`. With a PDA, this must become a push action returned from the frame handler, applied after the visitor completes.
-
-**How to avoid:**
-- Frame handlers must never push/pop the PDA stack directly; they return a `PDAAction` (Push/Pop/Replace/NoChange) and the caller applies it
-- The `Switch` return code from v1 must be renamed to `Push(next_frame)` or `Replace(next_frame)` that carries the new frame as a value
-- `Menu::show()` must be called only from outside `Menu::process()` — from `Input::process()` or the main loop — never from inside a frame handler
-- In-menu navigation (Main → Options) must return `Push(OptionsFrame{})` not call `Menu::show()` directly
-
-**Warning signs:**
-- Opening Options from Main Menu crashes or shows blank overlay
-- Pressing Options in Main Menu has no effect
-- The PDA stack has two frames that both claim to be the current menu simultaneously
-
-**Phase to address:**
-PDA action design phase (concurrent with frame struct design). The action return type must be established before any frame handler is implemented.
+Phase 1 cleanup — the rename is a pure refactor with zero behavior change and should be the first commit, establishing the naming contract before any flag logic is touched.
 
 ---
 
@@ -218,48 +249,48 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Keep `menuMask` alive alongside PDA during migration | No big-bang change, safe fallback | Desync between bitset and PDA grows as more menus migrate; each desync is a latent bug | Only for a single phase; remove `menuMask` completely in the phase that completes the last menu migration |
-| Store mouse mappings in a global flat map instead of per-frame | No change to `Input::get()` dispatch | Frame boundaries are invisible to the input system; collision between frame keys is silently wrong | Never — per-frame ownership is required for PDA correctness |
-| Use `Config::proc_filtering` as the FSM's source of truth during migration | Avoids rewriting all filtering entry points at once | Two sources of truth; any path that writes one and not the other leaves them desynced | Acceptable for at most one phase, with a specific plan to remove the config key |
-| Leave `static` locals in unconverted menu functions | Reduced scope of each PR | Static locals persist across menu open/close cycles; incompatible with per-frame construction semantics | Only while that menu has not yet been migrated; must be fully removed when the frame is introduced |
-| Compute coordinates at push time and never invalidate | Simpler push logic | Stale coordinates on resize; menu renders at wrong position | Never — resize must invalidate layout state |
+| Keep per-box `bool redraw` alongside `DirtyFlags` during migration | No big-bang change, safe fallback | Dual representation grows inconsistent; any missed sync site is a silent incorrect-redraw bug | Only for a single plan; remove the old bool in the same plan that migrates its readers |
+| Use a single `force_all` bit in `DirtyFlags` instead of per-box bits | Simpler API, no granularity decisions | Every key press forces all boxes to redraw; destroys differential-rendering benefit | Never — per-box granularity is the point of the consolidation |
+| Make `DirtyFlags` a plain `std::bitset<N>` (non-atomic) and protect all access with the runner lock | Simpler type | Must audit every lock site; any unlocked cross-thread access is a race | Only if all cross-thread writes go through a locked section; very hard to verify |
+| Defer `Proc::resized` removal to a later milestone | Reduces scope of v1.6 | Leaves dead code indefinitely; read-of-always-false in `calcSizes()` guard remains a maintenance hazard | Acceptable if v1.6 scope is too large; document explicitly why it was deferred |
+| Rename local `bool redraw` in `btop_input.cpp` as a separate unplanned cleanup | Zero semantic change | Delays elimination of naming confusion; risks naming collision surviving into post-migration codebase | Never — this is a trivial rename with no risk |
 
 ## Integration Gotchas
 
-Common mistakes when connecting the new PDA + Input FSM to the existing btop systems.
+Common mistakes when connecting the new `DirtyFlags` to the existing btop rendering pipeline.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| App FSM Resizing entry action | Calling `Menu::process()` without invalidating PDA frame layout | `on_enter(Resizing)` calls `menu_pda.invalidate_layout()` before `Menu::process()` |
-| Runner `pause_output` flag | Set in `Menu::process()` but cleared in multiple paths; PDA pop must clear it | PDA pop action must always clear `pause_output` regardless of which frame was popped |
-| `Global::overlay` string | Currently set directly in each menu function; with PDA, the active frame owns the overlay | Only `Menu::process()` writes `Global::overlay`; frame handlers return rendered strings, not write globals |
-| `Input::get()` mouse dispatch | Reading `Menu::mouse_mappings` directly; must read top-frame mappings | `Input::get()` reads a stable pointer set by `Menu::process()` after each PDA transition |
-| `Runner::run("overlay")` call | Called with frame-specific logic; PDA must know whether to run overlay or all | Frame handlers return a render scope (`overlay` or `all`); `Menu::process()` calls `Runner::run(scope)` |
-| `Input::process()` calling `Menu::show()` | After Input FSM is introduced, `Menu::show()` must also transition the Input FSM | `Menu::show()` → push PDA frame AND transition Input FSM to `MenuActive` atomically |
+| Runner `runner_conf::force_redraw` | Removing the struct field before migrating all call sites that pass it | Keep `force_redraw` in `runner_conf` and map it from `DirtyFlags::any()` during the transition; remove the struct field only when all per-box bits are in `DirtyFlags` |
+| `ScreenBuffer::force_full` | Tying `set_force_full()` to any `DirtyFlags` bit set event | `set_force_full()` is for resize/reload events only; per-box dirty bits must not trigger it |
+| `pending_redraw` atomic | Removing the atomic and using a plain `DirtyFlags` bit written cross-thread | Either keep `pending_redraw` as an atomic sentinel and fold it into `DirtyFlags` at the start of each run cycle (current pattern), or make the corresponding `DirtyFlags` bit atomic |
+| `calcSizes()` call sites | Removing redraw-forcing from `calcSizes()` before `DirtyFlags` callers are updated | Decouple in a dedicated phase; audit all 5 call sites before touching `calcSizes()` |
+| `Menu::redraw` | Including it as a bit in `DirtyFlags` | Keep it as a standalone `bool`; it is consumed by the main-thread input loop, not the runner thread |
+| Gpu `vector<bool> redraw` | Treating it as a simple bool replacement | `Gpu::redraw` is a vector indexed by GPU panel index; the `DirtyFlags` GPU bits must be a range of bits (one per panel) or a separate vector; cannot flatten to a single bit |
 
 ## Performance Traps
 
-Patterns that create measurable overhead in the menu-active render path.
+Patterns that create measurable overhead in the render path.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Rebuilding full options menu string on every keypress (not just on `Changed`) | Options menu renders lag on slow terminals | Only rebuild `Global::overlay` when frame handler returns `Changed`, not on `NoChange` | Always — the options menu string is large (~4KB) |
-| `std::vector` for PDA stack with reserve-on-push | Reallocation invalidates all pointers to stack elements | Use a fixed-capacity stack (max depth is known: 8 menus) or `std::array<std::optional<Frame>>` | When OptionsMenu is pushed on top of MainMenu and the vector reallocates |
-| Per-keypress `mouse_mappings.clear()` and rebuild | Mouse regions flicker during rapid input | Only rebuild mouse mappings on `redraw`, not on `NoChange` returns | Fast input sequences (keyboard repeat) |
-| Copying frame structs on push | Unnecessary copy of `bg` string (~2KB for Options) | Use move semantics: `push(std::move(frame))` | Options menu push |
+| Using `DirtyFlags::any()` to decide `full_emit` vs `diff_and_emit` | Full terminal repaint on every key press | `full_emit` must be gated on `ScreenBuffer::needs_full()` (resize/reload), never on `DirtyFlags::any()` | Every non-resize interaction |
+| Clearing all `DirtyFlags` bits at the start of each runner cycle instead of after each box draws | A box that is dirty but draws nothing (e.g., zero-size box) has its dirty bit cleared; next cycle it is not redrawn | Clear each box's bit after its `draw()` call completes successfully, not before | Any hidden box whose redraw was deferred |
+| Making `DirtyFlags` an `std::atomic<std::bitset<N>>` | Compile error or undefined behavior (`std::bitset` is not trivially copyable in all implementations) | Use `std::atomic<uint32_t>` with manual bit manipulation for at most 32 flags | Build attempt |
+| Rebuilding box content strings even when `force_redraw = false` and data has not changed | Increased CPU usage; negates differential rendering | The `data_same` parameter to `draw()` should suppress graph rebuilds; `force_redraw` should not imply `data_same = false` | Low-update-rate scenarios |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **PDA push/pop:** Often missing — verify that popping the last frame sets `Menu::active = false` and clears `Global::overlay` immediately, not on next loop iteration
-- [ ] **Static local audit:** Often missing fields — verify every `static` local in all 8 menu functions is accounted for in a frame struct member before removing it
-- [ ] **Resize with menu open:** Often skipped in testing — verify each menu renders correctly after terminal resize with no selection reset
-- [ ] **Input FSM Filtering exit paths:** Often missing the mouse_click exit — verify that `mouse_click` while filtering exits filtering mode (existing code path line 319 in `btop_input.cpp`)
-- [ ] **Re-entry clean state:** Often misses non-obvious resets — verify that reopening SignalChoose after a previous selection shows `selected_signal = -1` not the previous value
-- [ ] **`pause_output` cleared on all pop paths:** Often missed for error pop paths — verify that `Runner::pause_output` is always false after any PDA empty state
-- [ ] **Mouse mappings updated after resize:** Often missing — verify that clicking after a resize with menu open uses new screen coordinates
-- [ ] **Config save on Options close:** Often broken by FSM changes — verify that closing Options menu writes config to disk (existing behavior via `optionsMenu` Closed handler)
+- [ ] **Write-site audit:** Often incomplete — verify `grep -rn "redraw\s*=\s*true" src/` returns zero hits for the namespace-scoped bools after migration (local variable hits are acceptable)
+- [ ] **GPU redraw vector:** Often forgotten — `Gpu::redraw` is `vector<bool>`, not a single bool; verify all GPU panel indices are covered by `DirtyFlags` or a separate mechanism
+- [ ] **Self-invalidating draw functions:** Often missed — `Net::draw()` sets `redraw = true` internally when IP changes; verify this logic survives migration and writes to the correct flag location
+- [ ] **`calcSizes()` call sites:** Often partially updated — verify all 5 call sites mark boxes dirty after decoupling (not just the resize path)
+- [ ] **`pending_redraw` fold:** Often orphaned — verify the `pending_redraw.exchange(false)` → `conf.force_redraw = true` fold still works after `DirtyFlags` is introduced; do not silently leave `pending_redraw` alive as a dead atomic
+- [ ] **TSan clean:** Often skipped after refactor — run the full TSan configuration after migration; the existing codebase is TSan-clean and any regression indicates a new race
+- [ ] **`Proc::resized` guard simplification:** Often treated as delete-only — verify the `calcSizes()` branch condition is explicitly simplified, not just compiled-away
+- [ ] **`Menu::redraw` preserved:** Often accidentally included in bitset — verify `Menu::redraw` remains a standalone `bool` outside `DirtyFlags`
 
 ## Recovery Strategies
 
@@ -267,13 +298,12 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Variant self-modification UB | HIGH | Run ASan — may not catch; run Valgrind with `--tool=memcheck`; restructure visitor to extract action type, apply outside visit; add regression test for the sequence that triggered it |
-| Static local state not reset | LOW | Add test for fresh-open invariant; patch frame struct constructor to explicitly set all fields; run test suite |
-| Bitset/PDA desync | MEDIUM | Introduce `assert(menuMask.none() == pda_stack.empty())` in `Menu::process()` to catch immediately; trace which code path set one without the other; add to single-writer wrapper |
-| Mouse mapping ownership confusion | MEDIUM | Add click-region test with deliberate overlap; trace which mapping table `Input::get()` reads; switch to per-frame ownership pattern |
-| Input FSM / proc_filtering desync | MEDIUM | Grep for all `proc_filtering` writes; ensure each one also transitions the Input FSM; add test that both agree after every mode change |
-| Resize with stale coordinates | LOW | Implement `invalidate_layout()` on frame structs; call from `on_enter(Resizing)`; test by resizing terminal while each menu is open |
-| Re-entrant push during std::visit | HIGH | If crash: use `PDAAction` return-value pattern instead of direct push; add test that covers Main→Options in-menu navigation |
+| Dual-write atomicity gap (missed write site) | LOW | `grep -rn "redraw\s*=\s*true" src/` will reveal remaining old-style write sites; add corresponding `DirtyFlags::mark()` call; add the missing call site to the write-site inventory for future reference |
+| Under-invalidation (box fails to redraw) | LOW | Reproduce the trigger (specific key press or data change); trace backward from the missed redraw to the write site that should have set the flag; identify whether it was a missed migration or a deleted self-invalidation |
+| Over-invalidation (full repaint on key press) | MEDIUM | Profile `write_stdout` byte count per cycle; if elevated, check whether `screen_buffer.set_force_full()` is being called from a per-box-dirty path; trace to the specific call chain that triggers it |
+| Cross-thread race on DirtyFlags | HIGH | TSan report will identify the exact file/line of the racing access; convert the racing bit(s) to `std::atomic<bool>` or fold the cross-thread write through the existing `pending_redraw` atomic and consume into `DirtyFlags` at cycle start |
+| `calcSizes()` decoupling regression (stale content at new geometry) | MEDIUM | Check whether the specific `calcSizes()` call site that triggered the issue calls `DirtyFlags::mark_all()` after the call; if not, add it; write a test that changes a layout config option through the options menu and verifies box content is regenerated |
+| `Proc::resized` removal changes behavior | LOW | Restore the declaration; explicitly analyze the branch guard; write the simplified condition; re-remove the declaration; the branch guard must be documented in the commit message |
 
 ## Pitfall-to-Phase Mapping
 
@@ -281,25 +311,24 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Variant self-modification UB | PDA frame data structure design (Phase 1) | Visitor pattern established with PDAAction return type before any frame impl |
-| Static local state not reset | Static locals audit (Phase 1, before coding) | Each menu's fresh-open invariant documented and tested |
-| Bitset/PDA desync | First migration phase | `menuMask`/PDA wrapper function written; assertion added to `Menu::process()` |
-| Mouse mapping ambiguity | Input FSM design phase | Per-frame ownership model established; `Input::get()` reads stable pointer |
-| `proc_filtering` dual-truth | Input FSM implementation phase | Config key removed or aliased; all entry/exit paths go through FSM transitions |
-| Resize with stale coordinates | PDA frame struct design (layout/interaction split) | Resize test for each menu verifies coordinates and preserves selection |
-| Re-entrant push during process | PDA action design phase | Frame handlers return PDAAction; no direct push calls inside frame code |
-| App FSM integration (resize) | First phase that touches `on_enter(Resizing)` | `Menu::process()` resize call works correctly with PDA stack |
+| Dual-write atomicity gap | Phase 1: DirtyFlags type definition — establish write API and delete-on-migrate rule | Per-box bool declaration removed in the same commit as its readers are migrated; compile confirms no remaining old-style writes |
+| Under-invalidation (missing write sites) | Pre-phase audit — enumerate all write sites before any code changes | Write-site inventory document reviewed in plan before migration starts |
+| Over-invalidation (coarse bits defeat diff rendering) | Phase 1: DirtyFlags API design — per-box bits and force_full are explicitly separate | After migration, verify `diff_and_emit` is used for single-key-press cycles (not `full_emit`) |
+| Cross-thread race on `pending_redraw` / DirtyFlags | Phase 1: Thread ownership documented per bit | TSan configuration passes after migration (existing CI requirement) |
+| `calcSizes()` decoupling without marking boxes dirty | Dedicated decoupling phase (follows all-boxes migration) | All 5 call sites updated; `assert(DirtyFlags::any())` after each `calcSizes()` call in debug builds |
+| `Menu::redraw` absorbed into bitset | Phase 1: DirtyFlags type spec explicitly excludes Menu | `Menu::redraw` is a standalone `bool` in final implementation; not a `DirtyFlags` bit |
+| `Proc::resized` dead-read not simplified | Dead code removal phase | The `calcSizes()` guard condition is explicitly simplified in the commit, not just compiled away |
+| Naming collision (local `bool redraw` in input handlers) | Phase 1 cleanup — rename as first commit of v1.6 | `grep -n "bool redraw" src/btop_input.cpp` returns zero after rename |
 
 ## Sources
 
-- btop++ source code analysis: `btop_menu.cpp`, `btop_input.cpp`, `btop_state.hpp`, `btop_events.hpp`, `btop.cpp` (direct codebase inspection) — HIGH confidence
-- v1.1 Retrospective (`.planning/RETROSPECTIVE.md`): shadow atomic consistency debt, runner_var dead code, incremental migration lessons — HIGH confidence
-- v1.2 Retrospective: single-writer invariant enforcement as solution to desync bugs — HIGH confidence
-- [Finite State Machines with std::variant — C++ Stories (2023)](https://www.cppstories.com/2023/finite-state-machines-variant-cpp/): dangling reference from variant self-modification — HIGH confidence
-- [Space Game: std::variant-Based State Machine by Example — C++ Stories (2019)](https://www.cppstories.com/2019/06/fsm-variant-game/): visitor self-assignment pattern; optional return for conditional transitions — HIGH confidence
-- [std::visit — cppreference.com](https://en.cppreference.com/w/cpp/utility/variant/visit): behavior when variant is modified during visitation — HIGH confidence (official)
-- [QP State Machine: State-Local Storage Pattern](https://www.state-machine.com/doc/Pattern_SLS.pdf): per-state data ownership, separation of layout from interaction state — MEDIUM confidence
+- btop++ source code analysis: `btop_draw.cpp` (lines 1039, 1615, 1809, 1823, 2079, 2090, 2194, 2200, 2905–2939), `btop_input.cpp` (lines 355, 587, 618, 640), `btop.cpp` (lines 427–905, 735–820), `btop_shared.hpp` (lines 488, 575, 620, 663, 715, 721), `btop_menu.cpp` (line 62), `btop_draw.hpp` (lines 99–106, 123–126) — direct codebase inspection, HIGH confidence
+- Game Programming Patterns — [Dirty Flag pattern (Robert Nystrom)](https://gameprogrammingpatterns.com/dirty-flag.html): canonical pitfalls of dirty-flag patterns — cache invalidation miss, deferred-work latency, granularity trade-offs — HIGH confidence
+- [SEI CERT C++ CON52-CPP](https://wiki.sei.cmu.edu/confluence/display/cplusplus/CON52-CPP.+Prevent+data+races+when+accessing+bit-fields+from+multiple+threads): data race risk when adjacent bit-fields share storage units — HIGH confidence (official standard)
+- [cppreference std::bitset](https://en.cppreference.com/w/cpp/utility/bitset.html): std::bitset is not thread-safe; no atomic operations — HIGH confidence (official)
+- v1.2 Retrospective (btop++ project): shadow-atomic desync, dual-representation consistency debt, single-writer invariant as fix — HIGH confidence (first-party)
+- v1.0 Retrospective (btop++ project): differential rendering (diff_and_emit vs full_emit) correctness requirements — HIGH confidence (first-party)
 
 ---
-*Pitfalls research for: btop++ v1.3 — Menu PDA + Input FSM*
-*Researched: 2026-03-02*
+*Pitfalls research for: btop++ v1.6 — Unified Dirty-Flag Consolidation*
+*Researched: 2026-03-03*

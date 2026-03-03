@@ -1,51 +1,166 @@
 # Stack Research
 
-**Domain:** C++ pushdown automaton + input FSM for btop++ TUI (v1.3 milestone)
-**Researched:** 2026-03-02
+**Domain:** C++ unified dirty-flag mechanism for btop++ terminal monitor (v1.6 milestone)
+**Researched:** 2026-03-03
 **Confidence:** HIGH
 
 ## Context
 
-This file covers only what is **new or changed** for v1.3. The existing v1.0 profiling stack (perf, heaptrack, Instruments, nanobench) and the v1.1/v1.2 FSM stack (std::variant, std::visit, AppEvent, EventQueue) are already validated. Do not re-add those here; they remain in use unchanged.
+This file covers only what is **new or changed** for v1.6. The existing validated stack
+(C++20/23, GCC 12+/Clang 15+, std::variant FSMs, lock-free event queue, enum-indexed
+arrays, nanobench, GoogleTest) is carried forward unchanged.
 
-The v1.3 work has two new implementation surfaces:
-1. **Menu pushdown automaton (PDA):** A typed stack of menu frames replacing `menuMask bitset<8>` + `currentMenu int` + function-static locals
-2. **Input FSM:** A typed finite state machine for input mode routing replacing the implicit `Config::getB(BoolKey::proc_filtering)` + `Menu::active` flag checks
+The v1.6 work has one new implementation surface: a **DirtyFlags bitset** that replaces
+six separate per-box `bool redraw` fields, `force_redraw`, and `pending_redraw` with a
+single unified, atomically-settable flag set.
+
+**What currently exists (to be replaced):**
+- `Cpu::redraw`, `Mem::redraw`, `Net::redraw`, `Proc::redraw` — bool statics in namespace scope inside `btop_draw.cpp`
+- `Gpu::redraw` — `std::vector<bool>` (one entry per GPU panel)
+- `Menu::redraw` — bool in `btop_menu.hpp`
+- `Runner::pending_redraw` — `static std::atomic<bool>` inside `btop.cpp`, folded into `conf.force_redraw` by `run()`
+- `runner_conf::force_redraw` — bool copied into the per-run config struct passed to the runner thread
+- `Proc::resized` — `atomic<bool>` declared in `btop_shared.hpp`, written in `btop_draw.cpp`, **never read** (dead code)
+
+**Threading model that constrains the design:**
+- Main thread: input, event dispatch, FSM transitions, calls `Runner::run()`
+- Runner thread: collect + draw, reads `conf.force_redraw` from a struct snapshot
+- `calcSizes()` runs on the main thread, sets `Cpu::redraw = Mem::redraw = ... = true` then calls `Runner::request_redraw()` which sets `pending_redraw`
+- Cross-thread dirty signal today: main thread calls `request_redraw()` → sets `atomic<bool> pending_redraw` → runner folds it into `force_redraw` at the start of each cycle
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies (NEW for v1.3)
+### Core Technologies (NEW for v1.6)
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| **`std::stack<MenuFrame, std::vector<MenuFrame>>`** | C++11 std, `<stack>` | PDA stack container | `std::stack` with `std::vector` as the backing store gives contiguous memory layout, amortized O(1) push/pop, and zero extra dependencies. The menu stack depth is bounded (max 3-4 levels deep: `Main → Options`, `Main → SignalChoose → SignalSend`, etc.), so `std::deque` (the default backing store) wastes memory on small sizes. `std::vector<MenuFrame>` with a pre-reserved capacity of 8 keeps all frames on a single heap allocation. **Confidence: HIGH** — cppreference confirms `stack<T, vector<T>>` is fully supported; vector backing is the standard recommendation for bounded-depth stacks |
-| **`using MenuFrame = std::variant<frame::Main, frame::Options, frame::Help, frame::SignalChoose, frame::SignalSend, frame::SignalReturn, frame::Renice, frame::SizeError>`** | C++17 std, `<variant>` | Typed stack frame union | Identical pattern to the existing `AppStateVar` + `AppEvent` approach already validated in v1.1. Each frame alternative carries its per-frame state (selected item, scroll position, signal target) as data fields — no function-static locals needed. `std::variant` prevents invalid frame combinations at compile time. **Confidence: HIGH** — direct extension of existing codebase pattern |
-| **`using InputStateVar = std::variant<input_state::Normal, input_state::Filtering, input_state::MenuActive>`** | C++17 std, `<variant>` | Input FSM state type | Three alternatives matching the three input modes already present implicitly in `Input::process`. `input_state::Filtering` carries `std::string filter_text`; `input_state::MenuActive` carries nothing (menu PDA is the authoritative state); `input_state::Normal` carries nothing. Same pattern as `AppStateVar`. **Confidence: HIGH** |
-| **`std::visit` two-variant dispatch** | C++17 std, `<variant>` | State × event transition | The existing `dispatch_event(current, ev)` function uses `std::visit([](const auto& s, const auto& e){ return on_event(s, e); }, current, ev)` — identical pattern applies to the input FSM. Compiler generates an exhaustive switch over all state × event combinations. **Confidence: HIGH** — already proven in this codebase |
-| **Overload pattern (C++17/20)** | C++17 required, C++20 simplifies | Inline visitor construction | `template<class... Ts> struct overload : Ts... { using Ts::operator()...; };` — used for single-variant `std::visit` calls where a concise inline lambda set is cleaner than named `on_event` overloads. In C++20, the explicit deduction guide is no longer needed. For the PDA's `peek()` + dispatch pattern, this is cleaner than a separate `on_event` overload set when there are only 2-3 frame alternatives to handle. **Confidence: HIGH** — standard C++17/20 idiom, verified in C++ Stories and cppreference |
-| **`if constexpr` + `std::is_same_v`** | C++17 std | Type-conditional logic in generic visitors | Used inside `auto`-parameter lambdas to handle frame-specific rendering or key handling without virtual dispatch: `if constexpr (std::is_same_v<T, frame::Options>) { ... }`. Already used in `to_tag()` in `btop_state.hpp`. **Confidence: HIGH** |
+| **`enum class DirtyFlag : uint8_t` with bit-shift values** | C++11, available now | Enumerate individual dirty causes | Scoped enum prevents implicit int conversion, `uint8_t` underlying type keeps the total footprint to 1 byte. Bit-shift values (`1u << 0`, `1u << 1`, ...) make the bit-position self-documenting. Up to 8 independent flags fit in `uint8_t`; if GPU panel count makes 8 insufficient, widen to `uint16_t`. **Confidence: HIGH** — C++ standard, cppreference confirmed |
+| **`std::atomic<uint8_t>` (or `uint16_t`) as the storage type** | C++11, `<atomic>` | Atomic cross-thread dirty signal | `fetch_or` (set bits) and `exchange(0)` (consume-and-clear) are both single-instruction on x86/ARM for 8/16/32-bit integers. `std::atomic<uint32_t>::is_always_lock_free` is true on all btop target platforms (x86-32, x86-64, ARMv7, ARM64). `std::bitset` is explicitly **not** atomic and has no `fetch_or` — it cannot be used as the cross-thread store. **Confidence: HIGH** — cppreference `atomic/fetch_or` confirmed; `is_always_lock_free` confirmed for uint32_t on x86/ARM |
+| **Free `constexpr` bit-operator overloads on `DirtyFlag`** | C++20 concepts pattern | Set/clear/test flags without raw casts | Operator `|`, `&`, `~` overloaded on the enum using `std::underlying_type_t<DirtyFlag>`. C++20 concepts allow opt-in via an `enable_bitmask_operators` tag — identical pattern verified by Andreas Fertig (2024). C++23 `std::to_underlying` eliminates the `static_cast<underlying>` call if the project targets C++23 (it does for some paths). **Confidence: HIGH** — cppreference + Fertig blog verified |
+| **`fetch_or(bits, memory_order_release)` for producers** | C++11 `<atomic>` | Set dirty bits from any thread | `fetch_or` is a read-modify-write operation that atomically ORs bits in. Using `memory_order_release` ensures that all memory writes before the flag set are visible to the consumer when it acquires. This is the correct ordering for a "data is ready, read it now" notification. Using `memory_order_relaxed` would be incorrect — it provides no synchronization with the data the flag announces. **Confidence: HIGH** — cppreference memory_order documentation confirmed |
+| **`exchange(0, memory_order_acquire)` for the consumer** | C++11 `<atomic>` | Consume-and-clear in the runner | `exchange(0)` atomically reads all set bits and clears them in one instruction — no separate load + store, no window for missed flags. `memory_order_acquire` synchronizes with the producers' `release` stores. The return value is the snapshot of which flags were set. **Confidence: HIGH** — cppreference atomic confirmed |
+
+### The Recommended DirtyFlags Pattern
+
+```cpp
+// btop_dirty.hpp  (new header, included by btop_shared.hpp)
+
+#include <atomic>
+#include <cstdint>
+#include <type_traits>
+
+/// Individual dirty-flag bits.
+/// Underlying type uint8_t — fits all 6 current flags with room for 2 more.
+/// If GPU panels ever require >8 independent bits, widen to uint16_t here.
+enum class DirtyFlag : uint8_t {
+    None    = 0,
+    Cpu     = 1u << 0,  ///< Cpu box needs full redraw
+    Mem     = 1u << 1,  ///< Mem box needs full redraw
+    Net     = 1u << 2,  ///< Net box needs full redraw
+    Proc    = 1u << 3,  ///< Proc box needs full redraw
+    Gpu     = 1u << 4,  ///< All GPU panels need full redraw
+    Menu    = 1u << 5,  ///< Menu overlay needs full redraw
+    All     = 0xFF,     ///< Redraw every box
+};
+
+/// Enable bitwise operators on DirtyFlag.
+/// C++20 concept-gated opt-in from Andreas Fertig (2024).
+template<typename T>
+concept IsDirtyFlag = std::is_same_v<T, DirtyFlag>;
+
+constexpr DirtyFlag operator|(DirtyFlag a, DirtyFlag b) noexcept {
+    using U = std::underlying_type_t<DirtyFlag>;
+    return static_cast<DirtyFlag>(static_cast<U>(a) | static_cast<U>(b));
+}
+constexpr DirtyFlag operator&(DirtyFlag a, DirtyFlag b) noexcept {
+    using U = std::underlying_type_t<DirtyFlag>;
+    return static_cast<DirtyFlag>(static_cast<U>(a) & static_cast<U>(b));
+}
+constexpr DirtyFlag operator~(DirtyFlag a) noexcept {
+    using U = std::underlying_type_t<DirtyFlag>;
+    return static_cast<DirtyFlag>(~static_cast<U>(a));
+}
+constexpr bool operator!(DirtyFlag a) noexcept { return a == DirtyFlag::None; }
+
+namespace Runner {
+    /// Cross-thread dirty flag register.
+    /// Producer (main thread, input handlers): fetch_or with memory_order_release
+    /// Consumer (runner thread): exchange(0) with memory_order_acquire
+    extern std::atomic<uint8_t> dirty_flags;
+
+    /// Mark one or more boxes as needing a full redraw on the next cycle.
+    /// Safe to call from any thread (main, signal handler via event queue).
+    inline void mark_dirty(DirtyFlag flags) noexcept {
+        dirty_flags.fetch_or(
+            static_cast<uint8_t>(flags),
+            std::memory_order_release
+        );
+    }
+
+    /// Consume and clear all dirty flags.
+    /// Called once per runner cycle at the start of the draw pass.
+    /// Returns the snapshot of which flags were set.
+    [[nodiscard]] inline DirtyFlag consume_dirty() noexcept {
+        return static_cast<DirtyFlag>(
+            dirty_flags.exchange(0, std::memory_order_acquire)
+        );
+    }
+
+    /// Test whether a specific flag is set without clearing.
+    /// Use only from the consumer thread after consume_dirty() for single-cycle decisions.
+    constexpr bool is_dirty(DirtyFlag snapshot, DirtyFlag bit) noexcept {
+        return !!(snapshot & bit);
+    }
+}
+```
+
+**Integration at the runner call site:**
+
+```cpp
+// btop.cpp — inside Runner::_runner() draw pass
+DirtyFlag dirty = Runner::consume_dirty();   // atomic acquire, clears all bits
+bool force_all  = Runner::is_dirty(dirty, DirtyFlag::All);
+
+// Replace: if (force_redraw) Cpu::redraw = true;
+// With:
+if (force_all || Runner::is_dirty(dirty, DirtyFlag::Cpu)) {
+    output += Cpu::draw(cpu, /*force_redraw=*/true, conf.no_update);
+} else {
+    output += Cpu::draw(cpu, /*force_redraw=*/false, conf.no_update);
+}
+```
+
+**Integration at calcSizes():**
+
+```cpp
+// btop_draw.cpp — calcSizes() replaces per-box assigns + request_redraw()
+// Before: Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
+//         Runner::request_redraw();
+// After:
+Runner::mark_dirty(DirtyFlag::Cpu | DirtyFlag::Mem | DirtyFlag::Net | DirtyFlag::Proc | DirtyFlag::Gpu | DirtyFlag::Menu);
+```
 
 ### Supporting Libraries (existing, no changes)
 
-| Library | Version | Purpose | Notes for v1.3 |
+| Library | Version | Purpose | Notes for v1.6 |
 |---------|---------|---------|----------------|
-| **GoogleTest** | v1.17.0 (FetchContent) | Unit tests for PDA and input FSM | Already in CMakeLists.txt. New test files `test_menu_pda.cpp` and `test_input_fsm.cpp` added to `btop_test` target. No version change needed. |
-| **nanobench** | 4.3+ (header-only) | Micro-benchmarks for push/pop/dispatch | Already present. Optional: benchmark PDA dispatch cost vs old `menuMask` check if needed. |
+| **GoogleTest** | v1.17.0 | Unit tests for DirtyFlags logic | `dirty_flags` logic is pure bit manipulation — fully testable without terminal or runner. New test file `tests/test_dirty_flags.cpp`. |
+| **TSan** | runtime sanitizer | Verify fetch_or/exchange ordering | `build-tsan/` already exists. The acquire/release ordering on the atomic is correct, but TSan will confirm no other shared-mutable-state race is introduced during migration. |
 
 ### Development Tools (existing, no changes)
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| **ASan + UBSan** | Detect use-after-pop, variant bad_access | Build config `build-asan/` already exists. Run after PDA implementation. |
-| **TSan** | Verify menu PDA is main-thread-only (no races) | `build-tsan/` already exists. PDA should be touched only from main thread — TSan confirms this. |
+| **ASan + UBSan** | Detect any UB introduced during flag migration | Build config `build-asan/` already exists. Run after removing dead `Proc::resized` atomic. |
+| **TSan** | Confirm atomic flag access has no races | Run before and after switching `pending_redraw` to `dirty_flags`. |
 
 ---
 
 ## Installation
 
-No new dependencies for v1.3. All required headers (`<stack>`, `<variant>`, `<type_traits>`) are part of the C++ standard library already included in the build.
+No new dependencies for v1.6. All required headers (`<atomic>`, `<cstdint>`, `<type_traits>`) are part of the C++ standard library.
 
 ```bash
 # Nothing to install — all technologies are:
@@ -59,12 +174,12 @@ No new dependencies for v1.3. All required headers (`<stack>`, `<variant>`, `<ty
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| `std::stack<MenuFrame, std::vector<MenuFrame>>` | `std::stack<MenuFrame>` (default deque) | Never for this use case. `std::deque` is the right choice when depth is unbounded or element size is large enough that deque's block-based layout avoids reallocs. For 8 menus with ≤4 simultaneous levels, `vector` backing is strictly better (contiguous, fewer allocations, cache-friendly). |
-| `std::variant` for `MenuFrame` | Virtual base class `MenuFrameBase*` | Only if frames need runtime polymorphism not expressible as data fields, or if adding new frame types at runtime is required. Neither applies here — frame set is fixed at 8. Virtual dispatch adds heap allocation, pointer indirection, and prevents value semantics. The existing codebase explicitly chose `std::variant` over virtual dispatch for `AppStateVar`; maintain consistency. |
-| `std::variant` for `InputStateVar` | `enum class InputMode` (flat enum) | Only if per-state data (like `filter_text` in `input_state::Filtering`) is stored as a separate global rather than inside the state. Using a plain enum recreates the same implicit-state problem v1.3 is solving. `std::variant` carries state with the mode, making invalid configurations impossible. |
-| Named `on_event` overloads for input FSM dispatch | `if/else if` chain in `Input::process` | If the FSM has more than ~6 transitions. For 3 states × ~5 events, the existing `if/else if` with an `on_event` overload set is readable. For fewer branches, the overload pattern with inline lambdas is acceptable. Choose whichever matches what is already written for `dispatch_event`. |
-| Two separate test files (`test_menu_pda.cpp`, `test_input_fsm.cpp`) | Single combined test file | Only if the test count stays under ~30. At the scale of the existing test files (266 total), separate files are easier to navigate and build independently. |
-| GoogleTest `TYPED_TEST` for testing multiple frame types | Separate `TEST()` per frame | `TYPED_TEST` is appropriate when the same test logic applies to all types in a list. For PDA tests, the transitions between frames are heterogeneous enough that separate named tests are clearer than typed parameterization. Use `TEST_P` + `INSTANTIATE_TEST_SUITE_P` only for table-driven transition tests where input is `(initial_frames, push_or_pop, expected_top)` tuples. |
+| `std::atomic<uint8_t>` with `fetch_or` / `exchange(0)` | `std::atomic<bool>` per box (current approach) | Never — the current approach requires N separate atomic operations to set all flags, and the flags can become inconsistent if one box is marked dirty between checking others. A single atomic uint8_t is strictly superior. |
+| `std::atomic<uint8_t>` with `fetch_or` / `exchange(0)` | `std::bitset<8>` | Never for cross-thread use. `std::bitset` has no atomic operations at all. Its `operator[]`, `set()`, and `reset()` are not thread-safe. For a single-threaded context where the flags are set and consumed on the same thread with no cross-thread handoff, `std::bitset` would be appropriate but adds no value over a plain `uint8_t`. |
+| `enum class DirtyFlag : uint8_t` | Plain `uint8_t` constants (`constexpr uint8_t CPU_DIRTY = 1u << 0`) | Only if the scoped enum concept is seen as overkill for this small flag set. The enum class prevents accidental mixing with unrelated integers, makes the intent explicit in function signatures, and is consistent with how the codebase uses `AppStateTag`, `RunnerStateTag`, `ThemeKey`, etc. Maintain consistency. |
+| `fetch_or(release)` / `exchange(0, acquire)` | `fetch_or(seq_cst)` / `exchange(0, seq_cst)` | Never for this use case. `seq_cst` imposes a full memory fence on every operation, which is more expensive than release/acquire. Release/acquire is correct here: the flag setter synchronizes-with the flag consumer, establishing the happens-before relationship needed. On x86/TSO, acquire/release compile to the same instructions as relaxed for loads/stores — only the compiler fence differs. |
+| `fetch_or(release)` / `exchange(0, acquire)` | `fetch_or(relaxed)` / `load(relaxed)` | Never. `relaxed` provides only atomicity (no torn read/write) but does NOT establish happens-before between threads. Using relaxed for a dirty flag notification means the runner thread may observe the flag set but not see the side effects that made the flag necessary (e.g., layout fields reset by `calcSizes`). This is a data race on those side effects. |
+| `consume_dirty()` returns a snapshot (exchange to 0) | `test_and_clear` per bit | Only if partial consumption is needed — e.g., if the runner could skip Mem but not Cpu. In btop's runner, all visible boxes are drawn in sequence in a single pass; a single `exchange(0)` snapshot at the start of the draw pass is simpler and correct. If partial-draw capability is ever needed, the per-bit approach becomes viable. |
 
 ---
 
@@ -72,204 +187,47 @@ No new dependencies for v1.3. All required headers (`<stack>`, `<variant>`, `<ty
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **Virtual dispatch (`MenuFrameBase*` polymorphism)** | Heap allocation per frame, pointer indirection, no value semantics, breaks stack copy/move cleanly. The existing codebase explicitly avoided virtual dispatch for FSMs. | `std::variant` frame type — zero-cost, value semantics, compile-time exhaustiveness |
-| **`bitset<8> menuMask` + `int currentMenu`** (the thing being replaced) | Allows invalid state (multiple bits set, currentMenu inconsistent with mask, function-static locals scattered across menus). Cannot test individual menus in isolation because state is global and implicit. | `std::stack<MenuFrame, std::vector<MenuFrame>>` — exactly one active frame at stack top, each frame carries its own data |
-| **`Config::getB(BoolKey::proc_filtering)` + `Menu::active` checks scattered in `Input::process`** (the thing being replaced) | Implicit mode routing — behavior depends on two separate global flags checked in sequence. Adding a new mode requires hunting for all check sites. | `InputStateVar` FSM with `dispatch_event` — mode is a single typed value; adding a new mode requires adding one variant alternative and one set of `on_event` overloads |
-| **`std::deque` as PDA backing store** | `std::deque` allocates in blocks; for ≤8 elements of variant size (~100 bytes for a frame carrying a string + ints), deque adds overhead with no benefit. | `std::stack<MenuFrame, std::vector<MenuFrame>>` — single contiguous allocation, reserved at construction |
-| **Third-party FSM libraries (Boost.MSM, TinyFSM, etc.)** | Add build dependencies; btop's constraint is "no new heavy dependencies." The existing `std::variant` pattern has already been proven at 266 tests. Third-party libraries add concepts and macros that conflict with the codebase style. | Bare `std::variant` + `std::visit` + `std::stack` — proven pattern already in this codebase |
-| **`std::stack<std::any>`** | `std::any` erases type; frame access requires `std::any_cast` which throws on mismatch, producing runtime rather than compile-time errors. Eliminates all type-safety benefits. | `std::variant<frame::Main, frame::Options, ...>` — compile-time exhaustiveness, no cast required |
-| **Storing mouse mappings as function-static locals inside `Menu::process()`** | Already identified as a problem in the existing code. Function-static locals survive menu dismissal, creating stale mappings when menus are re-entered. | Per-frame data field in the `MenuFrame` variant struct. Each frame alternative carries its own `std::unordered_map<std::string, Input::Mouse_loc> mouse_mappings` (or equivalent). Field is initialized on push, destroyed on pop. |
+| **`std::bitset<8>`** | Not thread-safe. Has no `fetch_or`, no `exchange`, no `load` with memory ordering. `operator[]` and `set()` are data races when called from multiple threads. The current `menuMask bitset<8>` is single-threaded — that's why it's safe. The dirty flags cross from main thread to runner thread, which bitset cannot handle. | `std::atomic<uint8_t>` with `fetch_or` / `exchange(0)` |
+| **`std::vector<bool>` for GPU redraw flags** | `vector<bool>` is a specialization that packs bits, but accessing individual elements is not thread-safe and there is no atomic interface. GPU panel redraw can be folded into a single `DirtyFlag::Gpu` bit (since `calcSizes()` already resizes and redraws all GPU panels together). If per-GPU-panel granularity is later required, the `uint8_t` can be widened to `uint16_t` with 8 GPU bits. | `DirtyFlag::Gpu` bit in `std::atomic<uint8_t>` |
+| **`atomic<bool> pending_redraw` + `bool force_redraw` in `runner_conf`** (the thing being replaced) | Two-step indirection: main thread sets `pending_redraw`, runner folds it into `force_redraw` struct field — but `force_redraw` is a plain bool in a struct copied by value, so it cannot be updated after `thread_trigger()` without a race. A late `request_redraw()` between `thread_trigger()` and the draw pass can be lost if the pending_redraw fold already happened. The unified `dirty_flags` atomic is read at draw time, not at dispatch time, eliminating this window. | `Runner::dirty_flags` atomic with `consume_dirty()` at draw time |
+| **`atomic<bool> Proc::resized`** | Declared in `btop_shared.hpp`, written in `btop_draw.cpp`, **never read anywhere in the codebase**. Dead code. Remove without replacement. | Remove entirely (v1.6 scope item) |
+| **Setting per-namespace `redraw` bools from `calcSizes()`** | `calcSizes()` is called from the main thread. The per-namespace `bool redraw` fields (e.g., `Cpu::redraw`) are read from the runner thread. These are plain `bool` globals — reading from runner while main writes is undefined behavior (data race). The current code "works" only because `calcSizes()` calls `Runner::wait_idle()` first, coupling layout recomputation to runner lifecycle. Decoupling them (a v1.6 goal) removes this synchronization point and makes the race explicit. | `Runner::mark_dirty()` on the atomic, removing per-namespace bool fields |
+| **Widening to `std::atomic<uint64_t>` preemptively** | Wasteful. 6 current flags fit in `uint8_t`. `uint8_t` atomics are lock-free on all targets. Widening adds no benefit unless the flag count exceeds 8 — at which point `uint16_t` is the right next step, not a 64-bit integer. | `uint8_t` now; widen to `uint16_t` if needed |
 
 ---
 
-## Stack Patterns for This Milestone
+## Integration With Existing Architecture
 
-**Menu PDA stack declaration:**
+### Enum-Indexed Array Pattern (from v1.0)
+
+The codebase already uses enum-indexed arrays as the primary lookup pattern (ThemeKey, CpuField, MemField, NetDir, GpuField). `DirtyFlag` follows the same convention: enum class with typed underlying integer, explicit bit positions, no implicit conversion. The difference is that DirtyFlag values are bitmask bits, not array indices.
+
+### Shadow Atomic Pattern (from v1.1/v1.2)
+
+`Global::runner_state_tag` is a shadow atomic (`atomic<RunnerStateTag>`) that mirrors the main-thread `AppStateVar` for cross-thread reads. `Runner::dirty_flags` is analogous: a shadow atomic that cross-thread producers (main thread, signal handlers via event queue) set, and the runner thread consumes. The single-writer invariant (`transition_to()` is the only writer for `runner_state_tag`) has an analogue here: `mark_dirty()` is the only write path to `dirty_flags`.
+
+### calcSizes() Decoupling (v1.6 goal)
+
+Today `calcSizes()` couples layout recomputation and redraw forcing:
 ```cpp
-// In btop_menu.hpp (or btop_state.hpp)
-namespace menu_frame {
-    struct Main    { int selected{0}; };
-    struct Options { int selected{0}; int scroll{0}; int category{0}; };
-    struct Help    { int scroll{0}; };
-    struct SignalChoose { int selected{0}; };
-    struct SignalSend   { int signal{0}; int pid{0}; };
-    struct SignalReturn {};
-    struct Renice  { int selected{0}; int nice{0}; };
-    struct SizeError {};
-}
-
-using MenuFrame = std::variant<
-    menu_frame::Main,
-    menu_frame::Options,
-    menu_frame::Help,
-    menu_frame::SignalChoose,
-    menu_frame::SignalSend,
-    menu_frame::SignalReturn,
-    menu_frame::Renice,
-    menu_frame::SizeError
->;
-
-// PDA stack — main-thread only
-// Use vector backing for bounded depth; reserve(8) avoids realloc
-class MenuPDA {
-    std::stack<MenuFrame, std::vector<MenuFrame>> frames_;
-public:
-    MenuPDA() { frames_.c.reserve(8); }
-
-    void push(MenuFrame f) { frames_.push(std::move(f)); }
-    void pop()             { if (!frames_.empty()) frames_.pop(); }
-    bool empty()     const { return frames_.empty(); }
-    bool active()    const { return !frames_.empty(); }
-
-    const MenuFrame& top() const { return frames_.top(); }
-    MenuFrame&       top()       { return frames_.top(); }
-};
+// Today (coupled):
+Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
+Runner::request_redraw();
 ```
 
-**Input FSM state declaration:**
+After migration:
 ```cpp
-// In btop_input.hpp (or a new btop_input_state.hpp)
-namespace input_state {
-    struct Normal   {};
-    struct Filtering { std::string filter_text; };
-    struct MenuActive {};   // Menu PDA is the authoritative state
-}
-
-using InputStateVar = std::variant<
-    input_state::Normal,
-    input_state::Filtering,
-    input_state::MenuActive
->;
+// After (decoupled):
+// Layout recomputation (calcSizes body) runs here — no redraw implication
+Runner::mark_dirty(DirtyFlag::Cpu | DirtyFlag::Mem | DirtyFlag::Net | DirtyFlag::Proc | DirtyFlag::Gpu | DirtyFlag::Menu);
+// Runner reads dirty flags at draw time, not at dispatch time
 ```
 
-**Dispatch pattern (mirrors existing dispatch_event):**
-```cpp
-// In btop_input.cpp
-static InputStateVar on_event(const input_state::Normal&, const input_event::StartFilter&) {
-    return input_state::Filtering{};
-}
-static InputStateVar on_event(const input_state::Filtering& s, const input_event::KeyChar& e) {
-    auto next = s;
-    next.filter_text += e.ch;
-    return next;
-}
-static InputStateVar on_event(const auto& s, const auto&) {
-    return s; // catch-all: unhandled pairs preserve state
-}
+This removes the semantic coupling between "I changed geometry" and "force the runner to redraw right now." `calcSizes()` can run without caring whether the runner is active.
 
-InputStateVar dispatch_input(const InputStateVar& current, const InputEvent& ev) {
-    return std::visit(
-        [](const auto& state, const auto& event) -> InputStateVar {
-            return on_event(state, event);
-        },
-        current, ev
-    );
-}
-```
+### Memory Ordering in the Btop Threading Model
 
-**PDA dispatch (overload pattern for per-frame rendering):**
-```cpp
-// In btop_menu.cpp
-void render_top_frame(const MenuFrame& frame) {
-    std::visit(overload{
-        [](const menu_frame::Main& f)    { /* render main menu, use f.selected */ },
-        [](const menu_frame::Options& f) { /* render options, use f.selected, f.scroll */ },
-        [](const menu_frame::Help& f)    { /* render help, use f.scroll */ },
-        [](const auto&)                  { /* other frames */ },
-    }, frame);
-}
-```
-
-**Overload helper (C++20, no deduction guide needed):**
-```cpp
-// In btop_tools.hpp or inline at use site
-template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
-// C++20: deduction guide is implicit — no extra line needed
-```
-
-**If [C++23 static_assert safety is desired]:**
-```cpp
-// Catch-all that errors at compile time if a frame type is not handled
-template<class... Ts> struct overload : Ts... {
-    using Ts::operator()...;
-    consteval void operator()(auto) const {
-        static_assert(false, "Unhandled MenuFrame alternative in visitor");
-    }
-};
-```
-Use the exhaustive version when adding new frame types is expected (forces callers to handle all alternatives). Use the catch-all `on_event` version when a no-op default is intentional (as in the existing codebase).
-
----
-
-## Testing Approach for Stack-Based State Machines
-
-**What to test in `test_menu_pda.cpp`:**
-
-```cpp
-// 1. Empty PDA is inactive
-TEST(MenuPDA, EmptyIsInactive) { MenuPDA pda; EXPECT_FALSE(pda.active()); }
-
-// 2. Push makes active, top() returns pushed frame
-TEST(MenuPDA, PushActivates) {
-    MenuPDA pda;
-    pda.push(menu_frame::Main{});
-    EXPECT_TRUE(pda.active());
-    EXPECT_TRUE(std::holds_alternative<menu_frame::Main>(pda.top()));
-}
-
-// 3. Push-then-pop returns to empty (not to previous frame)
-TEST(MenuPDA, PushPopIsEmpty) {
-    MenuPDA pda;
-    pda.push(menu_frame::Main{});
-    pda.pop();
-    EXPECT_FALSE(pda.active());
-}
-
-// 4. Stack preserves frame-below after push/pop sequence
-TEST(MenuPDA, StackPreservesUnderneath) {
-    MenuPDA pda;
-    pda.push(menu_frame::Main{.selected = 2});
-    pda.push(menu_frame::Help{});
-    pda.pop();
-    ASSERT_TRUE(std::holds_alternative<menu_frame::Main>(pda.top()));
-    EXPECT_EQ(std::get<menu_frame::Main>(pda.top()).selected, 2);
-}
-
-// 5. Per-frame data survives round-trip (no mutation on push/pop)
-TEST(MenuPDA, FrameDataPreserved) {
-    MenuPDA pda;
-    pda.push(menu_frame::Options{.selected = 3, .scroll = 10, .category = 1});
-    const auto& top = std::get<menu_frame::Options>(pda.top());
-    EXPECT_EQ(top.selected, 3);
-    EXPECT_EQ(top.scroll, 10);
-}
-
-// 6. Table-driven transition test using TEST_P
-struct PdaTransition { MenuFrame push_frame; MenuFrame expected_top; };
-class PdaTransitionTest : public ::testing::TestWithParam<PdaTransition> {};
-TEST_P(PdaTransitionTest, TopMatchesExpected) {
-    MenuPDA pda;
-    pda.push(GetParam().push_frame);
-    EXPECT_EQ(pda.top().index(), GetParam().expected_top.index());
-}
-INSTANTIATE_TEST_SUITE_P(AllFrameTypes, PdaTransitionTest, ::testing::Values(
-    PdaTransition{menu_frame::Main{},        menu_frame::Main{}},
-    PdaTransition{menu_frame::Options{},     menu_frame::Options{}},
-    PdaTransition{menu_frame::Help{},        menu_frame::Help{}},
-    PdaTransition{menu_frame::SignalChoose{}, menu_frame::SignalChoose{}}
-));
-```
-
-**What to test in `test_input_fsm.cpp`:**
-- Each `on_event(state, event)` overload returns the expected next state
-- Catch-all `on_event(auto, auto)` returns current state unchanged
-- `dispatch_input(current, ev)` routes correctly (mirrors `test_transitions.cpp`)
-- `input_state::Filtering` carries `filter_text` across multiple `KeyChar` events
-
-**What NOT to test (avoid):**
-- Rendering logic (involves terminal I/O, not suitable for unit test)
-- Mouse mapping resolution (depends on terminal geometry)
-- Any code path that calls `Menu::show()` or `Input::process()` directly (integration concern, not unit concern)
+btop has a simple 2-thread model: main thread (writes flags via `mark_dirty`) and runner thread (reads and clears via `consume_dirty`). The `menu_open/close/clear` wrappers are main-thread only. There is no multi-producer scenario for the dirty flags (signal handlers route through the event queue to the main thread, which then calls `mark_dirty`). This simplicity justifies `memory_order_release` on producers and `memory_order_acquire` on the consumer — no need for `memory_order_seq_cst`.
 
 ---
 
@@ -277,27 +235,30 @@ INSTANTIATE_TEST_SUITE_P(AllFrameTypes, PdaTransitionTest, ::testing::Values(
 
 | Component | Version Requirement | Notes |
 |-----------|---------------------|-------|
-| `std::stack<T, std::vector<T>>` | C++11 | Standard since C++11; fully available in GCC 12+ / Clang 15+ |
-| `std::variant` | C++17 | Already used in btop_state.hpp and btop_events.hpp |
-| `std::visit` two-variant form | C++17 | Already used in `dispatch_event` in btop.cpp |
-| Overload pattern (no deduction guide) | C++20 | GCC 12 and Clang 15 both support C++20 CTAD for aggregates |
-| `consteval` static_assert safety | C++23 | Optional enhancement. GCC 12 supports C++23 with `-std=c++23`; Clang 15 supports C++23. Only use if the project's CMakeLists.txt is already targeting C++23. |
-| GoogleTest v1.17.0 `TEST_P` / `INSTANTIATE_TEST_SUITE_P` | Requires C++17 (GTest 1.17 requires C++17) | Already in CMakeLists.txt at v1.17.0 |
+| `enum class E : uint8_t` | C++11 | Standard scoped enum with explicit underlying type; available in GCC 12+ / Clang 15+ |
+| `std::atomic<uint8_t>` | C++11, `<atomic>` | `uint8_t` is an integer type; `is_always_lock_free` is true on x86 and ARM |
+| `atomic<uint8_t>::fetch_or` | C++11, `<atomic>` | Member of `atomic<Integral>` specializations; confirmed in cppreference |
+| `atomic<uint8_t>::exchange` | C++11, `<atomic>` | Available on all atomic specializations |
+| `std::underlying_type_t<T>` | C++14 (`_t` alias form) | C++11 has `std::underlying_type<T>::type`; `_t` alias is C++14. Both GCC 12 and Clang 15 support C++14 as baseline. |
+| `std::to_underlying(e)` | C++23 | Optional simplification of `static_cast<underlying_type_t<E>>(e)`. Use only if `btop`'s CMakeLists already targets C++23. Falls back to manual `static_cast` without any loss of correctness. |
+| `[[nodiscard]]` on `consume_dirty` | C++17 | Prevents accidentally discarding the flag snapshot without acting on it. Already used in this codebase. |
 
 ---
 
 ## Sources
 
-- [cppreference — std::stack](https://en.cppreference.com/w/cpp/container/stack) — Confirmed `stack<T, vector<T>>` parameterization, required container operations. **HIGH confidence.**
-- [cppreference — std::variant::visit](https://en.cppreference.com/w/cpp/utility/variant/visit) — Two-variant `std::visit` form confirmed C++17. Member function overloads are C++26 (not applicable here). **HIGH confidence.**
-- [C++ Stories — Overload Pattern](https://www.cppstories.com/2019/02/2lines3featuresoverload.html/) — Overload pattern in C++17/20, C++20 eliminates deduction guide, C++23 `consteval` catch-all for exhaustive matching. **HIGH confidence.**
-- [C++ Stories — FSM with std::variant (2023)](https://www.cppstories.com/2023/finite-state-machines-variant-cpp/) — Two-variant `std::visit` for state × event dispatch, vending machine example mirrors btop's `dispatch_event` pattern. **HIGH confidence.**
-- [Game Programming Patterns — State chapter](https://gameprogrammingpatterns.com/state.html) — Pushdown automaton for menu/game-state management: stack of states with push/pop instead of single-state replacement. Confirms the "stack of typed frames" pattern. **MEDIUM confidence** (blog, but canonical reference for the pattern).
-- `btop_state.hpp`, `btop_events.hpp`, `btop.cpp` — Direct codebase analysis. The `AppStateVar`, `AppEvent`, `dispatch_event`, `on_event`, `transition_to` patterns in the existing code are the direct model for v1.3. **HIGH confidence** (primary source).
-- `tests/CMakeLists.txt`, `tests/test_transitions.cpp` — Direct codebase analysis. GoogleTest v1.17.0, `TEST()` pattern, `holds_alternative` + `get` assertions. **HIGH confidence** (primary source).
-- [GoogleTest v1.17.0 — Testing Reference](https://google.github.io/googletest/reference/testing.html) — `TEST_P`, `INSTANTIATE_TEST_SUITE_P` for table-driven transition tests. **HIGH confidence.**
+- [cppreference — `std::atomic<T>::fetch_or`](https://en.cppreference.com/w/cpp/atomic/atomic/fetch_or.html) — Confirmed `fetch_or` is a member of `atomic<Integral>` specializations; memory_order parameter documented. **HIGH confidence.**
+- [cppreference — `std::memory_order`](https://en.cppreference.com/w/cpp/atomic/memory_order.html) — Release/acquire pattern for producer-consumer notification: "store in thread A tagged `memory_order_release` synchronizes-with load in thread B tagged `memory_order_acquire`." **HIGH confidence.**
+- [cppreference — `std::bitset`](https://en.cppreference.com/w/cpp/utility/bitset.html) — Confirmed no atomic interface; thread safety requires external synchronization. **HIGH confidence.**
+- [cppreference — `std::to_underlying`](https://en.cppreference.com/w/cpp/utility/to_underlying) — C++23, equivalent to `static_cast<std::underlying_type_t<Enum>>(e)`. **HIGH confidence.**
+- [Andreas Fertig — C++20 Concepts applied: Safe bitmasks using scoped enums (2024)](https://andreasfertig.com/blog/2024/01/cpp20-concepts-applied/) — C++20 concept-gated operator overloads on scoped enums using `requires`; eliminates `decltype/enable_if` verbosity. **HIGH confidence** (official author blog, current).
+- [voithos.io — Type-safe Enum Class Bit Flags](https://voithos.io/articles/type-safe-enum-class-bit-flags/) — `BitFlags<T>` wrapper pattern as an alternative to operator overloads; confirms the tradeoff between overloaded operators (simpler client code) and wrapper type (stronger type distinction). **MEDIUM confidence** (blog, independently corroborated by Fertig).
+- [preshing.com — You Can Do Any Kind of Atomic Read-Modify-Write Operation](https://preshing.com/20150402/you-can-do-any-kind-of-atomic-read-modify-write-operation/) — CAS-loop as the general RMW primitive; `fetch_or` as a specialized single-instruction form where the operation is simple enough. Confirms `exchange(0)` is the correct consume-and-clear primitive. **HIGH confidence** (Jeff Preshing is the canonical reference for C++ memory ordering).
+- [brilliantsugar.github.io — How I Learned to Stop Worrying and Love Juggling C++ Atomics](https://brilliantsugar.github.io/posts/how-i-learned-to-stop-worrying-and-love-juggling-c++-atomics/) — Dirty flag embedded in a pointer with `memory_order_acq_rel` on exchange; confirms the correctness problem with separate flag + pointer atomics and the superiority of a single atomic that carries both. **MEDIUM confidence** (blog, good reasoning).
+- `src/btop.cpp`, `src/btop_draw.cpp`, `src/btop_shared.hpp`, `src/btop_state.hpp` — Direct codebase analysis. Identified all 7 redraw flag sites, the `pending_redraw → force_redraw` fold, `Proc::resized` dead code, and `calcSizes()` coupling. **HIGH confidence** (primary source).
+- [WebSearch: `ATOMIC_INT_LOCK_FREE`, `is_always_lock_free` on x86/ARM] — Community consensus: `std::atomic<uint32_t>` (and smaller integers) `is_always_lock_free == true` on x86-32, x86-64, ARMv7, ARM64 — all btop target platforms. **MEDIUM confidence** (community + preshing; C++ standard only guarantees `atomic_flag` is always lock-free).
 
 ---
 
-*Stack research for: btop++ v1.3 Menu PDA + Input FSM*
-*Researched: 2026-03-02*
+*Stack research for: btop++ v1.6 Unified Dirty-Flag Mechanism*
+*Researched: 2026-03-03*

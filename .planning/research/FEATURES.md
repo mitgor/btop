@@ -1,29 +1,42 @@
-# Feature Research: Menu PDA + Input FSM
+# Feature Research: Unified Dirty-Flag Mechanism
 
-**Domain:** Menu pushdown automaton and input finite state machine for btop++ C++ terminal monitor
-**Researched:** 2026-03-02
-**Confidence:** HIGH (codebase analysis + established TUI/game-state-machine literature)
+**Domain:** Dirty-flag / invalidation system for btop++ C++ terminal monitor
+**Researched:** 2026-03-03
+**Confidence:** HIGH (deep codebase analysis + established patterns from game programming, GUI frameworks, and terminal UI literature)
 
 ---
 
 ## Context: What Exists and What Changes
 
-### Existing (keep, do not break)
+### Existing redraw flag topology (v1.5 baseline)
 
-| Component | Current Encoding | Problem |
-|-----------|-----------------|---------|
-| 8 menus (Main, Options, Help, SizeError, SignalChoose, SignalSend, SignalReturn, Renice) | `bitset<8> menuMask` + `int currentMenu` | Multiple bits can be set simultaneously; `currentMenu` is the last set bit — implicit priority |
-| Menu per-frame state | `static` locals inside each `menuFuncN()` function | Survives across calls, not reset on re-entry, hidden lifetime |
-| Menu transitions | `menuReturnCodes`: NoChange / Changed / Closed / Switch | `Switch` replaces current; `Closed` pops via `menuMask.reset(currentMenu)` |
-| Input routing split | `Menu::active` bool checked in `Input::get()` mouse routing; `Input::process()` checks `Config::proc_filtering` bool | Two independent conditionals, not a typed FSM |
-| Filtering state | `Config::proc_filtering` bool + `old_filter` string | Global config bool used as mode flag |
+| Flag | Location | Type | Who Sets | Who Reads |
+|------|----------|------|----------|-----------|
+| `Cpu::redraw` | btop_draw.cpp (namespace-static) | `bool` | `Draw::calcSizes()`, `force_redraw` path | `Cpu::draw()` |
+| `Mem::redraw` | btop_draw.cpp (namespace-static) | `bool` | `Draw::calcSizes()`, `force_redraw` path, disk-mount changes | `Mem::draw()` |
+| `Net::redraw` | btop_draw.cpp (namespace-static) | `bool` | `Draw::calcSizes()`, `force_redraw` path, interface changes | `Net::draw()` |
+| `Proc::redraw` | btop_draw.cpp (namespace-static) | `bool` | `Draw::calcSizes()`, `force_redraw` path, sort changes | `Proc::draw()` |
+| `Gpu::redraw` | btop_draw.cpp (namespace-static) | `vector<bool>` | `Draw::calcSizes()`, `force_redraw` path | `Gpu::draw()` per panel |
+| `Menu::redraw` | btop_menu.cpp | `bool` | `Draw::calcSizes()` when menu active | `Menu::process()` |
+| `conf.force_redraw` | Runner local (RunConf struct) | `bool` | `Runner::run()` call sites, pending_redraw flush | All `::draw()` calls |
+| `pending_redraw` | btop.cpp (function-static atomic) | `atomic<bool>` | `Runner::request_redraw()` | Folded into `conf.force_redraw` at run() entry |
+| `Proc::resized` | btop_draw.cpp | `atomic<bool>` | **Never written** (dead) | `Draw::calcSizes()` line 2926 |
+| `redraw` locals (btop_input.cpp) | btop_input.cpp, 4 separate scopes | `bool` | Input handlers per box | Passed as `force_redraw` to `Runner::run()` |
 
-### Target (v1.3 goal)
+### Key problems the current topology creates
 
-- `std::vector<MenuFrame>` stack where `MenuFrame = std::variant<frame::Main, frame::Options, frame::Help, ...>` — each frame carries its own per-frame data
-- `push(frame)` → enter menu; `pop()` → return to previous (or close all if stack empties)
-- Input FSM: `std::variant<input::Normal, input::Filtering, input::MenuActive>` replacing the `Menu::active` bool + `proc_filtering` bool pair
-- Zero user-visible behavior change
+1. **Scattered mutation points.** Seven distinct module-level bools, one atomic bool, one vector of bools. No single place to inspect "what needs redraw right now."
+2. **Force_redraw is all-or-nothing.** A single bool broadcasts to all boxes. There is no way to say "Mem changed its disk list; only Mem needs a redraw." Every change forces full redraw of all boxes in the cycle.
+3. **`Draw::calcSizes()` sets redraw as a side-effect.** The function recomputes layout geometry (its core job) and also mass-sets every box's `redraw = true`. Layout recomputation and dirty marking are coupled in one call.
+4. **`Proc::resized` is dead code.** Declared as `atomic<bool>`, never written, read once in `calcSizes()` on line 2926. The read always sees `false` — the branch is permanently taken but the flag is meaningless.
+5. **Naming collision in btop_input.cpp.** Four separate `bool redraw = true;` locals in different block scopes within the same file. These shadow one another and are passed positionally to `Runner::run()` — error-prone and hard to trace.
+
+### v1.6 target
+
+- `DirtyFlags` bitset (one bit per box/panel) replaces all per-box bools and `force_redraw`
+- Dead `Proc::resized` atomic removed
+- `bool redraw` locals in btop_input.cpp renamed to meaningful identifiers
+- `Draw::calcSizes()` marks DirtyFlags dirty; does not set box-level redraw bools directly
 
 ---
 
@@ -31,151 +44,142 @@
 
 ### Table Stakes (Must Have for This Milestone)
 
-Features that the PDA and Input FSM must provide. Missing any one = the migration is incomplete, regression exists, or the architecture goal is unmet.
+Features that the unified dirty-flag mechanism must provide. Missing any = the refactor is incomplete or creates worse problems than the current code.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Typed stack frames for all 8 menus | The entire point of the milestone; replaces `bitset<8>` + `currentMenu` | MEDIUM | Each frame variant alternative carries its own state (e.g., `frame::SignalChoose { int selected_signal; int x; int y; }`) replacing function-static locals |
-| `push(frame)` operation | Entering a menu from Normal or from another menu must put the new frame on top | LOW | Replace `menuMask.set(menu)` call sites; preserve caller frame below |
-| `pop()` operation | Closing a menu (ESC/q/Closed return code) must restore the frame beneath it | LOW | Replace `menuMask.reset(currentMenu)` + recursive `process()` call; if stack empties, transition input FSM back to Normal |
-| Clean per-frame state initialization | Frame state initializes when pushed, not from a prior static | MEDIUM | Current code uses `if (bg.empty()) selected = 0;` hacks to detect re-entry; frame constructor sets initial state cleanly |
-| Clean per-frame state destruction on pop | Frame state destroyed when popped — no dangling statics | LOW | RAII via variant destruction; function-static locals eliminated |
-| `peek()` / top-frame dispatch | `process(key)` must dispatch input to the top frame only | LOW | Replaces `menuFunc.at(currentMenu)(key)` dispatch |
-| Background capture on push (not per-frame) | `bg` string (the blurred background) is captured once when first menu opens, not re-captured per frame | LOW | Current: `bg` is a single module-level string; behavior unchanged — bg cleared only when stack fully empties |
-| `mouse_mappings` reset on frame transition | Mouse mappings belong to the active frame; must be cleared and rebuilt when pushing or popping | LOW | Current: `mouse_mappings.clear()` on Closed/Switch; must happen on push and pop |
-| `Switch` return code → replace frame, not push | Main→Options/Help does a replace (not a push-over-main), so going back to main after closing Options does NOT re-show Main | MEDIUM | Distinguish `push()` (depth increases) from `replace()` (depth unchanged) or model Main→Options as `pop(); push(Options)` — either way must match current behavior where ESC from Options goes to Normal, not Main |
-| Input FSM: `Normal` state | Keyboard goes to `Input::process()` for global + box-specific handlers | LOW | Replaces implicit "not filtering, not in menu" condition |
-| Input FSM: `Filtering` state | Keyboard routed to `Proc::filter.command(key)` + filter commit/cancel | LOW | Replaces `Config::proc_filtering` bool; carries `old_filter` string in state |
-| Input FSM: `MenuActive` state | Keyboard routed to `Menu::process(key)` only | LOW | Replaces `Menu::active` atomic bool; eliminates the bool from `Input::get()` mouse routing check |
-| Input FSM transition Normal → Filtering | `f` or `/` key from Normal state | LOW | Entry action: set `Proc::filter = Draw::TextEdit{...}`, save `old_filter` |
-| Input FSM transition Filtering → Normal | `enter`, `escape`, `mouse_click` from Filtering state | LOW | Entry/exit actions: commit or restore filter value |
-| Input FSM transition Normal ↔ MenuActive | `Menu::show()` / `Menu::process()` with empty stack triggers Normal | LOW | When PDA stack goes empty, input FSM pops to Normal |
-| Mouse routing uses Input FSM state | `Input::get()` checks input FSM state (not `Menu::active` bool) for which mouse_mappings to use | LOW | Single source of truth replaces `Menu::active` + config bool |
-| Comprehensive tests for PDA transitions | Push, pop, replace, empty-stack, size-error override all tested | HIGH | Following v1.1 pattern: 266+ passing tests, ASan+UBSan+TSan clean |
-| Comprehensive tests for Input FSM transitions | Normal→Filtering→Normal, Normal→MenuActive→Normal, key routing verified per state | MEDIUM | Unit-testable because state is a typed variant, not global bools |
-| Zero regression in user-visible behavior | Same menus, same keys, same flow, same visuals | HIGH (validation) | Verified by existing test suite + ASan/UBSan/TSan clean builds |
+| Single `DirtyFlags` bitset replacing all per-box redraw bools | Core goal of milestone; eliminates 7 scattered bools + vector<bool> | MEDIUM | `enum class DirtyBit : uint8_t { Cpu=0, Mem=1, Net=2, Proc=3, Gpu0..N, Menu }` + `std::bitset<N>` or `uint16_t` mask. Must cover existing flag set. |
+| `set(DirtyBit)` / `test(DirtyBit)` / `clear(DirtyBit)` / `set_all()` / `clear_all()` API | All current flag operations must be expressible; no regressions in what currently triggers redraws | LOW | Thin wrapper or free functions over the bitset. `set_all()` replaces the calcSizes mass-assign. |
+| `force_redraw` collapses into `set_all()` | The `RunConf::force_redraw` bool causes every draw call to see "redraw=true". After migration, this is `DirtyFlags::set_all()` before the draw cycle. | LOW | Removes `conf.force_redraw` parameter thread; replace with `dirty.test(box_bit)` in each draw call. |
+| `pending_redraw` atomic folds into `DirtyFlags` | Currently `pending_redraw` is exchanged into `conf.force_redraw` at run() entry. After migration, request_redraw() sets `DirtyFlags::set_all()` atomically. | LOW | May require the bitset to be atomic or protected by the existing run-start lock. |
+| `Draw::calcSizes()` calls `dirty.set_all()` instead of direct bool assigns | Line 2938 currently: `Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true`. After migration: `dirty.set_all()`. | LOW | One-line change at the call site; no behavioral change. |
+| Dead `Proc::resized` removed | Declared `atomic<bool>`, never written, read once in calcSizes — the branch it guards is always taken (value is always false). No behavior change on removal. | LOW | Remove declaration from btop_shared.hpp line 721, remove read from btop_draw.cpp line 2926, simplify the condition. |
+| `bool redraw` locals in btop_input.cpp renamed | Four shadowing `bool redraw = true` locals in separate block scopes in btop_input.cpp (lines 355, 587, 618, 640). These are local intent flags that get passed to `Runner::run()` as `force_redraw`. Rename to `force_box_redraw` or similar to remove collision. | LOW | Pure rename, no logic change. Compiler would have warned about this if they were in the same scope. |
+| Box-draw functions receive dirty bit, not bool parameter | `Cpu::draw(cpu, force_redraw, no_update)` signature; `force_redraw` is currently a `bool`. After migration, the runner passes `dirty.test(DirtyBit::Cpu)`. Signature stays `bool` at call site or changes to direct bitset test — either is fine as long as the bool source changes. | LOW | Call-site change in Runner body (btop.cpp lines 627–712); draw function signatures may stay as `bool` internally. |
+| `calcSizes()` decoupled: layout recomputation separated from dirty marking | Currently `calcSizes()` both recalculates box geometry and sets `redraw=true` on every box. After migration, `calcSizes()` does layout, then explicitly calls `dirty.set_all()`. The separation is a naming/coupling improvement — it makes clear that "recalculate layout" and "request redraw" are two distinct effects. | LOW | The separation is already almost there; it's a refactor of what currently happens on line 2938, not a functional split. |
+| Existing test suite stays at 330/330 | All box behaviors must be identical. Redraw triggers must fire for exactly the same conditions as before. | HIGH (validation) | ASan + UBSan + TSan clean; no new flicker or missed redraws. |
 
-### Differentiators (Architectural Improvements Enabled by PDA)
+### Differentiators (Architectural Improvements Enabled by Unified Flags)
 
-Features that the PDA/FSM architecture makes possible or significantly cleaner — not strictly required for behavior parity, but are the architectural payoff of the migration.
+Features that the unified bitset makes possible or materially cleaner — not strictly required for behavior parity, but they are the architectural payoff of the refactor.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Illegal menu combinations unrepresentable | `bitset<8>` allows `menuMask = 0b11111111` (all 8 menus active). Variant stack allows only one frame per stack slot — simultaneous conflicting menus are structurally impossible | LOW (side-effect of design) | No explicit code to write; falls out of the typed variant stack |
-| Per-frame state lifetime matches frame lifetime | `frame::SignalChoose` carries `selected_signal` as a member; it's initialized on push and destroyed on pop — no `static` lifetime pollution across close/reopen cycles | LOW (side-effect of design) | Eliminates the `if (bg.empty()) selected = 0;` re-entry detection hacks in all 8 menu functions |
-| Compiler-enforced frame handling | `std::visit` on `MenuFrame` variant produces compile error if a new frame type is added without handling it in dispatch | LOW (side-effect of design) | Makes future menu additions safe |
-| Transition logging | Every push/pop/replace can log `"[Menu PDA] push(Options) → stack: [Main, Options]"` for debuggability | LOW | One log statement in push/pop/replace |
-| Input mode visible at a glance | `std::holds_alternative<input::Filtering>(input_state)` is self-documenting; `Config::getB(BoolKey::proc_filtering)` is not | LOW (side-effect of design) | Debugging and future development benefit |
-| Old filter preserved in state struct | `input::Filtering { string old_filter; Draw::TextEdit filter; }` keeps filter rollback data in the FSM state, not in a module-level `string old_filter` global | LOW | Eliminates one global variable |
-| Extensible focus model | Once input routing is typed, adding a third input mode (e.g., a vim-style command mode) is additive — add a new alternative to the InputFSM variant and handlers | LOW (future-facing) | Not for v1.3, but architecture now supports it |
-| Stack depth limit (defensive) | Assert/enforce `stack.size() <= 3` to prevent any pathological push loop that the bitset could not express but the stack could | LOW | Defensive guard; `bitset<8>` was naturally bounded to 8 |
+| Per-box selective redraw (not all-or-nothing) | Today `force_redraw` is global. With per-bit flags, a disk mount change sets only `DirtyBit::Mem`; the Cpu/Net/Proc boxes skip their static redraw path. Reduces wasted string-building on unchanged boxes. | LOW | Falls out of the design; no extra code needed. The value depends on how often partial invalidation actually occurs in practice. |
+| Inspectable invalidation state for debugging | `dirty.to_string()` or a debug-log call shows exactly which bits are set at any point. Currently you must instrument 7 separate bools across 5 namespaces. | LOW | One-liner with `std::bitset::to_string()` or formatted bit print. |
+| Single atomic DirtyFlags for thread-safe signaling | `pending_redraw` is currently a separate `atomic<bool>` used by `request_redraw()` to post a "please redraw" from the main thread to the runner. A `std::atomic<uint16_t>` underlying the dirty bitset allows the same operation atomically per bit. This eliminates the two-step (pending_redraw → fold into force_redraw). | MEDIUM | Requires deciding whether the bitset uses an atomic underlying word or a mutex guard at run() entry. The current code already folds at run() entry (holding the runner lock), so a non-atomic bitset behind the existing lock is valid and simpler. |
+| No invalid "all boxes dirty from unrelated cause" pattern | The current `force_redraw = true` global broadcasts to all boxes even when only one triggered. With per-bit flags, only the boxes that actually changed fire their static redraw paths. Less terminal output per cycle when changes are localized. | LOW | Behavioral improvement; not a regression. Worth documenting as motivating value. |
+| Compiler-visible single type for all redraw state | Today: 7 bools + 1 vector<bool> + 1 atomic<bool> + 1 bool in RunConf + 4 local bools. After: 1 type with a clear API. Grep for `DirtyFlags` finds every mutation point. | LOW | Quality-of-life for future maintainers. |
 
 ### Anti-Features (Do Not Build)
 
-Features that seem natural to add during this refactor but would violate scope, add risk, or create problems.
+Features that seem natural additions to a dirty-flag system but are out of scope, add risk, or solve a problem btop does not have.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Deep push of Main on top of Options/Help | PDA pattern suggests "push every menu on stack" — so opening Options from Main would push Options over Main | Current btop behavior: ESC from Options goes to Normal, NOT back to Main. Users do not expect to return to Main by closing Options. Breaking this is a regression | Use `replace()` for Main→Options/Help transitions; reserve `push()` for cases that genuinely need return (e.g., SignalChoose → SignalReturn) |
-| Animate or transition visuals during push/pop | Stack-based UIs often have slide or fade transitions | Zero visual change is the explicit constraint in PROJECT.md; any animation adds terminal I/O complexity and is out of scope | Keep the existing instant-switch rendering behavior |
-| History states (remember substate when re-entering) | PDA stacks often carry a "return to where we were" concept — e.g., remember which option was selected when reopening Options | btop already does this via function-static locals (e.g., `static int selected_cat` persists). The migration goal is to move this state into the frame struct, not to change the behavior | Move static locals into frame struct members; preserve current persistence semantics |
-| Async menu state machines | Run menu update logic on a separate thread or with coroutines | Menu rendering must coordinate with Runner's pause_output and bg string; async would introduce races. The existing synchronous model is correct | Keep menu processing synchronous on the main thread |
-| Boost.SML or external FSM library | External libraries provide DSL, hierarchy, guards | PROJECT.md: no new dependencies. Boost.SML would be a new dependency. `std::variant` + `std::visit` is established in this codebase (v1.1 pattern) | Use `std::variant` + `std::visit` matching the existing App/Runner FSM pattern |
-| Replacing `Menu::msgBox` class | The msgBox helper could be refactored to also be a frame type | It works, it's tested, it's not the migration target. Touching it risks regression in SizeError, SignalSend, SignalReturn, ReniceMenu behaviors | Leave msgBox as-is; just move its state into the frame struct (e.g., `frame::SizeError { msgBox box; }`) |
-| Input FSM carrying full keyboard event history | An `InputFSM` could carry a ring buffer of recent keys for multi-key sequence detection | btop already has `Input::history` deque. Adding another history buffer in the FSM state struct duplicates data | Leave `Input::history` deque in place; `InputFSM` state struct carries only mode-specific data |
-| Global input FSM accessible across threads | Making the input FSM readable from Runner thread | Input processing is main-thread only. The runner thread does not need to know the input mode. Cross-thread access would require atomics, undoing the simplification | Keep input FSM as main-thread-only, like the App/Runner FSM variant |
+| Sub-box dirty regions (line-level or cell-level) | Rendering engines often track dirty rects for partial repaints within a component | btop already has cell-level differential rendering in `ScreenBuffer` — the cell buffer does not emit cells that have not changed. Sub-box dirty tracking would be redundant overhead layered above a mechanism that already handles it at cell granularity. | Leave sub-box invalidation to the existing ScreenBuffer diff; DirtyFlags only tracks box-level redraw of static elements (box outlines, headers, legend that do not change every frame). |
+| Dirty flag propagation hierarchy (parent → child) | GUI frameworks propagate dirtiness from parent containers to children | btop's boxes are flat peers with no parent-child containment hierarchy. There is no propagation path to design. | Not applicable to btop's layout model. |
+| Lazy invalidation / on-demand evaluation | Some dirty flag systems defer recomputation until the derived value is actually requested | btop's Runner thread collects then immediately draws. There is no "deferred evaluation" call site — draw always follows collect in the same cycle. | Not needed; btop is already demand-driven per Runner cycle. |
+| Async dirty flag consumers | Multiple threads watching for specific flag combinations | Runner is the only consumer of dirty state. Main thread sets flags; runner reads and clears. Multi-consumer would require condition variables and broadcast, adding complexity for no benefit. | Keep single-consumer model (Runner reads dirty bits at start of draw phase). |
+| Fine-grained GPU panel dirty bits (one bit per GPU) | Gpu::redraw is currently a `vector<bool>` indexed by GPU panel index | The number of GPU panels is runtime-determined (0–N). A compile-time bitset cannot accommodate a variable number of GPUs without reserving a fixed maximum (e.g., 8 bits for up to 8 GPUs). This is workable but adds complexity. | Either reserve a fixed number of GPU bits in the bitset (e.g., 4 or 8 GPU slots), or treat all GPU panels as a single `DirtyBit::Gpu` that maps to `redraw[index] = true` for all panels when set. The latter is simpler and matches how `force_redraw` already works today — it sets all panels dirty. |
+| External notification of dirty state (observer/signal) | Observer pattern lets subscribers react to flag changes | btop has no subscribers other than the Runner. Adding observer infrastructure for one consumer adds indirection with no benefit. | Direct API call (`dirty.set(bit)`) is sufficient. |
+| Replacing `ScreenBuffer` differential rendering with dirty flags | A coarser dirty system could skip the cell buffer entirely for "nothing changed" frames | The cell buffer is the correct tool for cell-level unchanged-frame detection. DirtyFlags operates at a higher level (should the box static chrome be redrawn this cycle?). They are complementary, not alternatives. | Keep both: DirtyFlags for box-level invalidation, ScreenBuffer for cell-level diffing. |
+| New dependency for bitset (e.g., Boost.DynamicBitset) | `std::bitset<N>` requires compile-time N; dynamic GPU count looks like it needs runtime N | PROJECT.md: no new heavy dependencies. `std::bitset<16>` with reserved GPU slots covers the realistic case. Alternatively, `uint16_t` with bit operations is zero-dependency and sufficient for < 16 boxes. | Use `uint16_t` underlying type or `std::bitset<16>` with a fixed enum, no new dependency. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[PDA: Typed Stack Frames]
-    +-- requires --> [Frame variant definition]   (MenuFrame = std::variant<...>)
-    +-- requires --> [Per-frame state structs]     (frame::Options { int selected; int selected_cat; ... })
-    +-- enables  --> [Clean state initialization] (constructor replaces if (bg.empty()) hacks)
-    +-- enables  --> [Illegal state prevention]   (structural; falls out of variant)
+[DirtyFlags bitset type]
+    +-- required by  --> [set/test/clear/set_all/clear_all API]
+    +-- replaces     --> [Cpu::redraw, Mem::redraw, Net::redraw, Proc::redraw bools]
+    +-- replaces     --> [Gpu::redraw vector<bool>]
+    +-- replaces     --> [conf.force_redraw bool in RunConf]
+    +-- replaces     --> [pending_redraw atomic<bool> (fold into set_all)]
+    +-- enables      --> [per-box selective redraw]
+    +-- enables      --> [inspectable invalidation state]
 
-[PDA: push() operation]
-    +-- requires --> [PDA: Typed Stack Frames]
-    +-- requires --> [Input FSM: MenuActive state] (push must transition input FSM if stack was empty)
-    +-- replaces --> [menuMask.set() call sites]
+[set_all() replaces force_redraw]
+    +-- requires     --> [DirtyFlags bitset type]
+    +-- requires     --> [Runner draw path reads dirty.test(box_bit) not conf.force_redraw]
+    +-- coordinates  --> [pending_redraw → request_redraw() calls dirty.set_all()]
 
-[PDA: pop() operation]
-    +-- requires --> [PDA: Typed Stack Frames]
-    +-- enables  --> [Input FSM: Normal state]    (pop when stack empties → input FSM back to Normal)
-    +-- replaces --> [menuMask.reset() call sites]
-    +-- coordinates --> [bg string lifecycle]     (bg clears only when stack fully empties)
+[Draw::calcSizes() decoupled from redraw marking]
+    +-- requires     --> [DirtyFlags bitset type]  (set_all() exists)
+    +-- changes      --> [btop_draw.cpp line 2938: direct bool assigns → dirty.set_all()]
+    +-- no behavior change, pure restructuring]
 
-[PDA: replace() operation]
-    +-- requires --> [PDA: Typed Stack Frames]
-    +-- requires --> [understanding of Switch return code semantics]  (Main→Options must use replace, not push)
+[Remove dead Proc::resized]
+    +-- independent of --> [DirtyFlags bitset type]  (can be done in any order)
+    +-- removes      --> [btop_shared.hpp atomic<bool> resized declaration]
+    +-- removes      --> [btop_draw.cpp calcSizes() line 2926 condition read]
+    +-- simplifies   --> [calcSizes() branch that is always taken]
 
-[Input FSM: typed states]
-    +-- requires --> [InputFSMState = std::variant<input::Normal, input::Filtering, input::MenuActive>]
-    +-- replaces --> [Menu::active atomic<bool>]
-    +-- replaces --> [Config::proc_filtering bool (as routing signal)]
-    +-- enables  --> [Mouse routing via FSM]      (Input::get() checks variant, not bool)
+[Rename redraw locals in btop_input.cpp]
+    +-- independent of --> [DirtyFlags bitset type]
+    +-- independent of --> [Remove dead Proc::resized]
+    +-- clarifies    --> [force_box_redraw intent vs module-level redraw flags]
+    +-- risk         --> LOW (pure rename, no logic change)
 
-[Input FSM: Filtering state]
-    +-- carries  --> [old_filter string]          (moves from module-level global into state struct)
-    +-- carries  --> [Draw::TextEdit filter]      (per-activation filter edit context)
+[Box draw functions receive dirty bit value]
+    +-- requires     --> [DirtyFlags bitset type]
+    +-- changes      --> [Runner body: conf.force_redraw → dirty.test(box_bit) at each draw call site]
+    +-- box draw function signatures may stay bool internally]
 
-[Tests: PDA transitions]
-    +-- requires --> [PDA: push/pop/replace]
-    +-- requires --> [frame state structs are constructible/inspectable in tests]
-
-[Tests: Input FSM transitions]
-    +-- requires --> [Input FSM: typed states]
-    +-- independent of --> [Tests: PDA transitions] (can test separately)
+[ScreenBuffer differential rendering] (existing, unchanged)
+    +-- complements  --> [DirtyFlags bitset]  (operates at cell level below box level)
+    +-- not replaced by DirtyFlags]
 ```
 
 ### Dependency Notes
 
-- **`replace()` semantics must be decided before coding push/pop:** The Main→Options transition currently uses `Switch` return code (same menu slot, replaces bg) so ESC from Options returns to Normal, not to Main. The PDA must model this as `pop(); push(Options)` or a true `replace()`. The decision affects how many frames are on the stack and whether there is ever a Main frame below another frame.
-- **Input FSM must transition to MenuActive when first menu is pushed:** The trigger for `Menu::active = true` must move from `process()` to the `push()` operation. This is the coupling point between the two new machines.
-- **Mouse routing couples Input FSM and PDA:** `Input::get()` currently checks `Menu::active` to choose `Menu::mouse_mappings` vs `Input::mouse_mappings`. After migration, it checks the Input FSM state. The PDA's `push()` and `pop()` must correctly drive the Input FSM state, otherwise mouse events mis-route.
-- **`bg` string lifetime is tied to the full stack, not individual frames:** `bg` is regenerated when `redraw = true` and is shared by the entire menu overlay. It clears when the stack fully empties. Individual frame push/pop must not clear `bg` unless the stack becomes empty — this is a subtlety of the current architecture that must be preserved.
+- **DirtyFlags must be defined before any call sites are migrated.** The enum and bitset type can be introduced in `btop_shared.hpp` or a new `btop_dirty.hpp` header. All box draw call sites in btop.cpp migrate once the type exists.
+- **`Proc::resized` removal is independent.** It can be a standalone commit before or after the DirtyFlags introduction. Removing it first simplifies the calcSizes() migration (one less condition to reason about).
+- **Renaming btop_input.cpp locals is also independent.** Pure rename; can be first commit to clear namespace confusion, or last commit as cleanup. No ordering requirement with DirtyFlags.
+- **`pending_redraw` → `request_redraw()` mapping.** Currently `request_redraw()` sets an `atomic<bool>` which is then folded into `conf.force_redraw` at run() entry. After migration, `request_redraw()` calls `dirty.set_all()`. The fold step disappears. If DirtyFlags is not atomic, `request_redraw()` must still coordinate through the runner lock or a small atomic "needs_redraw" signal that sets_all at lock acquisition. The simplest approach: keep an `atomic<bool> pending_redraw` as the cross-thread signal; fold it into `dirty.set_all()` at run() entry (same as today, just calls set_all instead of setting a bool in RunConf).
+- **GPU panel granularity decision must be made early.** If one `DirtyBit::Gpu` covers all panels (simplest), the `Gpu::redraw vector<bool>` per-panel logic collapses to: when `DirtyBit::Gpu` is set, set all `redraw[i] = true`. If N GPU bits are reserved, the vector<bool> is removed and each panel tests its own bit. Either is valid; the simpler one-bit approach matches how force_redraw already works.
 
 ---
 
 ## MVP Definition
 
-This milestone is a refactoring milestone, not a feature-addition milestone. The MVP is identical to the existing behavior, with internal representation changed.
+This is a refactoring milestone, not a feature-addition milestone. The MVP matches existing user-visible behavior with internal representation changed.
 
-### Core PDA (v1.3 launch)
+### Core DirtyFlags (v1.6 launch)
 
-The minimum that constitutes a successful migration:
+- [ ] `DirtyBit` enum and `DirtyFlags` type defined in a shared header
+- [ ] `set(DirtyBit)` / `test(DirtyBit)` / `clear(DirtyBit)` / `set_all()` / `clear_all()` implemented
+- [ ] `Cpu::redraw`, `Mem::redraw`, `Net::redraw`, `Proc::redraw` bools removed; replaced by `dirty.test(DirtyBit::Cpu)` etc. at draw call sites
+- [ ] `Gpu::redraw vector<bool>` replaced (either one `DirtyBit::Gpu` or N GPU bits)
+- [ ] `conf.force_redraw` bool in RunConf removed; replaced by `dirty.set_all()` at the relevant call sites
+- [ ] `pending_redraw` → `request_redraw()` flows into `dirty.set_all()` (with appropriate thread safety)
+- [ ] `Draw::calcSizes()` uses `dirty.set_all()` instead of line-2938 bool assigns
+- [ ] All `Runner` draw call sites in btop.cpp read `dirty.test(box_bit)` instead of `conf.force_redraw`
 
-- [ ] `MenuFrame` variant defined with all 8 frame types, each carrying its per-frame state as struct members
-- [ ] `std::vector<MenuFrame> menu_stack` replaces `bitset<8> menuMask` + `int currentMenu`
-- [ ] `push(MenuFrame)` implemented — sets `Menu::active`, drives Input FSM transition
-- [ ] `pop()` implemented — resets state, drives Input FSM, clears `bg` if stack empties
-- [ ] `replace(MenuFrame)` implemented for Switch-return-code transitions (Main→Options/Help)
-- [ ] All 8 menu functions refactored to receive their frame by reference instead of using function-static locals
-- [ ] All `menuMask.set()` / `menuMask.reset()` / `currentMenu = ` call sites replaced
-- [ ] `Menu::show()` and `Menu::process()` updated to work with stack
+### Dead Code Removal (v1.6 launch)
 
-### Core Input FSM (v1.3 launch)
+- [ ] `Proc::resized atomic<bool>` declaration removed from btop_shared.hpp
+- [ ] Read of `Proc::resized` in `calcSizes()` removed from btop_draw.cpp line 2926
+- [ ] Branch condition simplified (the always-taken path becomes unconditional)
 
-- [ ] `InputFSMState` variant defined: `input::Normal`, `input::Filtering { old_filter, filter }`, `input::MenuActive`
-- [ ] `Input::process()` dispatches based on FSM state instead of `filtering` bool check
-- [ ] `Input::get()` mouse routing uses FSM state instead of `Menu::active` bool
-- [ ] Transitions Normal→Filtering, Filtering→Normal, Normal→MenuActive, MenuActive→Normal all wired to correct triggers
-- [ ] `Menu::active` atomic bool removed (or aliased from FSM state for backward compatibility during transition)
-- [ ] `Config::proc_filtering` bool no longer used as an input routing signal (may remain as a config value, but Input FSM state is the routing authority)
+### Naming Collision Fix (v1.6 launch)
 
-### Tests (v1.3 launch)
+- [ ] Four `bool redraw` locals in btop_input.cpp renamed to non-colliding identifiers
+- [ ] No logic change; pure rename for clarity
 
-- [ ] PDA push/pop/replace transition table tested (all 8 frame types, empty-stack pop, SizeError override, stack depth guard)
-- [ ] Input FSM state transitions tested (each edge, key routing per state)
-- [ ] ASan + UBSan + TSan clean
-- [ ] Existing 266 tests still pass
+### Validation
 
-### Deferred (v1.4+)
+- [ ] All 330 existing tests pass after migration
+- [ ] ASan + UBSan + TSan clean builds pass
+- [ ] No visual regression: same boxes draw, same static chrome redraws on same triggers
+- [ ] No new flicker (missed dirty clear) or stale display (missed dirty set)
 
-- [ ] Multi-level push (e.g., a future nested dialog within Options) — architecture supports it, not needed for behavior parity
-- [ ] Transition logging infrastructure — useful for debugging, not required for correctness
+### Deferred (v1.7+)
+
+- [ ] Per-GPU panel bits (if 1-bit Gpu approach is chosen for v1.6, per-panel bits can follow if needed)
+- [ ] Async DirtyFlags observable for a hypothetical future multi-consumer (not needed in btop)
+- [ ] DirtyFlags integration with profiling / debug display
 
 ---
 
@@ -183,112 +187,129 @@ The minimum that constitutes a successful migration:
 
 | Feature | Architectural Value | Implementation Cost | Regression Risk | Priority |
 |---------|---------------------|---------------------|-----------------|----------|
-| `MenuFrame` variant + frame structs | HIGH (foundation) | MEDIUM | LOW | P1 |
-| push() / pop() / replace() | HIGH (core ops) | MEDIUM | MEDIUM | P1 |
-| Input FSM `Normal` / `MenuActive` states | HIGH (replaces active bool) | LOW | LOW | P1 |
-| Input FSM `Filtering` state | HIGH (replaces proc_filtering routing) | LOW | MEDIUM | P1 |
-| Mouse routing via Input FSM | MEDIUM | LOW | MEDIUM | P1 |
-| Per-frame state in struct (not static locals) | HIGH (eliminates hacks) | HIGH | MEDIUM | P1 |
-| PDA transition tests | HIGH (safety net) | HIGH | N/A | P1 |
-| Input FSM transition tests | HIGH (safety net) | MEDIUM | N/A | P1 |
-| Stack depth guard | LOW (defensive) | LOW | LOW | P2 |
-| Transition logging | LOW (debug aid) | LOW | LOW | P2 |
-| Remove `Menu::active` bool | MEDIUM | LOW | LOW | P2 (after P1 validated) |
+| DirtyFlags bitset type + API | HIGH (foundation) | LOW | LOW | P1 |
+| Replace per-box redraw bools | HIGH (core goal) | LOW | MEDIUM | P1 |
+| Collapse force_redraw into set_all() | HIGH (eliminates split responsibility) | LOW | MEDIUM | P1 |
+| calcSizes() decoupled from bool assigns | MEDIUM (clarity) | LOW | LOW | P1 |
+| Remove dead Proc::resized | MEDIUM (eliminates dead code) | LOW | LOW | P1 |
+| Rename btop_input.cpp redraw locals | MEDIUM (eliminates naming collision) | LOW | LOW | P1 |
+| pending_redraw → dirty.set_all() path | MEDIUM (removes fold step) | LOW | LOW | P1 |
+| Per-box selective redraw (only dirty boxes redraw static chrome) | MEDIUM (reduces wasted string-build) | LOW (falls out of design) | LOW | P1 (free side-effect) |
+| Inspectable dirty state for debugging | LOW | LOW | LOW | P2 |
+| Per-GPU panel bits (N bits vs 1 bit) | LOW (currently 1-bit suffices) | MEDIUM | LOW | P3 |
 
 **Priority key:**
-- P1: Required for v1.3 — the migration is not done without these
-- P2: Cleanup after P1 is validated; safe to add in later plan within same milestone
+- P1: Required for v1.6 — refactor is not done without these
+- P2: Cleanup / debug aid; add within same milestone after P1 validated
+- P3: Defer to future milestone if needed at all
+
+---
+
+## Granularity Analysis
+
+### Box-level granularity (recommended)
+
+One dirty bit per box (Cpu, Mem, Net, Proc, Gpu). This matches the existing `bool redraw` per namespace: the redraw bool gates rendering of static chrome (box outlines, headers, graph init) that does not change every data cycle. Cell-level changes are handled by the ScreenBuffer diffing layer below.
+
+**Why box-level is correct here:**
+- The existing per-box `bool redraw` already expresses exactly this granularity. The migration is replacing the type, not changing the granularity.
+- Sub-box dirty tracking would be redundant: the ScreenBuffer cell buffer already suppresses unchanged cells at output time.
+- btop boxes have no internal sub-regions that need selective redraw — the "static chrome" vs "dynamic data" split is binary per box.
+
+### Sub-box granularity (wrong level for this problem)
+
+Tracking dirty regions within a box (e.g., "only the graph area in Cpu needs redraw, not the header") would require btop's draw functions to accept a dirty region parameter and conditionally skip rendering sub-sections. This is significantly more complex and provides no benefit given that the cell buffer already ensures unchanged cells are not emitted.
+
+### All-at-once granularity (existing force_redraw — too coarse)
+
+The current `force_redraw` bool is the opposite problem: it broadcasts a full redraw to all boxes simultaneously. Per-box bits solve this without adding sub-box complexity.
+
+---
+
+## Coalescing and Flush Patterns
+
+The dirty-flag system must handle two common concurrent-access patterns:
+
+### Pattern 1: Multiple set() calls before one flush
+
+Multiple events in a single runner cycle may independently call `set(DirtyBit::Mem)` (e.g., a disk mount change and a config reload both trigger Mem dirty). The bitset OR-accumulates naturally — setting an already-set bit is idempotent. No explicit coalescing logic is needed.
+
+### Pattern 2: Cross-thread request_redraw()
+
+`Runner::request_redraw()` is called from the main thread while the runner thread may be drawing. The current solution uses `atomic<bool> pending_redraw` as a cross-thread signal, then folds it into `conf.force_redraw` at run() entry (under the runner mutex). After migration, the fold step changes from `conf.force_redraw = true` to `dirty.set_all()`. The existing lock at run() entry provides the necessary synchronization — no new locking is required.
+
+### Pattern 3: Dirty clear after draw
+
+Each draw function currently clears its own `redraw = false` at the end of drawing. After migration, the runner clears `dirty.clear(box_bit)` after calling each box's draw function, or clears `dirty.clear_all()` at end of the draw phase. The latter is simpler and matches the all-or-nothing nature of the current runner loop.
 
 ---
 
 ## Implementation Notes (from Codebase Analysis)
 
-### Frame State Inventory
+### Current redraw trigger inventory
 
-Each menu function currently uses function-statics. These must become frame struct members:
+The following conditions currently set per-box `redraw = true` beyond the `force_redraw` path. These must remain correct after migration (i.e., `dirty.set(DirtyBit::Box)` must be called in the same conditions):
 
-| Frame | Function-Static State | Notes |
-|-------|-----------------------|-------|
-| `frame::Main` | `int y`, `int selected`, `vector<string> colors_selected`, `vector<string> colors_normal` | `selected` resets when `bg.empty()` |
-| `frame::Options` | `int x`, `int y`, `int height`, `int page`, `int pages`, `int selected`, `int select_max`, `int item_height`, `int selected_cat`, `int max_items`, `int last_sel`, `bool editing`, `Draw::TextEdit editor`, `string warnings`, `bitset<8> selPred` | Most complex frame — 15 state members |
-| `frame::Help` | `int x`, `int y`, `int height`, `int page`, `int pages` | Simpler |
-| `frame::SizeError` | `msgBox messageBox` | msgBox carries its own state |
-| `frame::SignalChoose` | `int x`, `int y`, `int selected_signal` | `selected_signal` resets when `bg.empty()` |
-| `frame::SignalSend` | `msgBox messageBox` | Signal to send comes from PDA context |
-| `frame::SignalReturn` | `msgBox messageBox` | Error code comes from PDA context |
-| `frame::Renice` | `int x`, `int y`, `int selected_nice`, `string nice_edit` | `selected_nice` / `nice_edit` reset when `bg.empty()` |
+| Trigger | Box | Location |
+|---------|-----|----------|
+| `Draw::calcSizes()` (resize / layout change) | ALL | btop_draw.cpp:2938 |
+| New disk mount found | Mem | linux/btop_collect.cpp:2315, 2368 |
+| Disk set changed | Mem | linux/btop_collect.cpp:2826, 2865 |
+| Network interface change | Net | linux/btop_collect.cpp:2700, 2974, 3370 |
+| More CPU cores detected than expected | Cpu | linux/btop_collect.cpp:1204 (posts Resize event) |
+| Proc sort order or filter changes | Proc | btop_draw.cpp:2247, 2357, 2361 |
+| Menu active on calcSizes | Menu | btop_draw.cpp:2930 |
+| `force_redraw` passed to each draw() | ALL | btop.cpp:627–712 |
 
-### Current Menu Transition Graph
+The macOS, FreeBSD, NetBSD, OpenBSD collect paths also set `redraw = true` in their collector namespaces (confirmed by grep hits in osx/btop_collect.cpp, freebsd/btop_collect.cpp, netbsd/btop_collect.cpp, openbsd/btop_collect.cpp). Each of these will need `dirty.set(DirtyBit::Net)` or `dirty.set(DirtyBit::Mem)` substituted.
 
-Understanding which transitions use `Switch` (replace) vs `Closed` (pop) is critical for PDA design:
+### DirtyBit enum sketch
 
-```
-Normal
-  +--[show(Main)]----------> push(Main)
-  +--[show(Options)]--------> push(Options)    [direct open, not via Main]
-  +--[show(Help)]-----------> push(Help)       [direct open, not via Main]
-  +--[show(SizeError)]------> push(SizeError)  [replaces all others if too small]
-  +--[show(SignalChoose)]---> push(SignalChoose)
-  +--[show(SignalSend)]-----> push(SignalSend)  [direct, from k/K key]
+```cpp
+enum class DirtyBit : uint16_t {
+    Cpu  = 1 << 0,
+    Mem  = 1 << 1,
+    Net  = 1 << 2,
+    Proc = 1 << 3,
+    Gpu  = 1 << 4,   // covers all GPU panels (simplest)
+    Menu = 1 << 5,
+    All  = 0xFFFF,
+};
 
-Main
-  +--[select Options, enter]--> replace(Options)  [Switch return code]
-  +--[select Help, enter]-----> replace(Help)     [Switch return code]
-  +--[escape/q/m]-------------> pop() → Normal
-
-Options
-  +--[escape]----------------> pop() → Normal
-
-Help
-  +--[escape]----------------> pop() → Normal
-
-SizeError
-  +--[enter/escape]-----------> pop() → Normal  [or to whatever was below]
-
-SignalChoose
-  +--[enter + kill succeeds]--> pop() → Normal  [Closed, no SignalReturn needed]
-  +--[enter + kill fails]-----> set(SignalReturn) then pop() → Normal  [then show(SignalReturn) fires]
-  +--[escape/q]--------------> pop() → Normal
-
-SignalSend
-  +--[yes + kill succeeds]---> pop() → Normal
-  +--[yes + kill fails]------> set(SignalReturn) then pop() → Normal
-  +--[no/escape]-------------> pop() → Normal
-
-SignalReturn
-  +--[enter/escape]-----------> pop() → Normal
-
-Renice
-  +--[enter/escape]-----------> pop() → Normal
+struct DirtyFlags {
+    uint16_t bits = 0;
+    void set(DirtyBit b)  noexcept { bits |= static_cast<uint16_t>(b); }
+    void clear(DirtyBit b) noexcept { bits &= ~static_cast<uint16_t>(b); }
+    bool test(DirtyBit b) const noexcept { return (bits & static_cast<uint16_t>(b)) != 0; }
+    void set_all()   noexcept { bits = 0xFFFF; }
+    void clear_all() noexcept { bits = 0; }
+    bool any() const noexcept { return bits != 0; }
+};
 ```
 
-Key insight: `Switch` return code currently means "replace current frame AND reset bg/redraw" — it is used only for the Main→Options and Main→Help transitions. All other transitions use `Closed` (pop). The `menuMask.set(SignalReturn)` inside SignalChoose/SignalSend is a "schedule next menu after popping this one" side-effect — the PDA must model this as a post-pop push, not a concurrent set.
+This is zero-dependency, trivially copyable, and fits in a uint16_t (no heap allocation). Alternatively, `std::bitset<16>` with the same enum works and gives `to_string()` for debugging at the cost of slightly more verbose bitwise ops.
 
-### Input FSM Trigger Map
+### Proposed DirtyFlags location
 
-| Current code | FSM equivalent |
-|---|---|
-| `auto filtering = Config::getB(BoolKey::proc_filtering)` in `Input::process()` | `std::holds_alternative<input::Filtering>(input_fsm)` |
-| `Menu::active` bool in `Input::get()` mouse routing | `std::holds_alternative<input::MenuActive>(input_fsm)` |
-| `Config::flip(BoolKey::proc_filtering)` (enter filter mode) | `input_fsm = input::Filtering{ .old_filter = ..., .filter = ... }` |
-| `Config::set(BoolKey::proc_filtering, false)` (exit filter mode) | `input_fsm = input::Normal{}` |
-| `Menu::active = true` in `process()` when `menuMask` becomes non-empty | `input_fsm = input::MenuActive{}` triggered by first `push()` |
-| `Menu::active = false` in `process()` when `menuMask.none()` | `input_fsm = input::Normal{}` triggered by final `pop()` |
+Two options:
+1. In `btop_shared.hpp` as a global (matches where `Proc::redraw` and other shared state live).
+2. In a new `btop_dirty.hpp` header included by btop.cpp and btop_draw.cpp.
+
+Option 1 is simpler — it follows the pattern established by all other shared btop state.
 
 ---
 
 ## Sources
 
-- Codebase analysis: `/Users/mit/Documents/GitHub/btop/src/btop_menu.cpp`, `btop_input.cpp`, `btop_menu.hpp`, `btop_input.hpp`, `btop_state.hpp`
-- [Game Programming Patterns: State (Pushdown Automata)](https://gameprogrammingpatterns.com/state.html) — canonical push/pop/replace semantics
-- [Implementing State Machines with std::variant](https://khuttun.github.io/2017/02/04/implementing-state-machines-with-std-variant.html) — per-state data in variant alternatives
-- [TUI Architecture: Bubble Tea / charmbracelet](https://deepwiki.com/charmbracelet/crush/5.1-tui-architecture-and-appmodel) — dialog priority blocking input, focus FSM
-- [Ratatui focus management discussion](https://forum.ratatui.rs/t/focusable-crate-manage-focus-state-for-your-widgets/73) — typed focus state patterns in TUI apps
-- [Learning the State Machine Behind (Neo)Vim](https://spin-web.github.io/SPIN2024/assets/preproceedings/SPIN2024-paper9.pdf) — modal input as FSM, mode transitions
-- [Game State Manager (C++) — codesmith-fi](https://github.com/codesmith-fi/GameStateManager) — push/pop state stack implementation reference
-- `.planning/research/AUTOMATA-ARCHITECTURE.md` — prior feasibility research for btop FSM migration
-- `.planning/PROJECT.md` — v1.3 scope, constraints, and key decisions
+- Codebase analysis: `btop.cpp`, `btop_draw.cpp`, `btop_shared.hpp`, `btop_input.cpp`, `btop_state.hpp`, `linux/btop_collect.cpp`, `osx/btop_collect.cpp`, `freebsd/btop_collect.cpp`, `netbsd/btop_collect.cpp`, `openbsd/btop_collect.cpp`
+- [Game Programming Patterns: Dirty Flag](https://gameprogrammingpatterns.com/dirty-flag.html) — canonical pattern: granularity spectrum, on-demand vs checkpoint vs background clearing, propagation pitfalls, encapsulate mutations behind narrow API
+- [Mozilla Bug 1699603: Switch dirty region tracking from bitmask to rects](https://bugzilla.mozilla.org/show_bug.cgi?id=1699603) — real-world bitmask granularity overflow pitfall in a rendering engine
+- [Qt QWidget update() vs repaint() — Qt 6 docs](https://doc.qt.io/qt-6/qwidget.html) — coalescing multiple update() calls into one paintEvent; Qt's `setDirtyOpaqueRegion()` internal dirty-region accumulation pattern
+- [Win32 InvalidateRect / GetUpdateRect — Microsoft Learn](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-invalidaterect) — invalidate region accumulation, QS_PAINT deferred coalescing, UnionRect for dirty accumulation
+- [Ratatui: Rendering concepts](https://ratatui.rs/concepts/rendering/) — immediate mode redraws every frame; buffer diff at terminal output layer handles unchanged cells (analogous to btop's ScreenBuffer)
+- [Type-safe Enum Class Bit Flags](https://voithos.io/articles/type-safe-enum-class-bit-flags/) — `enum class` with bitwise operators for type-safe per-component flags in C++
+- `.planning/PROJECT.md` — v1.6 scope, constraints, and specific requirements
 
 ---
-*Feature research for: btop++ v1.3 Menu PDA + Input FSM*
-*Researched: 2026-03-02*
+*Feature research for: btop++ v1.6 Unified Dirty-Flag Mechanism*
+*Researched: 2026-03-03*
