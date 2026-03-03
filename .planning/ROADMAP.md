@@ -7,7 +7,7 @@
 - ✅ **v1.2 Tech Debt** — Phases 16-19 (shipped 2026-03-02)
 - ✅ **v1.3 Menu PDA + Input FSM** — Phases 20-24 (shipped 2026-03-02)
 - ✅ **v1.4 Render & Collect Modernization** — Phases 25-27 (shipped 2026-03-02)
-- [ ] **v1.5 Render & Collect Completion** — Phases 28-30
+- [ ] **v1.5 Render & Collect Completion** — Phases 28-29
 
 ## Phases
 
@@ -80,13 +80,12 @@ Full details: `milestones/v1.4-ROADMAP.md` | `milestones/v1.4-REQUIREMENTS.md`
 
 ### v1.5 Render & Collect Completion
 
-**Milestone Goal:** Complete the render and collect modernization started in v1.4 -- POSIX I/O for hot-path reads, decomposed god functions, and unified redraw mechanism. Zero regression in user-visible behavior.
+**Milestone Goal:** Complete the render and collect modernization started in v1.4 -- POSIX I/O for hot-path reads and decomposed god functions. Zero regression in user-visible behavior.
 
-**Phase Numbering:** Phases 28-30 (continued from v1.4). Decimal phases (e.g., 28.1) reserved for urgent insertions.
+**Phase Numbering:** Phases 28-29 (continued from v1.4).
 
 - [x] **Phase 28: Hot-Path POSIX I/O** - Convert Cpu::collect and Mem::collect ifstream reads to read_proc_file() on Linux (completed 2026-03-02)
 - [x] **Phase 29: Draw Decomposition** - Split Proc::draw() and Cpu::draw() god functions into focused sub-functions (completed 2026-03-02)
-- [ ] **Phase 30: Unified Redraw** - Consolidate scattered redraw booleans into a single mechanism with all trigger sites wired through it
 
 ## Phase Details
 
@@ -120,25 +119,10 @@ Plans:
 - [ ] 29-01: TBD
 - [ ] 29-02: TBD
 
-### Phase 30: Unified Redraw
-**Goal**: All redraw state is managed through a single mechanism instead of 5+ scattered boolean flags, with every existing trigger site wired through it
-**Depends on**: Phase 29
-**Requirements**: REND-01, REND-02
-**Success Criteria** (what must be TRUE):
-  1. Cpu::redraw, Mem::redraw, Net::redraw, Proc::redraw, and Gpu::redraw booleans are replaced by a unified redraw mechanism (e.g., a bitset, enum-indexed array, or single struct)
-  2. All existing trigger sites (calcSizes, input handlers, collect functions, draw functions) set redraw through the unified mechanism -- grep for the old boolean names returns zero hits
-  3. Resize triggers a full redraw of all boxes through the unified mechanism
-  4. Normal update cycle redraws only the boxes whose collect data changed -- no over-invalidation
-**Plans**: TBD
-
-Plans:
-- [ ] 30-01: TBD
-- [ ] 30-02: TBD
-
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
+Phases execute in numeric order: 28 -> 29
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -147,6 +131,5 @@ Phases execute in numeric order: 25 -> 25.1 (if inserted) -> 26 -> ... -> 30
 | 16-19 | v1.2 | 4/4 | Complete | 2026-03-02 |
 | 20-24 | v1.3 | 9/9 | Complete | 2026-03-02 |
 | 25-27 | v1.4 | 5/5 | Complete | 2026-03-02 |
-| 28. Hot-Path POSIX I/O | 2/2 | Complete    | 2026-03-02 | - |
-| 29. Draw Decomposition | 2/2 | Complete    | 2026-03-02 | - |
-| 30. Unified Redraw | v1.5 | 0/2 | Not started | - |
+| 28. Hot-Path POSIX I/O | v1.5 | 2/2 | Complete | 2026-03-02 |
+| 29. Draw Decomposition | v1.5 | 2/2 | Complete | 2026-03-02 |

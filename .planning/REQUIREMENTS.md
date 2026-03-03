@@ -5,7 +5,7 @@
 
 ## v1.5 Requirements
 
-Requirements for v1.5 Render & Collect Completion. Carried forward from v1.4 phases 28-30.
+Requirements for v1.5 Render & Collect Completion. Phases 28-29. Unified Redraw (REND-01/REND-02) deferred to future milestone.
 
 ### Hot-Path Performance
 
@@ -18,14 +18,14 @@ Requirements for v1.5 Render & Collect Completion. Carried forward from v1.4 pha
 - [x] **DRAW-02**: Cpu::draw() split with battery state tracking extracted into separate function
 - [x] **DRAW-03**: No regression in rendered output -- visual diff confirms identical terminal output
 
-### Render Architecture
-
-- [ ] **REND-01**: Scattered redraw booleans (Cpu::redraw, Mem::redraw, Net::redraw, Proc::redraw, Gpu::redraw) consolidated into unified mechanism
-- [ ] **REND-02**: All existing redraw trigger sites (calcSizes, input, collect, draw) work through unified mechanism
-
 ## Future Requirements
 
 Deferred to future milestone. Tracked but not in current roadmap.
+
+### Render Architecture
+
+- **REND-01**: Scattered redraw booleans (Cpu::redraw, Mem::redraw, Net::redraw, Proc::redraw, Gpu::redraw) consolidated into unified mechanism
+- **REND-02**: All existing redraw trigger sites (calcSizes, input, collect, draw) work through unified mechanism
 
 ### Input Modernization
 
@@ -66,13 +66,11 @@ Which phases cover which requirements. Carried forward from v1.4.
 | DRAW-01 | Phase 29 | Complete |
 | DRAW-02 | Phase 29 | Complete |
 | DRAW-03 | Phase 29 | Complete |
-| REND-01 | Phase 30 | Pending |
-| REND-02 | Phase 30 | Pending |
-
 **Coverage:**
-- v1.5 requirements: 7 total
-- Mapped to phases: 7
+- v1.5 requirements: 5 total
+- Mapped to phases: 5
 - Unmapped: 0 ✓
+- Deferred to future: 2 (REND-01, REND-02)
 
 ---
 *Requirements defined: 2026-03-02 (carried forward from v1.4)*
