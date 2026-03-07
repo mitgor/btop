@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Unified Redraw
 status: executing
-stopped_at: Completed 31-01-PLAN.md
-last_updated: "2026-03-07T19:55:51Z"
-last_activity: 2026-03-07 — Completed Plan 31-01 (DirtyBit enum and PendingDirty)
+stopped_at: Completed 31-02-PLAN.md
+last_updated: "2026-03-07T19:58:37Z"
+last_activity: 2026-03-07 — Completed Plan 31-02 (Dead code removal and force_redraw rename)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 50
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -26,20 +26,21 @@ See: .planning/PROJECT.md (updated 2026-03-03)
 ## Current Position
 
 Phase: 31 of 34 (DirtyFlags Foundation)
-Plan: 1 of 2 complete
+Plan: 2 of 2 complete (phase done)
 Status: Executing
-Last activity: 2026-03-07 — Completed Plan 31-01 (DirtyBit enum and PendingDirty)
+Last activity: 2026-03-07 — Completed Plan 31-02 (Dead code removal and force_redraw rename)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (v1.6)
+- Total plans completed: 2 (v1.6)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 31 | 01 | 2min | 1 | 3 |
+| 31 | 02 | 4min | 2 | 3 |
 
 **Cumulative (v1.0-v1.5):**
 - v1.0: 9 phases, 20 plans
@@ -61,6 +62,7 @@ Recent decisions affecting current work:
 - Conservative approach: keep draw function signatures, pass dirty via parameter
 - std::atomic<uint32_t> with fetch_or/exchange; release/acquire memory ordering
 - Phase 30 (from v1.5) descoped; v1.6 starts at Phase 31
+- Simplified calcSizes guard to != AppStateTag::Resizing since Proc::resized was dead code
 
 ### Pending Todos
 
@@ -73,5 +75,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-07
-Stopped at: Completed 31-01-PLAN.md
+Stopped at: Completed 31-02-PLAN.md (Phase 31 complete)
 Resume file: None

@@ -16,9 +16,9 @@ Requirements for unified redraw milestone. Each maps to roadmap phases.
 
 ### Cleanup
 
-- [ ] **CLEAN-01**: Dead Proc::resized atomic<bool> removed from declaration and read site
-- [ ] **CLEAN-02**: calcSizes() guard simplified after Proc::resized removal
-- [ ] **CLEAN-03**: Local `bool redraw` vars in btop_input.cpp renamed to `force_redraw`
+- [x] **CLEAN-01**: Dead Proc::resized atomic<bool> removed from declaration and read site
+- [x] **CLEAN-02**: calcSizes() guard simplified after Proc::resized removal
+- [x] **CLEAN-03**: Local `bool redraw` vars in btop_input.cpp renamed to `force_redraw`
 
 ### Runner Integration
 
@@ -64,9 +64,9 @@ None — this milestone completes the unified redraw consolidation.
 | FLAG-02 | Phase 31 | Complete |
 | FLAG-03 | Phase 31 | Complete |
 | FLAG-04 | Phase 31 | Complete |
-| CLEAN-01 | Phase 31 | Pending |
-| CLEAN-02 | Phase 31 | Pending |
-| CLEAN-03 | Phase 31 | Pending |
+| CLEAN-01 | Phase 31 | Complete |
+| CLEAN-02 | Phase 31 | Complete |
+| CLEAN-03 | Phase 31 | Complete |
 | WIRE-01 | Phase 32 | Pending |
 | WIRE-02 | Phase 32 | Pending |
 | WIRE-03 | Phase 32 | Pending |
@@ -88,4 +88,4 @@ None — this milestone completes the unified redraw consolidation.
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after roadmap creation*
+*Last updated: 2026-03-07 after Phase 31 completion*

@@ -93,7 +93,7 @@ Full details: `milestones/v1.5-ROADMAP.md` | `milestones/v1.5-REQUIREMENTS.md`
 
 **Milestone Goal:** Consolidate scattered redraw flags into a unified dirty-flag mechanism, remove dead code, fix naming collisions, and decouple layout recomputation from redraw forcing.
 
-- [ ] **Phase 31: DirtyFlags Foundation** - DirtyBit enum, PendingDirty struct, dead code removal, naming cleanup
+- [x] **Phase 31: DirtyFlags Foundation** - DirtyBit enum, PendingDirty struct, dead code removal, naming cleanup
 - [ ] **Phase 32: Runner Integration** - Wire PendingDirty into runner consumer and main-thread producers
 - [ ] **Phase 33: calcSizes Decoupling** - Replace per-namespace bool assigns with mark(All)
 - [ ] **Phase 34: Per-Box Bool Migration** - Remove all namespace redraw bools, migrate all write sites, full validation
@@ -113,8 +113,8 @@ Full details: `milestones/v1.5-ROADMAP.md` | `milestones/v1.5-REQUIREMENTS.md`
 **Plans**: 2 plans
 
 Plans:
-- [ ] 31-01-PLAN.md — DirtyBit enum and PendingDirty struct with unit tests
-- [ ] 31-02-PLAN.md — Dead Proc::resized removal and force_redraw rename
+- [x] 31-01-PLAN.md — DirtyBit enum and PendingDirty struct with unit tests
+- [x] 31-02-PLAN.md — Dead Proc::resized removal and force_redraw rename
 
 ### Phase 32: Runner Integration
 **Goal**: The runner thread consumes dirty state from PendingDirty instead of the old pending_redraw/force_redraw mechanism; ForceFullEmit is correctly separated from per-box dirty bits
@@ -167,7 +167,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 31. DirtyFlags Foundation | 1/2 | In Progress|  | - |
+| 31. DirtyFlags Foundation | v1.6 | 2/2 | Complete | 2026-03-07 |
 | 32. Runner Integration | v1.6 | 0/TBD | Not started | - |
 | 33. calcSizes Decoupling | v1.6 | 0/TBD | Not started | - |
 | 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |
