@@ -9,10 +9,10 @@ Requirements for unified redraw milestone. Each maps to roadmap phases.
 
 ### DirtyFlags Infrastructure
 
-- [ ] **FLAG-01**: DirtyBit enum defined with per-box bits (Cpu, Mem, Net, Proc, Gpu) plus ForceFullEmit
-- [ ] **FLAG-02**: PendingDirty struct wraps atomic<uint32_t> with mark()/take() API using fetch_or/exchange
-- [ ] **FLAG-03**: Single DirtyBit::Gpu covers all GPU panels (replaces vector<bool>)
-- [ ] **FLAG-04**: Unit tests verify bit operations, mark/take semantics, and concurrent access
+- [x] **FLAG-01**: DirtyBit enum defined with per-box bits (Cpu, Mem, Net, Proc, Gpu) plus ForceFullEmit
+- [x] **FLAG-02**: PendingDirty struct wraps atomic<uint32_t> with mark()/take() API using fetch_or/exchange
+- [x] **FLAG-03**: Single DirtyBit::Gpu covers all GPU panels (replaces vector<bool>)
+- [x] **FLAG-04**: Unit tests verify bit operations, mark/take semantics, and concurrent access
 
 ### Cleanup
 
@@ -60,10 +60,10 @@ None — this milestone completes the unified redraw consolidation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FLAG-01 | Phase 31 | Pending |
-| FLAG-02 | Phase 31 | Pending |
-| FLAG-03 | Phase 31 | Pending |
-| FLAG-04 | Phase 31 | Pending |
+| FLAG-01 | Phase 31 | Complete |
+| FLAG-02 | Phase 31 | Complete |
+| FLAG-03 | Phase 31 | Complete |
+| FLAG-04 | Phase 31 | Complete |
 | CLEAN-01 | Phase 31 | Pending |
 | CLEAN-02 | Phase 31 | Pending |
 | CLEAN-03 | Phase 31 | Pending |

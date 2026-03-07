@@ -167,7 +167,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 31. DirtyFlags Foundation | v1.6 | 0/2 | Not started | - |
+| 31. DirtyFlags Foundation | 1/2 | In Progress|  | - |
 | 32. Runner Integration | v1.6 | 0/TBD | Not started | - |
 | 33. calcSizes Decoupling | v1.6 | 0/TBD | Not started | - |
 | 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |
