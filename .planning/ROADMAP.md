@@ -126,11 +126,10 @@ Plans:
   3. `request_redraw()` calls `pending_dirty.mark(DirtyBit::All)` instead of `pending_redraw.store(true)`
   4. ForceFullEmit bit drives `screen_buffer.set_force_full()` exclusively; single-key-press cycles use differential emit, not full emit
   5. All 330+ tests pass; TSan clean
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 32-01: TBD
-- [ ] 32-02: TBD
+- [ ] 32-01-PLAN.md — Replace pending_redraw/force_redraw with PendingDirty, wire all call sites
 
 ### Phase 33: calcSizes Decoupling
 **Goal**: calcSizes() marks all boxes dirty through PendingDirty instead of directly assigning per-namespace bool flags; geometry computation is decoupled from redraw forcing
@@ -167,7 +166,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 31. DirtyFlags Foundation | v1.6 | 2/2 | Complete | 2026-03-07 |
-| 32. Runner Integration | v1.6 | 0/TBD | Not started | - |
+| 31. DirtyFlags Foundation | v1.6 | Complete    | 2026-03-07 | 2026-03-07 |
+| 32. Runner Integration | v1.6 | 0/1 | Not started | - |
 | 33. calcSizes Decoupling | v1.6 | 0/TBD | Not started | - |
 | 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |
