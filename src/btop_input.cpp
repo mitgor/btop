@@ -352,7 +352,7 @@ namespace Input {
 			if (Proc::shown) {
 				bool keep_going = false;
 				bool no_update = true;
-				bool redraw = true;
+				bool force_redraw = true;
 				if (filtering) {
 					if (key == "enter" or key == "down") {
 						exit_filtering(true);
@@ -433,7 +433,7 @@ namespace Input {
 					Config::set(StringKey::proc_filter, ""s);
 
 				else if (key.starts_with("mouse_")) {
-					redraw = false;
+					force_redraw = false;
 					const auto& [col, line] = mouse_pos;
 					const int y = (Config::getB(BoolKey::show_detailed) ? Proc::y + 8 : Proc::y);
 					const int height = (Config::getB(BoolKey::show_detailed) ? Proc::height - 8 : Proc::height);
@@ -443,7 +443,7 @@ namespace Input {
 							if (col < Proc::x + Proc::width - 2) {
 								const auto& current_selection = Config::getI(IntKey::proc_selected);
 								if (current_selection == line - y - 1) {
-									redraw = true;
+									force_redraw = true;
 									if (Config::getB(BoolKey::proc_tree)) {
 										const int x_pos = col - Proc::x;
 										const int offset = Config::getI(IntKey::selected_depth) * 3;
@@ -458,13 +458,13 @@ namespace Input {
 								else if (Config::getB(BoolKey::proc_banner_shown) and line == y + height - 2)
 									return;
 								else if (current_selection == 0 or line - y - 1 == 0)
-									redraw = true;
+									force_redraw = true;
 
 								if (Config::getB(BoolKey::follow_process) and not Config::getB(BoolKey::pause_proc_list)) {
 									Config::flip(BoolKey::follow_process);
 									Config::set(IntKey::followed_pid, 0);
 									Config::set(IntKey::proc_followed, 0);
-									redraw = true;
+									force_redraw = true;
 								}
 
 								Config::set(IntKey::proc_selected, line - y - 1);
@@ -488,7 +488,7 @@ namespace Input {
 								Config::set(IntKey::followed_pid, 0);
 								Config::set(IntKey::proc_followed, 0);
 							}
-							redraw = true;
+							force_redraw = true;
 						}
 					}
 					else if (key.starts_with("mouse_scroll_") and in_proc_box) {
@@ -564,18 +564,18 @@ namespace Input {
 			    }
 				else if (is_in(key, "up", "down", "page_up", "page_down", "home", "end") or (vim_keys and is_in(key, "j", "k", "g", "G"))) {
 					proc_mouse_scroll:
-					redraw = false;
+					force_redraw = false;
 					auto old_selected = Config::getI(IntKey::proc_selected);
 					auto new_selected = Proc::selection(key);
 					if (new_selected == -1)
 						return;
 					else if (old_selected != new_selected and (old_selected == 0 or new_selected == 0))
-						redraw = true;
+						force_redraw = true;
 				}
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("proc", no_update, redraw);
+					Runner::run("proc", no_update, force_redraw);
 					return;
 				}
 			}
@@ -584,7 +584,7 @@ namespace Input {
 			if (Cpu::shown) {
 				bool keep_going = false;
 				bool no_update = true;
-				bool redraw = true;
+				bool force_redraw = true;
 				static uint64_t last_press = 0;
 
 				if (key == "+" and Config::getI(IntKey::update_ms) <= 86399900) {
@@ -593,7 +593,7 @@ namespace Input {
 						? 1000 : 100);
 					Config::set(IntKey::update_ms, Config::getI(IntKey::update_ms) + add);
 					last_press = time_ms();
-					redraw = true;
+					force_redraw = true;
 				}
 				else if (key == "-" and Config::getI(IntKey::update_ms) >= 200) {
 					int sub = (Config::getI(IntKey::update_ms) >= 2000 and last_press >= time_ms() - 200
@@ -601,12 +601,12 @@ namespace Input {
 						? 1000 : 100);
 					Config::set(IntKey::update_ms, Config::getI(IntKey::update_ms) - sub);
 					last_press = time_ms();
-					redraw = true;
+					force_redraw = true;
 				}
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("cpu", no_update, redraw);
+					Runner::run("cpu", no_update, force_redraw);
 					return;
 				}
 			}
@@ -615,7 +615,7 @@ namespace Input {
 			if (Mem::shown) {
 				bool keep_going = false;
 				bool no_update = true;
-				bool redraw = true;
+				bool force_redraw = true;
 
 				if (key == "i") {
 					Config::flip(BoolKey::io_mode);
@@ -628,7 +628,7 @@ namespace Input {
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("mem", no_update, redraw);
+					Runner::run("mem", no_update, force_redraw);
 					return;
 				}
 			}
@@ -637,7 +637,7 @@ namespace Input {
 			if (Net::shown) {
 				bool keep_going = false;
 				bool no_update = true;
-				bool redraw = true;
+				bool force_redraw = true;
 
 				if (is_in(key, "b", "n")) {
 					Runner::wait_idle();
@@ -677,7 +677,7 @@ namespace Input {
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("net", no_update, redraw);
+					Runner::run("net", no_update, force_redraw);
 					return;
 				}
 			}
