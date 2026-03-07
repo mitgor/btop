@@ -110,11 +110,11 @@ Full details: `milestones/v1.5-ROADMAP.md` | `milestones/v1.5-REQUIREMENTS.md`
   3. `Proc::resized` atomic<bool> is gone from declaration and all read sites; `calcSizes()` guard condition simplified
   4. All four `bool redraw` local variables in `btop_input.cpp` are renamed to `force_redraw`
   5. Project compiles clean on all platforms with no behavioral change
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 31-01: TBD
-- [ ] 31-02: TBD
+- [ ] 31-01-PLAN.md — DirtyBit enum and PendingDirty struct with unit tests
+- [ ] 31-02-PLAN.md — Dead Proc::resized removal and force_redraw rename
 
 ### Phase 32: Runner Integration
 **Goal**: The runner thread consumes dirty state from PendingDirty instead of the old pending_redraw/force_redraw mechanism; ForceFullEmit is correctly separated from per-box dirty bits
@@ -167,7 +167,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 31. DirtyFlags Foundation | v1.6 | 0/TBD | Not started | - |
+| 31. DirtyFlags Foundation | v1.6 | 0/2 | Not started | - |
 | 32. Runner Integration | v1.6 | 0/TBD | Not started | - |
 | 33. calcSizes Decoupling | v1.6 | 0/TBD | Not started | - |
 | 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |
