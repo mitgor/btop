@@ -29,9 +29,9 @@ Requirements for unified redraw milestone. Each maps to roadmap phases.
 
 ### calcSizes() Decoupling
 
-- [ ] **DECPL-01**: calcSizes() uses mark(All) instead of direct per-namespace bool assignment
-- [ ] **DECPL-02**: All 5 calcSizes() call sites verified to produce correct dirty state
-- [ ] **DECPL-03**: request_redraw() uses mark() on PendingDirty instead of separate atomic
+- [x] **DECPL-01**: calcSizes() uses mark(All) instead of direct per-namespace bool assignment
+- [x] **DECPL-02**: All 5 calcSizes() call sites verified to produce correct dirty state
+- [x] **DECPL-03**: request_redraw() uses mark() on PendingDirty instead of separate atomic
 
 ### Per-Box Migration
 
@@ -71,9 +71,9 @@ None — this milestone completes the unified redraw consolidation.
 | WIRE-02 | Phase 32 | Complete |
 | WIRE-03 | Phase 32 | Complete |
 | WIRE-04 | Phase 32 | Complete |
-| DECPL-01 | Phase 33 | Pending |
-| DECPL-02 | Phase 33 | Pending |
-| DECPL-03 | Phase 33 | Pending |
+| DECPL-01 | Phase 33 | Complete |
+| DECPL-02 | Phase 33 | Complete |
+| DECPL-03 | Phase 33 | Complete |
 | MIGR-01 | Phase 34 | Pending |
 | MIGR-02 | Phase 34 | Pending |
 | MIGR-03 | Phase 34 | Pending |

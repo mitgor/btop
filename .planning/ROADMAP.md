@@ -95,7 +95,7 @@ Full details: `milestones/v1.5-ROADMAP.md` | `milestones/v1.5-REQUIREMENTS.md`
 
 - [x] **Phase 31: DirtyFlags Foundation** - DirtyBit enum, PendingDirty struct, dead code removal, naming cleanup
 - [x] **Phase 32: Runner Integration** - Wire PendingDirty into runner consumer and main-thread producers (completed 2026-03-08)
-- [ ] **Phase 33: calcSizes Decoupling** - Replace per-namespace bool assigns with mark(All)
+- [x] **Phase 33: calcSizes Decoupling** - Replace per-namespace bool assigns with mark(All) (completed 2026-03-08)
 - [ ] **Phase 34: Per-Box Bool Migration** - Remove all namespace redraw bools, migrate all write sites, full validation
 
 ## Phase Details
@@ -168,5 +168,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 31. DirtyFlags Foundation | v1.6 | Complete    | 2026-03-07 | 2026-03-07 |
 | 32. Runner Integration | v1.6 | Complete    | 2026-03-08 | 2026-03-08 |
-| 33. calcSizes Decoupling | v1.6 | 0/1 | Not started | - |
+| 33. calcSizes Decoupling | 1/1 | Complete   | 2026-03-08 | - |
 | 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Unified Redraw
 status: executing
-stopped_at: Completed 31-02-PLAN.md (Phase 31 complete)
-last_updated: "2026-03-07T20:03:39.290Z"
-last_activity: 2026-03-07 — Completed Plan 31-02 (Dead code removal and force_redraw rename)
+stopped_at: Completed 33-01-PLAN.md (Phase 33 complete)
+last_updated: "2026-03-08T08:12:51.429Z"
+last_activity: 2026-03-08 — Completed Plan 33-01 (Remove redundant redraw bool assignment from calcSizes)
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 3
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -21,27 +21,28 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 32 — Runner Integration
+**Current focus:** Phase 33 — calcSizes Decoupling
 
 ## Current Position
 
-Phase: 32 of 34 (Runner Integration)
+Phase: 33 of 34 (calcSizes Decoupling)
 Plan: 1 of 1 complete (phase done)
 Status: Executing
-Last activity: 2026-03-08 — Completed Plan 32-01 (Wire PendingDirty into runner thread)
+Last activity: 2026-03-08 — Completed Plan 33-01 (Remove redundant redraw bool assignment from calcSizes)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v1.6)
+- Total plans completed: 4 (v1.6)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 31 | 01 | 2min | 1 | 3 |
 | 31 | 02 | 4min | 2 | 3 |
 | 32 | 01 | 4min | 2 | 4 |
+| 33 | 01 | 1min | 2 | 1 |
 
 **Cumulative (v1.0-v1.5):**
 - v1.0: 9 phases, 20 plans
@@ -66,6 +67,7 @@ Recent decisions affecting current work:
 - std::atomic<uint32_t> with fetch_or/exchange; release/acquire memory ordering
 - Phase 30 (from v1.5) descoped; v1.6 starts at Phase 31
 - Simplified calcSizes guard to != AppStateTag::Resizing since Proc::resized was dead code
+- Removed redundant per-namespace redraw bool assignment; single line deletion sufficient
 
 ### Pending Todos
 
@@ -78,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 32-01-PLAN.md (Phase 32 complete)
+Stopped at: Completed 33-01-PLAN.md (Phase 33 complete)
 Resume file: None
