@@ -129,7 +129,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 32-01-PLAN.md — Replace pending_redraw/force_redraw with PendingDirty, wire all call sites
+- [x] 32-01-PLAN.md — Replace pending_redraw/force_redraw with PendingDirty, wire all call sites
 
 ### Phase 33: calcSizes Decoupling
 **Goal**: calcSizes() marks all boxes dirty through PendingDirty instead of directly assigning per-namespace bool flags; geometry computation is decoupled from redraw forcing
@@ -139,10 +139,10 @@ Plans:
   1. `calcSizes()` body contains zero direct assignments to per-namespace redraw bools; uses `pending_dirty.mark(DirtyBit::All)` instead
   2. All 5 `calcSizes()` call sites (btop.cpp Runner::run, btop.cpp _runner resize, btop_draw.cpp banner, btop_input.cpp options, btop_menu.cpp screen_redraw) produce correct dirty state after the call
   3. Resize and config-reload paths trigger full box redraw through dirty bits (not through direct bool assignment)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 33-01: TBD
+- [ ] 33-01-PLAN.md — Remove redundant bool assignment from calcSizes and verify all call sites
 
 ### Phase 34: Per-Box Bool Migration
 **Goal**: All five per-box namespace redraw bools are removed; every write site across all platform collectors is migrated to PendingDirty; the entire redraw mechanism is unified and validated end-to-end
@@ -167,6 +167,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 31. DirtyFlags Foundation | v1.6 | Complete    | 2026-03-07 | 2026-03-07 |
-| 32. Runner Integration | 1/1 | Complete   | 2026-03-08 | - |
-| 33. calcSizes Decoupling | v1.6 | 0/TBD | Not started | - |
+| 32. Runner Integration | v1.6 | Complete    | 2026-03-08 | 2026-03-08 |
+| 33. calcSizes Decoupling | v1.6 | 0/1 | Not started | - |
 | 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |
