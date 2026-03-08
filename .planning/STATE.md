@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Unified Redraw
 status: executing
-stopped_at: Completed 31-02-PLAN.md
-last_updated: "2026-03-07T19:58:37Z"
+stopped_at: Completed 31-02-PLAN.md (Phase 31 complete)
+last_updated: "2026-03-07T20:03:39.290Z"
 last_activity: 2026-03-07 — Completed Plan 31-02 (Dead code removal and force_redraw rename)
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
   percent: 100
 ---
 
@@ -21,26 +21,27 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 31 — DirtyFlags Foundation
+**Current focus:** Phase 32 — Runner Integration
 
 ## Current Position
 
-Phase: 31 of 34 (DirtyFlags Foundation)
-Plan: 2 of 2 complete (phase done)
+Phase: 32 of 34 (Runner Integration)
+Plan: 1 of 1 complete (phase done)
 Status: Executing
-Last activity: 2026-03-07 — Completed Plan 31-02 (Dead code removal and force_redraw rename)
+Last activity: 2026-03-08 — Completed Plan 32-01 (Wire PendingDirty into runner thread)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v1.6)
+- Total plans completed: 3 (v1.6)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 31 | 01 | 2min | 1 | 3 |
 | 31 | 02 | 4min | 2 | 3 |
+| 32 | 01 | 4min | 2 | 4 |
 
 **Cumulative (v1.0-v1.5):**
 - v1.0: 9 phases, 20 plans
@@ -57,6 +58,8 @@ Progress: [██████████] 100%
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions affecting current work:
+- Single-box input redraws mark only their specific DirtyBit, preserving differential emit
+- ForceFullEmit exclusively drives screen_buffer.set_force_full(), separated from per-box draw dirty
 - Single DirtyBit::Gpu for all GPU panels (not per-panel) — matches existing force_redraw behavior
 - Menu::redraw stays separate (main-thread-only, out of DirtyFlags scope)
 - Conservative approach: keep draw function signatures, pass dirty via parameter
@@ -74,6 +77,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-07
-Stopped at: Completed 31-02-PLAN.md (Phase 31 complete)
+Last session: 2026-03-08
+Stopped at: Completed 32-01-PLAN.md (Phase 32 complete)
 Resume file: None

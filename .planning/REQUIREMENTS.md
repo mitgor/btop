@@ -22,10 +22,10 @@ Requirements for unified redraw milestone. Each maps to roadmap phases.
 
 ### Runner Integration
 
-- [ ] **WIRE-01**: pending_redraw atomic<bool> replaced by PendingDirty instance
-- [ ] **WIRE-02**: runner_conf::force_redraw replaced by per-box dirty bits from take()
-- [ ] **WIRE-03**: Draw functions receive per-box dirty state instead of single force_redraw bool
-- [ ] **WIRE-04**: ScreenBuffer::force_full driven by ForceFullEmit bit, kept separate from per-box bits
+- [x] **WIRE-01**: pending_redraw atomic<bool> replaced by PendingDirty instance
+- [x] **WIRE-02**: runner_conf::force_redraw replaced by per-box dirty bits from take()
+- [x] **WIRE-03**: Draw functions receive per-box dirty state instead of single force_redraw bool
+- [x] **WIRE-04**: ScreenBuffer::force_full driven by ForceFullEmit bit, kept separate from per-box bits
 
 ### calcSizes() Decoupling
 
@@ -67,10 +67,10 @@ None — this milestone completes the unified redraw consolidation.
 | CLEAN-01 | Phase 31 | Complete |
 | CLEAN-02 | Phase 31 | Complete |
 | CLEAN-03 | Phase 31 | Complete |
-| WIRE-01 | Phase 32 | Pending |
-| WIRE-02 | Phase 32 | Pending |
-| WIRE-03 | Phase 32 | Pending |
-| WIRE-04 | Phase 32 | Pending |
+| WIRE-01 | Phase 32 | Complete |
+| WIRE-02 | Phase 32 | Complete |
+| WIRE-03 | Phase 32 | Complete |
+| WIRE-04 | Phase 32 | Complete |
 | DECPL-01 | Phase 33 | Pending |
 | DECPL-02 | Phase 33 | Pending |
 | DECPL-03 | Phase 33 | Pending |
