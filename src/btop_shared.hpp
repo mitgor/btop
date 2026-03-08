@@ -490,7 +490,6 @@ namespace Gpu {
 	extern vector<string> box;
 	extern int width, total_height, min_width, min_height;
 	extern vector<int> x_vec, y_vec;
-	extern vector<bool> redraw;
 	extern int shown;
 	extern int count;
 	extern vector<int> shown_panels;
@@ -577,7 +576,7 @@ namespace Gpu {
 namespace Cpu {
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
-	extern bool shown, redraw, got_sensors, cpu_temp_only, has_battery, supports_watts;
+	extern bool shown, got_sensors, cpu_temp_only, has_battery, supports_watts;
 	extern string cpuName, cpuHz;
 	extern vector<string> available_fields;
 	extern vector<string> available_sensors;
@@ -622,7 +621,7 @@ namespace Cpu {
 namespace Mem {
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
-	extern bool has_swap, shown, redraw;
+	extern bool has_swap, shown;
 	const array mem_names { "used"s, "available"s, "cached"s, "free"s };
 	const array swap_names { "swap_used"s, "swap_free"s };
 	extern int disk_ios;
@@ -665,7 +664,7 @@ namespace Mem {
 namespace Net {
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
-	extern bool shown, redraw;
+	extern bool shown;
 	extern string selected_iface;
 	extern vector<string> interfaces;
 	extern bool rescale;
@@ -717,7 +716,7 @@ namespace Proc {
 
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
-	extern bool shown, redraw;
+	extern bool shown;
 	extern int select_max;
 	extern atomic<int> detailed_pid;
 	extern int selected_pid, start, selected, collapse, expand, filter_found, selected_depth, toggle_children;

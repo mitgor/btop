@@ -1289,7 +1289,7 @@ namespace Mem {
 
 
 				if (not v_contains(last_found, mountpoint))
-					redraw = true;
+					Runner::mark_dirty(DirtyBit::Mem);
 
 				disks.at(mountpoint).free = stfs[i].f_bfree;
 				disks.at(mountpoint).total = stfs[i].f_iosize;
@@ -1303,7 +1303,7 @@ namespace Mem {
 				else
 					it++;
 			}
-			if (found.size() != last_found.size()) redraw = true;
+			if (found.size() != last_found.size()) Runner::mark_dirty(DirtyBit::Mem);
 			last_found = std::move(found);
 
 			//? Get disk/partition stats
@@ -1394,7 +1394,7 @@ namespace Net {
 			if (if_wrap.status != 0) {
 				errors++;
 				Logger::error("Net::collect() -> getifaddrs() failed with id {}", if_wrap.status);
-				redraw = true;
+				Runner::mark_dirty(DirtyBit::Net);
 				return empty_net;
 			}
 			int family = 0;
@@ -1530,7 +1530,7 @@ namespace Net {
 		//? Find an interface to display if selected isn't set or valid
 		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
 			max_count[0][0] = max_count[0][1] = max_count[1][0] = max_count[1][1] = 0;
-			redraw = true;
+			Runner::mark_dirty(DirtyBit::Net);
 			if (net_auto) rescale = true;
 			if (not config_iface.empty() and v_contains(interfaces, config_iface))
 				selected_iface = config_iface;
@@ -1569,7 +1569,7 @@ namespace Net {
 														: net[selected_iface].stat[didx].speed);
 						graph_max[didx] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
 						max_count[didx][0] = max_count[didx][1] = 0;
-						redraw = true;
+						Runner::mark_dirty(DirtyBit::Net);
 						if (net_sync) sync = true;
 						break;
 					}
@@ -1658,7 +1658,7 @@ namespace Proc {
 
 		if (detailed.first_mem == -1 or detailed.first_mem < detailed.mem_bytes.back() / 2 or detailed.first_mem > detailed.mem_bytes.back() * 4) {
 			detailed.first_mem = min((uint64_t)detailed.mem_bytes.back() * 2, Mem::get_totalMem());
-			redraw = true;
+			Runner::mark_dirty(DirtyBit::Proc);
 		}
 
 		rusage_info_current rusage;
@@ -1870,7 +1870,7 @@ namespace Proc {
 					_collect_details(detailed_pid, current_procs);
 				} else if (show_detailed and not got_detailed and detailed.status != "Dead") {
 					detailed.status = "Dead";
-					redraw = true;
+					Runner::mark_dirty(DirtyBit::Proc);
 				}
 
 				old_cputimes = cputimes;
