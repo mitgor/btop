@@ -142,7 +142,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 33-01-PLAN.md — Remove redundant bool assignment from calcSizes and verify all call sites
+- [x] 33-01-PLAN.md — Remove redundant bool assignment from calcSizes and verify all call sites
 
 ### Phase 34: Per-Box Bool Migration
 **Goal**: All five per-box namespace redraw bools are removed; every write site across all platform collectors is migrated to PendingDirty; the entire redraw mechanism is unified and validated end-to-end
@@ -154,11 +154,10 @@ Plans:
   3. Self-invalidation inside draw functions is preserved (e.g., Net::draw IP-change trigger calls `pending_dirty.mark(DirtyBit::Net)`)
   4. `grep -rn "redraw\s*=\s*true" src/` returns zero namespace-bool hits; only Menu::redraw (out of scope) remains
   5. Full test suite passes (330+ tests); ASan/UBSan/TSan clean; manual verification of resize, IP change, sort toggle, filter change, and menu open/close redraw triggers
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 34-01: TBD
-- [ ] 34-02: TBD
+- [ ] 34-01-PLAN.md — Remove extern declarations, migrate all 35 collector write sites to Runner::mark_dirty()
 
 ## Progress
 
@@ -168,5 +167,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 31. DirtyFlags Foundation | v1.6 | Complete    | 2026-03-07 | 2026-03-07 |
 | 32. Runner Integration | v1.6 | Complete    | 2026-03-08 | 2026-03-08 |
-| 33. calcSizes Decoupling | 1/1 | Complete   | 2026-03-08 | - |
-| 34. Per-Box Bool Migration | v1.6 | 0/TBD | Not started | - |
+| 33. calcSizes Decoupling | 1/1 | Complete    | 2026-03-08 | - |
+| 34. Per-Box Bool Migration | v1.6 | 0/1 | Not started | - |
