@@ -20,6 +20,7 @@ tab-size = 4
 #include "btop_menu_pda.hpp"
 
 #include "btop_config.hpp"
+#include "btop_dirty.hpp"
 #include "btop_draw.hpp"
 #include "btop_input.hpp"
 #include "btop_log.hpp"
@@ -1650,7 +1651,8 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 			recollect = true;
 		}
 		if (recollect) {
-			Runner::run("all", false, true);
+			Runner::mark_dirty(DirtyAll | DirtyBit::ForceFullEmit);
+			Runner::run("all", false);
 			did_render = false;
 		}
 
@@ -1831,7 +1833,8 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 				Runner::pause_output.store(false);
 				pda.clear_bg();
 				mouse_mappings.clear();
-				Runner::run("all", true, true);
+				Runner::mark_dirty(DirtyAll | DirtyBit::ForceFullEmit);
+				Runner::run("all", true);
 				return;
 			}
 
@@ -1866,7 +1869,8 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 
 					if (redraw) {
 						redraw = false;
-						Runner::run("all", true, true);
+						Runner::mark_dirty(DirtyAll | DirtyBit::ForceFullEmit);
+						Runner::run("all", true);
 					}
 					else if (result.rendered) {
 						Runner::run("overlay");

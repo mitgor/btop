@@ -27,6 +27,7 @@ tab-size = 4
 #include <utility>
 #include <cmath>
 
+#include "btop_dirty.hpp"
 #include "btop_input.hpp"
 #include "btop_tools.hpp"
 #include "btop_config.hpp"
@@ -310,7 +311,8 @@ namespace Input {
 					Config::current_preset.reset();
 					Draw::calcSizes();
 					Draw::update_clock(true);
-					Runner::run("all", false, true);
+					Runner::mark_dirty(DirtyAll | DirtyBit::ForceFullEmit);
+					Runner::run("all", false);
 					return;
 				}
 				else if (is_in(key, "p", "P") and Config::getS(StringKey::disable_presets) != "All") {
@@ -335,7 +337,8 @@ namespace Input {
 					}
 					Draw::calcSizes();
 					Draw::update_clock(true);
-					Runner::run("all", false, true);
+					Runner::mark_dirty(DirtyAll | DirtyBit::ForceFullEmit);
+					Runner::run("all", false);
 					return;
 				} else if (is_in(key, "ctrl_r")) {
 					kill(getpid(), SIGUSR2);
@@ -575,7 +578,8 @@ namespace Input {
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("proc", no_update, force_redraw);
+					if (force_redraw) Runner::mark_dirty(DirtyBit::Proc);
+					Runner::run("proc", no_update);
 					return;
 				}
 			}
@@ -606,7 +610,8 @@ namespace Input {
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("cpu", no_update, force_redraw);
+					if (force_redraw) Runner::mark_dirty(DirtyBit::Cpu);
+					Runner::run("cpu", no_update);
 					return;
 				}
 			}
@@ -628,7 +633,8 @@ namespace Input {
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("mem", no_update, force_redraw);
+					if (force_redraw) Runner::mark_dirty(DirtyBit::Mem);
+					Runner::run("mem", no_update);
 					return;
 				}
 			}
@@ -677,7 +683,8 @@ namespace Input {
 				else keep_going = true;
 
 				if (not keep_going) {
-					Runner::run("net", no_update, force_redraw);
+					if (force_redraw) Runner::mark_dirty(DirtyBit::Net);
+					Runner::run("net", no_update);
 					return;
 				}
 			}
