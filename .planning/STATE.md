@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Unified Redraw
-status: executing
-stopped_at: Completed 33-01-PLAN.md (Phase 33 complete)
-last_updated: "2026-03-08T08:12:51.429Z"
-last_activity: 2026-03-08 — Completed Plan 33-01 (Remove redundant redraw bool assignment from calcSizes)
+status: complete
+stopped_at: Completed 34-01-PLAN.md
+last_updated: "2026-03-08T08:36:38.523Z"
+last_activity: 2026-03-08 — Phase 33 complete, transitioning to Phase 34
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 4
+  total_plans: 5
+  completed_plans: 5
   percent: 100
 ---
 
@@ -18,24 +18,24 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-03)
+See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** Phase 33 — calcSizes Decoupling
+**Current focus:** Phase 34 — Per-Box Bool Migration
 
 ## Current Position
 
-Phase: 33 of 34 (calcSizes Decoupling)
-Plan: 1 of 1 complete (phase done)
-Status: Executing
-Last activity: 2026-03-08 — Completed Plan 33-01 (Remove redundant redraw bool assignment from calcSizes)
+Phase: 34 of 34 (Per-Box Bool Migration)
+Plan: 01 of 01 (complete)
+Status: Milestone complete
+Last activity: 2026-03-08 — Phase 34 Plan 01 complete, v1.6 milestone finished
 
-Progress: [██████████] 100%
+Progress: [████████████████████] 23/23 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4 (v1.6)
+- Total plans completed: 5 (v1.6)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -43,6 +43,7 @@ Progress: [██████████] 100%
 | 31 | 02 | 4min | 2 | 3 |
 | 32 | 01 | 4min | 2 | 4 |
 | 33 | 01 | 1min | 2 | 1 |
+| 34 | 01 | 3min | 2 | 6 |
 
 **Cumulative (v1.0-v1.5):**
 - v1.0: 9 phases, 20 plans
@@ -68,6 +69,7 @@ Recent decisions affecting current work:
 - Phase 30 (from v1.5) descoped; v1.6 starts at Phase 31
 - Simplified calcSizes guard to != AppStateTag::Resizing since Proc::resized was dead code
 - Removed redundant per-namespace redraw bool assignment; single line deletion sufficient
+- [Phase 34]: Namespace-scope redraw definitions in btop_draw.cpp preserved as file-local variables for draw self-invalidation
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08
-Stopped at: Completed 33-01-PLAN.md (Phase 33 complete)
+Last session: 2026-03-08T08:36:38.521Z
+Stopped at: Completed 34-01-PLAN.md
 Resume file: None

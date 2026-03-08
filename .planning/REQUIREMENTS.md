@@ -35,12 +35,12 @@ Requirements for unified redraw milestone. Each maps to roadmap phases.
 
 ### Per-Box Migration
 
-- [ ] **MIGR-01**: Cpu::redraw namespace bool removed, draw() derives state from dirty parameter
-- [ ] **MIGR-02**: Mem::redraw namespace bool removed, draw() derives state from dirty parameter
-- [ ] **MIGR-03**: Net::redraw namespace bool removed (self-invalidation on IP change preserved)
-- [ ] **MIGR-04**: Proc::redraw namespace bool removed, draw() derives state from dirty parameter
-- [ ] **MIGR-05**: Gpu::redraw vector<bool> removed, draw() derives state from dirty parameter
-- [ ] **MIGR-06**: Per-box extern declarations removed from btop_shared.hpp
+- [x] **MIGR-01**: Cpu::redraw namespace bool removed, draw() derives state from dirty parameter
+- [x] **MIGR-02**: Mem::redraw namespace bool removed, draw() derives state from dirty parameter
+- [x] **MIGR-03**: Net::redraw namespace bool removed (self-invalidation on IP change preserved)
+- [x] **MIGR-04**: Proc::redraw namespace bool removed, draw() derives state from dirty parameter
+- [x] **MIGR-05**: Gpu::redraw vector<bool> removed, draw() derives state from dirty parameter
+- [x] **MIGR-06**: Per-box extern declarations removed from btop_shared.hpp
 
 ## Future Requirements
 
@@ -74,12 +74,12 @@ None — this milestone completes the unified redraw consolidation.
 | DECPL-01 | Phase 33 | Complete |
 | DECPL-02 | Phase 33 | Complete |
 | DECPL-03 | Phase 33 | Complete |
-| MIGR-01 | Phase 34 | Pending |
-| MIGR-02 | Phase 34 | Pending |
-| MIGR-03 | Phase 34 | Pending |
-| MIGR-04 | Phase 34 | Pending |
-| MIGR-05 | Phase 34 | Pending |
-| MIGR-06 | Phase 34 | Pending |
+| MIGR-01 | Phase 34 | Complete |
+| MIGR-02 | Phase 34 | Complete |
+| MIGR-03 | Phase 34 | Complete |
+| MIGR-04 | Phase 34 | Complete |
+| MIGR-05 | Phase 34 | Complete |
+| MIGR-06 | Phase 34 | Complete |
 
 **Coverage:**
 - v1.6 requirements: 20 total
