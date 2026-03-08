@@ -18,6 +18,8 @@ tab-size = 4
 
 #include "btop.hpp"
 
+#include "btop_dirty.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <csignal>
@@ -424,11 +426,15 @@ void init_config(bool low_color, std::optional<std::string>& filter) {
 namespace Runner {
 	atomic<bool> coreNum_reset (false);
 
-	//? Private flag for pending redraw requests (folded into conf.force_redraw by run())
-	static atomic<bool> pending_redraw{false};
+	//? Dirty-bit accumulator — replaces pending_redraw atomic<bool> (WIRE-01)
+	static PendingDirty pending_dirty;
 
 	void request_redraw() noexcept {
-		pending_redraw.store(true, std::memory_order_relaxed);
+		pending_dirty.mark(DirtyAll | DirtyBit::ForceFullEmit);
+	}
+
+	void mark_dirty(DirtyBit bits) noexcept {
+		pending_dirty.mark(bits);
 	}
 
 	//* Setup semaphore for triggering thread to do work
@@ -490,7 +496,6 @@ namespace Runner {
 	struct runner_conf {
 		vector<string> boxes;
 		bool no_update;
-		bool force_redraw;
 		bool background_update;
 		string overlay;
 		string clock;
@@ -562,9 +567,18 @@ namespace Runner {
 
 			auto& conf = current_conf;
 
+			//? Decompose dirty bits for this cycle (WIRE-03)
+			DirtyBit dirty = pending_dirty.take();
+			const bool cpu_dirty = has_bit(dirty, DirtyBit::Cpu);
+			const bool mem_dirty = has_bit(dirty, DirtyBit::Mem);
+			const bool net_dirty = has_bit(dirty, DirtyBit::Net);
+			const bool proc_dirty = has_bit(dirty, DirtyBit::Proc);
+			const bool gpu_dirty = has_bit(dirty, DirtyBit::Gpu);
+			const bool force_full = has_bit(dirty, DirtyBit::ForceFullEmit);
+
 			//! DEBUG stats
 			if (Global::debug) {
-                if (debug_bg.empty() or conf.force_redraw)
+                if (debug_bg.empty() or static_cast<uint32_t>(dirty) != 0)
                     Runner::debug_bg = Draw::createBox(2, 2, 33,
 					#ifdef GPU_SUPPORT
 						9,
@@ -629,7 +643,7 @@ namespace Runner {
 #if defined(GPU_SUPPORT)
 								gpus_ref,
 #endif // GPU_SUPPORT
-								conf.force_redraw,
+								cpu_dirty,
 								conf.no_update
 							);
 						}
@@ -649,7 +663,7 @@ namespace Runner {
 						//? Draw box
 						if (not pause_output)
 							for (unsigned long i = 0; i < gpu_panels.size(); ++i)
-								output += Gpu::draw(gpus_ref[gpu_panels[i]], i, conf.force_redraw, conf.no_update);
+								output += Gpu::draw(gpus_ref[gpu_panels[i]], i, gpu_dirty, conf.no_update);
 
 						if (Global::debug) debug_timer("gpu", draw_done);
 					}
@@ -669,7 +683,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("mem", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Mem::draw(mem, conf.force_redraw, conf.no_update);
+						if (not pause_output) output += Mem::draw(mem, mem_dirty, conf.no_update);
 
 						if (Global::debug) debug_timer("mem", draw_done);
 					}
@@ -689,7 +703,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("net", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Net::draw(net, conf.force_redraw, conf.no_update);
+						if (not pause_output) output += Net::draw(net, net_dirty, conf.no_update);
 
 						if (Global::debug) debug_timer("net", draw_done);
 					}
@@ -709,7 +723,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("proc", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Proc::draw(proc, conf.force_redraw, conf.no_update);
+						if (not pause_output) output += Proc::draw(proc, proc_dirty, conf.no_update);
 
 						if (Global::debug) debug_timer("proc", draw_done);
 					}
@@ -732,7 +746,7 @@ namespace Runner {
 			// === DRAWING STATE ===
 			Global::runner_state_tag.store(Global::RunnerStateTag::Drawing, std::memory_order_release);
 
-			if (conf.force_redraw) {
+			if (force_full) {
 				empty_bg.clear();
 				screen_buffer.set_force_full();
 			}
@@ -813,7 +827,7 @@ namespace Runner {
 				}
 
 				string diff_output;
-				if (screen_buffer.needs_full() || conf.force_redraw) {
+				if (screen_buffer.needs_full() || force_full) {
 					Draw::full_emit(screen_buffer, diff_output);
 					screen_buffer.clear_force_full();
 				} else {
@@ -836,7 +850,7 @@ namespace Runner {
 	//? ------------------------------------------ Secondary thread end -----------------------------------------------
 
 	//* Runs collect and draw in a secondary thread, unlocks and locks config to update cached values
-	void run(const string& box, bool no_update, bool force_redraw) {
+	void run(const string& box, bool no_update) {
 		//? Wait for runner to become idle (up to 5 seconds)
 		if (Runner::is_active()) {
 			atomic_wait_for(Global::runner_state_tag, Global::RunnerStateTag::Collecting, 5000);
@@ -893,16 +907,11 @@ namespace Runner {
 
 			current_conf = {
 				(box == "all" ? Config::current_boxes : vector{box}),
-				no_update, force_redraw,
+				no_update,
 				(not Config::getB(BoolKey::tty_mode) and Config::getB(BoolKey::background_update)),
 				Global::overlay,
 				Global::clock
 			};
-
-			//? Fold any pending_redraw into conf.force_redraw
-			if (pending_redraw.exchange(false, std::memory_order_relaxed)) {
-				current_conf.force_redraw = true;
-			}
 
 			if (Runner::pause_output.load() and not current_conf.background_update) Global::overlay.clear();
 
@@ -1011,7 +1020,8 @@ static void on_enter(state::Resizing&, TransitionCtx&) {
 		Menu::invalidate_layout();  // INTEG-01: prevent stale coordinates after resize
 		Menu::process();
 	} else {
-		Runner::run("all", true, true);
+		Runner::mark_dirty(DirtyAll | DirtyBit::ForceFullEmit);
+		Runner::run("all", true);
 	}
 	//? Wait for runner to finish (up to 1 second)
 	if (Runner::is_active()) {

@@ -28,6 +28,8 @@ tab-size = 4
 #include <memory>
 #include <optional>
 #include <string>
+
+#include "btop_dirty.hpp"
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
@@ -454,7 +456,10 @@ namespace Runner {
 	/// Replaces direct Runner::redraw = true mutation (RUNNER-02).
 	void request_redraw() noexcept;
 
-	void run(const string& box = "", bool no_update = false, bool force_redraw = false);
+	/// Mark specific dirty bits for the next runner cycle (WIRE-01).
+	void mark_dirty(DirtyBit bits) noexcept;
+
+	void run(const string& box = "", bool no_update = false);
 	void stop();
 }
 
