@@ -2933,7 +2933,6 @@ namespace Draw {
 		Cpu::y = Mem::y = Net::y = Proc::y = 1;
 		Cpu::width = Mem::width = Net::width = Proc::width = 0;
 		Cpu::height = Mem::height = Net::height = Proc::height = 0;
-		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
 
 		Cpu::shown = boxes.contains("cpu");
 	#ifdef GPU_SUPPORT
