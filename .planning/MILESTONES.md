@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.6 Unified Redraw (Shipped: 2026-03-08)
+
+**Phases:** 4 (31-34) | **Plans:** 5 | **Commits:** 15 | **Source files:** 26 | **LOC:** +2,291 / -165
+**Timeline:** 2 days (2026-03-07 → 2026-03-08)
+**Tests:** 336/336 pass (zero sanitizer findings)
+
+**Key accomplishments:**
+1. Created DirtyBit enum and PendingDirty atomic accumulator with lock-free mark()/take() API using fetch_or/exchange
+2. Wired PendingDirty into runner thread as sole redraw state source, replacing pending_redraw and runner_conf::force_redraw
+3. Decoupled calcSizes() from direct per-namespace bool assignment — layout recomputation separated from dirty marking
+4. Migrated all 35 collector write sites across 5 platforms to unified Runner::mark_dirty(DirtyBit::Xxx)
+5. Removed all 5 per-box extern redraw declarations from btop_shared.hpp — PendingDirty is sole cross-thread redraw mechanism
+
+**Archive:** `milestones/v1.6-ROADMAP.md` | `milestones/v1.6-REQUIREMENTS.md` | `milestones/v1.6-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.5 Render & Collect Completion (Shipped: 2026-03-03)
 
 **Phases completed:** 2 phases, 4 plans, 0 tasks

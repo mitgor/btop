@@ -1964,6 +1964,24 @@ namespace Gpu {
 
 		// DebugTimer gpu_timer("GPU Total");
 
+		//? Use Term::width as fallback when GPU box is not shown (inline CPU panel mode)
+		const int buf_width = width != 0 ? width : Term::width.load();
+
+		//? Ensure ring buffer capacities are set before collecting data
+		if (buf_width != 0) {
+			for (auto& gpu : gpus) {
+				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].capacity() != static_cast<size_t>(buf_width * 2)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].resize(buf_width * 2);
+				if (gpu.mem_utilization_percent.capacity() != static_cast<size_t>(buf_width)) gpu.mem_utilization_percent.resize(buf_width);
+				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].capacity() != static_cast<size_t>(buf_width)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].resize(buf_width);
+				if (gpu.temp.capacity() != static_cast<size_t>(18)) gpu.temp.resize(18);
+				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].capacity() != static_cast<size_t>(buf_width/2)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].resize(buf_width/2);
+			}
+
+			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].capacity() != static_cast<size_t>(buf_width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].resize(buf_width * 2);
+			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].capacity() != static_cast<size_t>(buf_width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].resize(buf_width * 2);
+			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].capacity() != static_cast<size_t>(buf_width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].resize(buf_width * 2);
+		}
+
 		//* Collect data
 		Nvml::collect<0>(gpus.data()); // raw pointer to vector data, size == Nvml::device_count
 		Rsmi::collect<0>(gpus.data() + Nvml::device_count); // size = Rsmi::device_count
@@ -1983,19 +2001,6 @@ namespace Gpu {
 				mem_total += gpu.mem_total;
 			if (gpu.supported_functions.pwr_usage)
 				mem_total += gpu.pwr_usage;
-
-			//* Trim vectors if there are more values than needed for graphs
-			if (width != 0) {
-				//? GPU & memory utilization
-				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].capacity() != static_cast<size_t>(width * 2)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)].resize(width * 2);
-				if (gpu.mem_utilization_percent.capacity() != static_cast<size_t>(width)) gpu.mem_utilization_percent.resize(width);
-				//? Power usage
-				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].capacity() != static_cast<size_t>(width)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)].resize(width);
-				//? Temperature
-				if (gpu.temp.capacity() != static_cast<size_t>(18)) gpu.temp.resize(18);
-				//? Memory usage
-				if (gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].capacity() != static_cast<size_t>(width/2)) gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)].resize(width/2);
-			}
 		}
 
 		shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].push_back(avg / gpus.size());
@@ -2003,12 +2008,6 @@ namespace Gpu {
 			shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].push_back(mem_usage_total / mem_total);
 		if (gpu_pwr_total_max != 0)
 			shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].push_back(pwr_total / gpu_pwr_total_max);
-
-		if (width != 0) {
-			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].capacity() != static_cast<size_t>(width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)].resize(width * 2);
-			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].capacity() != static_cast<size_t>(width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].resize(width * 2);
-			if (shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].capacity() != static_cast<size_t>(width * 2)) shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].resize(width * 2);
-		}
 
 		count = gpus.size();
 

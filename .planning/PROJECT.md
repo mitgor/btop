@@ -2,29 +2,21 @@
 
 ## What This Is
 
-An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM). v1.4 modernized render and collect paths (ThemeKey enum arrays, cpu_old enum arrays, stale static const fix). v1.5 completed the modernization — hot-path POSIX I/O for /proc reads and decomposed draw god functions (Proc::draw 553→75 lines, Cpu::draw 454→93 lines). v1.6 consolidates scattered redraw flags into a unified dirty-flag mechanism, removes dead code, fixes naming collisions, and decouples layout recomputation from redraw forcing.
+An ongoing optimization and architectural improvement effort for btop++, the terminal-based system monitor. v1.0 delivered measurable performance improvements (enum-indexed arrays, POSIX I/O, differential rendering, RingBuffer). v1.1 replaced btop's implicit flag-driven state management with explicit finite automata — type-safe std::variant states, lock-free event queue, event-driven dispatch, and independent App + Runner FSMs with 279 tests. v1.2 resolved all tech debt (single-writer invariant, SIGTERM routing, test fixes). v1.3 extends typed state machines to the menu system (pushdown automaton) and input handling (input FSM). v1.4 modernized render and collect paths (ThemeKey enum arrays, cpu_old enum arrays, stale static const fix). v1.5 completed the modernization — hot-path POSIX I/O for /proc reads and decomposed draw god functions (Proc::draw 553→75 lines, Cpu::draw 454→93 lines). v1.6 unified redraw signaling — replaced 5 scattered per-namespace bool redraw flags with a single atomic DirtyBit bitmask (PendingDirty), enabling per-box differential redraws across all 5 platform collectors.
 
 ## Core Value
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
-## Current Milestone: v1.6 Unified Redraw
-
-**Goal:** Consolidate scattered redraw flags into a unified dirty-flag mechanism with broader cleanup
-
-**Target features:**
-- Unified DirtyFlags bitset replacing per-box bool redraw flags, force_redraw, and pending_redraw
-- Remove dead Proc::resized flag (declared, never written)
-- Fix naming collisions (redraw locals in btop_input.cpp)
-- Decouple calcSizes() from redraw forcing (separate layout recomputation from dirty marking)
-
 ## Current State
 
-**Latest shipped:** v1.5 Render & Collect Completion (2026-03-03)
-- Hot-path /proc/stat and /proc/meminfo reads converted to zero-allocation POSIX I/O
-- Proc::draw() (553 lines) decomposed into 5 sub-functions, orchestrator reduced to 75 lines
-- Cpu::draw() (454 lines) decomposed into 5 sub-functions, battery state encapsulated, orchestrator reduced to 93 lines
-- 330 tests passing, zero regressions
+**Latest shipped:** v1.6 Unified Redraw (2026-03-08)
+- DirtyBit enum + PendingDirty atomic accumulator with lock-free mark()/take() API
+- Runner thread consumes dirty state via single take() per cycle, decomposes into per-box bools
+- ForceFullEmit separated from per-box dirty bits, preserving differential emit
+- All 35 collector write sites across 5 platforms migrated to Runner::mark_dirty()
+- 5 per-box extern redraw declarations removed — PendingDirty is sole cross-thread redraw mechanism
+- 336 tests passing, zero regressions
 
 ## Requirements
 
@@ -62,10 +54,14 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - ✓ Split Cpu::draw() and extract battery state tracking (454→93 lines) — v1.5
 
 ### Active
-- [ ] Replace per-box bool redraw flags with unified DirtyFlags bitset
-- [ ] Remove dead Proc::resized atomic flag
-- [ ] Fix redraw naming collisions in btop_input.cpp
-- [ ] Decouple calcSizes() layout recomputation from redraw/dirty marking
+
+(None — define next milestone with `/gsd:new-milestone`)
+
+### Validated (v1.6)
+- ✓ Replace per-box bool redraw flags with unified DirtyFlags bitset — v1.6
+- ✓ Remove dead Proc::resized atomic flag — v1.6 Phase 31
+- ✓ Fix redraw naming collisions in btop_input.cpp — v1.6 Phase 31
+- ✓ Decouple calcSizes() layout recomputation from redraw/dirty marking — v1.6 Phase 33
 
 ### Out of Scope
 
@@ -89,8 +85,11 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 - Benchmark infrastructure: nanobench microbenchmarks, --benchmark CLI mode, CI regression detection
 - PGO build pipeline available (1.1% gain — I/O-bound ceiling); mimalloc evaluated (1.6% gain)
 - v1.2 shipped: All tech debt resolved — single-writer invariant for app_state, 266/266 tests pass, -4.4% wall time cumulative
-- Menu system: 8 menus, state in menuMask bitset + currentMenu int + function-static locals + scattered globals
-- Input routing: implicit Menu::active check splits keys between Menu::process() and Input::process()
+- v1.3 shipped: Menu PDA + Input FSM — pushdown automaton for 8 menus, typed Input FSM (Normal/Filtering/MenuActive)
+- v1.4 shipped: ThemeKey enum arrays, cpu_old enum arrays, stale static const fix — 330 tests
+- v1.5 shipped: Hot-path POSIX I/O, draw decomposition (Proc::draw 553→75, Cpu::draw 454→93) — 330 tests
+- v1.6 shipped: Unified DirtyBit redraw — PendingDirty atomic accumulator, 35 collector sites migrated, 5 extern redraw bools removed — 336 tests
+- Redraw architecture: PendingDirty (atomic<uint32_t>) is sole cross-thread redraw mechanism; collectors call mark_dirty(), runner calls take() + decomposes into per-box bools
 
 ## Constraints
 
@@ -119,6 +118,11 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | Event queue for signal decoupling | Unidirectional data flow, eliminates shared mutable state | ✓ Good — lock-free SPSC, async-signal-safe |
 | Phased migration (not big-bang) | Each phase independently deployable, reduces risk | ✓ Good — 6 phases, each shipped and tested incrementally |
 | Shadow atomic for cross-thread state | Variant is main-thread only, atomic for cross-thread reads | ✓ Good — desync fixed in v1.2 (single-writer invariant via transition_to) |
+| Atomic bitmask for dirty flags | fetch_or/exchange gives lock-free multi-producer single-consumer | ✓ Good — PendingDirty with release/acquire ordering, TSan clean |
+| Single DirtyBit::Gpu for all GPU panels | Matches existing force_redraw behavior, avoids per-panel complexity | ✓ Good — simplified design, no per-GPU-panel tracking needed |
+| ForceFullEmit separated from per-box bits | Differential emit preserved for single-key input | ✓ Good — only full-screen operations trigger ForceFullEmit |
+| Menu::redraw stays separate | Main-thread-only, no cross-thread concern | ✓ Good — keeps scope clean, no unnecessary migration |
+| File-local redraw in draw functions | Draw self-invalidation (IP change, sort toggle) preserved as file-local bools | ✓ Good — runner passes dirty via parameter, draw functions manage local state |
 
 ---
-*Last updated: 2026-03-03 after v1.6 milestone start*
+*Last updated: 2026-03-08 after v1.6 milestone*

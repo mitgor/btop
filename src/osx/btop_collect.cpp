@@ -589,6 +589,30 @@ namespace Gpu {
 	auto collect(bool no_update) -> vector<gpu_info>& {
 		if (Runner::is_stopping() or (no_update and not gpus.empty())) return gpus;
 
+		//? Use Term::width as fallback when GPU box is not shown (inline CPU panel mode)
+		const int buf_width = width != 0 ? width : Term::width.load();
+
+		//? Ensure ring buffer capacities are set before collecting data
+		if (buf_width != 0) {
+			for (auto& gpu : gpus) {
+				auto& totals = gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)];
+				if (totals.capacity() != static_cast<size_t>(buf_width * 2)) totals.resize(buf_width * 2);
+				if (gpu.mem_utilization_percent.capacity() != static_cast<size_t>(buf_width)) gpu.mem_utilization_percent.resize(buf_width);
+				auto& pwr = gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)];
+				if (pwr.capacity() != static_cast<size_t>(buf_width)) pwr.resize(buf_width);
+				if (gpu.temp.capacity() != 18) gpu.temp.resize(18);
+				auto& vram = gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)];
+				if (vram.capacity() != static_cast<size_t>(buf_width / 2)) vram.resize(buf_width / 2);
+			}
+
+			auto& avg_buf = shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)];
+			if (avg_buf.capacity() != static_cast<size_t>(buf_width * 2)) avg_buf.resize(buf_width * 2);
+			auto& vram_buf = shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)];
+			if (vram_buf.capacity() != static_cast<size_t>(buf_width)) vram_buf.resize(buf_width);
+			auto& pwr_buf = shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)];
+			if (pwr_buf.capacity() != static_cast<size_t>(buf_width)) pwr_buf.resize(buf_width);
+		}
+
 		AppleSilicon::collect<0>(gpus.data());
 
 		//* Calculate averages
@@ -605,18 +629,6 @@ namespace Gpu {
 				mem_total += gpu.mem_total;
 			if (gpu.supported_functions.pwr_usage)
 				pwr_total += gpu.pwr_usage;
-
-			//* Initialize ring buffer capacities (replaces pop_front trimming)
-			if (width != 0) {
-				auto& totals = gpu.gpu_percent[std::to_underlying(GpuField::gpu_totals)];
-				if (totals.capacity() != static_cast<size_t>(width * 2)) totals.resize(width * 2);
-				if (gpu.mem_utilization_percent.capacity() != static_cast<size_t>(width)) gpu.mem_utilization_percent.resize(width);
-				auto& pwr = gpu.gpu_percent[std::to_underlying(GpuField::gpu_pwr_totals)];
-				if (pwr.capacity() != static_cast<size_t>(width)) pwr.resize(width);
-				if (gpu.temp.capacity() != 18) gpu.temp.resize(18);
-				auto& vram = gpu.gpu_percent[std::to_underlying(GpuField::gpu_vram_totals)];
-				if (vram.capacity() != static_cast<size_t>(width / 2)) vram.resize(width / 2);
-			}
 		}
 
 		if (not gpus.empty()) {
@@ -625,15 +637,6 @@ namespace Gpu {
 				shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)].push_back(mem_usage_total * 100 / mem_total);
 			if (gpu_pwr_total_max != 0)
 				shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)].push_back(pwr_total * 100 / gpu_pwr_total_max);
-		}
-
-		if (width != 0) {
-			auto& avg_buf = shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_average)];
-			if (avg_buf.capacity() != static_cast<size_t>(width * 2)) avg_buf.resize(width * 2);
-			auto& vram_buf = shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_vram_total)];
-			if (vram_buf.capacity() != static_cast<size_t>(width)) vram_buf.resize(width);
-			auto& pwr_buf = shared_gpu_percent[std::to_underlying(SharedGpuField::gpu_pwr_total)];
-			if (pwr_buf.capacity() != static_cast<size_t>(width)) pwr_buf.resize(width);
 		}
 
 		return gpus;

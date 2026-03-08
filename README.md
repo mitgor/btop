@@ -442,11 +442,19 @@ See [GPU compatibility](#gpu-compatibility) section for more about compiling wit
 
    Btop++ supports Nvidia and AMD GPUs and Intel IGPUs out of the box on Linux x86_64, provided you have the correct drivers and libraries.
 
+   On macOS, Apple Silicon GPUs (M1/M2/M3/M4) are supported natively via IOReport, providing GPU utilization, clock speed, power usage, temperature and memory metrics. No additional drivers or libraries are needed.
+
    Gpu support for Nvidia or AMD will not work when static linking glibc (or musl, etc.)!
 
    For x86_64 Linux the flag `GPU_SUPPORT` is automatically set to `true`, to manually disable gpu support set the flag to false, like:
 
    `make GPU_SUPPORT=false` (or `cmake -DBTOP_GPU=false` with CMake)
+
+ * **Apple Silicon (macOS)**
+
+    GPU monitoring works out of the box on Apple Silicon Macs (M1, M2, M3, M4 and their Pro/Max/Ultra variants). Metrics include GPU utilization, clock speed, power usage, temperature and memory usage (unified memory).
+
+    GPU stats can be displayed in a dedicated GPU box (press `5`) or inline in the CPU box via the `show_gpu_info` option.
 
  * **NVIDIA**
 

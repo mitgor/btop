@@ -96,6 +96,48 @@
 
 ---
 
+## Milestone: v1.6 — Unified Redraw
+
+**Shipped:** 2026-03-08
+**Phases:** 4 | **Plans:** 5 | **Sessions:** ~2
+
+### What Was Built
+- DirtyBit enum with per-box bits (Cpu, Mem, Net, Proc, Gpu) and ForceFullEmit, backed by atomic<uint32_t>
+- PendingDirty struct with lock-free mark()/take() using fetch_or/exchange with release/acquire ordering
+- Runner thread integration: single take() per cycle decomposes into per-box dirty bools passed to draw functions
+- calcSizes() decoupled from direct per-namespace bool assignment — signals through request_redraw() only
+- All 35 collector write sites across 5 platforms (Linux, macOS, FreeBSD, NetBSD, OpenBSD) migrated to Runner::mark_dirty()
+- Dead code removal: Proc::resized atomic<bool> removed, calcSizes() guard simplified
+- Naming cleanup: 4 bool redraw locals in btop_input.cpp renamed to force_redraw
+
+### What Worked
+- **Foundation-first sequencing**: Types (Phase 31) → wiring (Phase 32) → decoupling (Phase 33) → migration (Phase 34) meant each phase had stable infrastructure to build on
+- **Single-line phases**: Phase 33 was literally a single line deletion — well-scoped phases keep execution fast and reviews trivial
+- **Cross-platform consistency**: All 5 platform collectors had identical patterns (7 sites each = 35 total), enabling mechanical migration
+- **Separation of concerns**: ForceFullEmit kept separate from per-box dirty bits preserved differential emit without regression
+
+### What Was Inefficient
+- **Nyquist validation not completed**: All 4 phases have draft VALIDATION.md files but none completed wave_0 — acceptable but leaves test coverage gap analysis unfinished
+- **SUMMARY one-liners missing**: No one-liner fields in SUMMARY.md files, reducing archive quality for accomplishment extraction
+
+### Patterns Established
+- **Atomic bitmask accumulator** as the pattern for multi-producer single-consumer dirty state (fetch_or for producers, exchange(0) for consumer)
+- **Per-box dirty decomposition** in runner thread — take() once, decompose to bools, pass to individual draw functions
+- **File-local redraw preservation** — draw functions keep local redraw variables for self-invalidation (IP change, sort toggle), separate from cross-thread PendingDirty
+
+### Key Lessons
+1. **Dead code removal is a prerequisite** — removing Proc::resized before migration eliminated false dependencies and simplified the guard condition
+2. **Naming collisions mask bugs** — renaming bool redraw to force_redraw in Phase 31 prevented confusion during Phase 32-34 migration
+3. **Mechanical migrations scale linearly** — 35 sites across 5 platforms were straightforward because the pattern was identical everywhere
+4. **ForceFullEmit separation is critical** — single-key presses should NOT trigger full screen reemit; keeping this bit separate preserves differential rendering performance
+
+### Cost Observations
+- Model mix: ~80% opus, ~20% sonnet (research + verification agents)
+- Sessions: ~2 (planning + execution, audit + completion)
+- Notable: Fastest per-plan velocity yet — 5 plans in ~14 min total (~2.8 min avg)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -104,6 +146,11 @@
 |-----------|----------|--------|------------|
 | v1.0 | ~6 | 9 | Established profile-first + audit-driven gap closure |
 | v1.1 | ~4 | 6 | Incremental FSM migration with shadow atomics, fastest plan velocity (3.8 min avg) |
+| v1.2 | ~2 | 4 | Tech debt closure, single-writer invariant |
+| v1.3 | ~2 | 5 | Menu PDA + Input FSM, typed state stack |
+| v1.4 | ~2 | 3 | Enum arrays for theme/cpu_old, stale const fix |
+| v1.5 | ~2 | 2 | POSIX I/O hot paths, draw decomposition |
+| v1.6 | ~2 | 4 | Atomic bitmask dirty flags, fastest velocity (2.8 min avg) |
 
 ### Cumulative Quality
 
@@ -111,10 +158,17 @@
 |-----------|-------|-----------------|-------------------|
 | v1.0 | 239 (benchmark + unit) | ASan/UBSan/TSan clean | nanobench (header-only, test-only) |
 | v1.1 | 279 (unit + FSM) | ASan/UBSan/TSan clean | None |
+| v1.2 | 266 (test fix) | ASan/UBSan/TSan clean | None |
+| v1.3 | 330 (PDA + Input FSM) | ASan/UBSan/TSan clean | None |
+| v1.4 | 330 | ASan/UBSan/TSan clean | None |
+| v1.5 | 330 | ASan/UBSan/TSan clean | None |
+| v1.6 | 336 (dirty flag tests) | ASan/UBSan/TSan clean | None |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Profile before optimizing — confirmed by v1.0 (nanobench + macOS sampling guided all 20 plans)
-2. Audit at milestone boundaries — confirmed by v1.0 (caught 2 integration gaps), v1.1 (cataloged 3 tech debt items)
-3. Incremental migration over big-bang — confirmed by v1.1 (6 phases, each independently deployable, zero regressions)
-4. Sanitizer sweeps as safety net — confirmed by v1.0 + v1.1 (zero findings across all optimizations and architectural changes)
+2. Audit at milestone boundaries — confirmed across all 7 milestones (3-source cross-reference catches integration gaps)
+3. Incremental migration over big-bang — confirmed by v1.1 (6 phases), v1.6 (4 phases, 35 sites migrated mechanically)
+4. Sanitizer sweeps as safety net — confirmed across all milestones (zero findings through 336 tests)
+5. Foundation-first phase sequencing — confirmed by v1.6 (types → wiring → decoupling → migration, each building on stable prior phase)
+6. Dead code removal as prerequisite — confirmed by v1.6 (removing Proc::resized simplified subsequent phases)
