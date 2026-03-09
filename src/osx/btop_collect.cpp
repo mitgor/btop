@@ -343,8 +343,84 @@ namespace Gpu {
 			return true;
 		}
 
+		//? Read GPU temperature via SMC keys (works on M4 and later where IOHID lacks GPU sensors)
+		static long long get_gpu_temp_smc() {
+			try {
+				CFMutableDictionaryRef matchingDict = IOServiceMatching("AppleSMC");
+				io_iterator_t iter;
+				if (IOServiceGetMatchingServices(0, matchingDict, &iter) != kIOReturnSuccess) return -1;
+				io_object_t dev = IOIteratorNext(iter);
+				IOObjectRelease(iter);
+				if (not dev) return -1;
+				io_connect_t conn;
+				if (IOServiceOpen(dev, mach_task_self(), 0, &conn) != kIOReturnSuccess) {
+					IOObjectRelease(dev);
+					return -1;
+				}
+				IOObjectRelease(dev);
+
+				//? Try GPU junction temperature first (most accurate), then GPU shader
+				for (const char* key : {"Tg0j", "Tg0S"}) {
+					SMCKeyData_t inputStructure{};
+					SMCKeyData_t outputStructure{};
+
+					inputStructure.key = (static_cast<UInt32>(key[0]) << 24)
+						| (static_cast<UInt32>(key[1]) << 16)
+						| (static_cast<UInt32>(key[2]) << 8)
+						| static_cast<UInt32>(key[3]);
+					inputStructure.data8 = 9; // SMC_CMD_READ_KEYINFO
+
+					size_t structSize = sizeof(SMCKeyData_t);
+					size_t outSize = structSize;
+
+					auto result = IOConnectCallStructMethod(conn, 2, &inputStructure, structSize, &outputStructure, &outSize);
+					if (result != kIOReturnSuccess) continue;
+
+					UInt32 dataSize = outputStructure.keyInfo.dataSize;
+					UInt32 dataTypeRaw = outputStructure.keyInfo.dataType;
+					if (dataSize == 0) continue;
+					inputStructure.keyInfo.dataSize = dataSize;
+					inputStructure.data8 = 5; // SMC_CMD_READ_BYTES
+
+					outSize = structSize;
+					result = IOConnectCallStructMethod(conn, 2, &inputStructure, structSize, &outputStructure, &outSize);
+					if (result != kIOReturnSuccess) continue;
+
+					//? Decode temperature based on SMC data type (saved before READ_BYTES overwrote it)
+					double tempVal = 0;
+					char dataType[5];
+					dataType[0] = static_cast<char>((dataTypeRaw >> 24) & 0xFF);
+					dataType[1] = static_cast<char>((dataTypeRaw >> 16) & 0xFF);
+					dataType[2] = static_cast<char>((dataTypeRaw >> 8) & 0xFF);
+					dataType[3] = static_cast<char>(dataTypeRaw & 0xFF);
+					dataType[4] = 0;
+
+					if (std::strcmp(dataType, "flt ") == 0 and dataSize == 4) {
+						//? IEEE 754 single-precision float (M4 and newer)
+						float f;
+						std::memcpy(&f, outputStructure.bytes, 4);
+						tempVal = static_cast<double>(f);
+					} else if (std::strcmp(dataType, DATATYPE_SP78) == 0) {
+						//? sp78: signed 8.8 fixed point (older chips)
+						int intValue = outputStructure.bytes[0] * 256 + static_cast<unsigned char>(outputStructure.bytes[1]);
+						tempVal = intValue / 256.0;
+					} else {
+						continue;
+					}
+
+					long long temp = static_cast<long long>(std::round(tempVal));
+					if (temp > 0 and temp < 150) {
+						IOServiceClose(conn);
+						return temp;
+					}
+				}
+				IOServiceClose(conn);
+			} catch (...) {}
+			return -1;
+		}
+
 		//? Read GPU temperature via IOHIDEventSystem thermal sensors
-		static long long get_gpu_temp_iohid() {
+		static long long get_gpu_temp() {
 			#if __MAC_OS_X_VERSION_MIN_REQUIRED > 101504
 			constexpr int kHIDPage_AppleVendor = 0xff00;
 			constexpr int kHIDUsage_TemperatureSensor = 5;
@@ -360,15 +436,16 @@ namespace Gpu {
 				&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
 
 			CFRef<IOHIDEventSystemClientRef> system(IOHIDEventSystemClientCreate(kCFAllocatorDefault));
-			if (not system.get()) return -1;
+			if (not system.get()) return get_gpu_temp_smc();
 			IOHIDEventSystemClientSetMatching(system, match);
 			CFRef<CFArrayRef> services(IOHIDEventSystemClientCopyServices(system));
 
-			if (not services.get()) return -1;
+			if (not services.get()) return get_gpu_temp_smc();
 
 			double gpu_temp_sum = 0;
 			int gpu_temp_count = 0;
 			long count = CFArrayGetCount(services);
+
 			for (long i = 0; i < count; i++) {
 				auto sc = (IOHIDServiceClientRef)CFArrayGetValueAtIndex(services, i);
 				if (not sc) continue;
@@ -377,7 +454,6 @@ namespace Gpu {
 				char buf[200];
 				CFStringGetCString(name, buf, 200, kCFStringEncodingASCII);
 				string n(buf);
-				//? "GPU MTR Temp Sensor" is the standard Apple Silicon GPU temp sensor name
 				if (n.find("GPU") != string::npos) {
 					CFRef<IOHIDEventRef> event(IOHIDServiceClientCopyEvent(sc, kIOHIDEventTypeTemperature, 0, 0));
 					if (event.get()) {
@@ -393,7 +469,8 @@ namespace Gpu {
 			if (gpu_temp_count > 0)
 				return static_cast<long long>(round(gpu_temp_sum / gpu_temp_count));
 			#endif
-			return -1;
+			//? Fallback to SMC for M4 and newer chips that lack IOHID GPU sensors
+			return get_gpu_temp_smc();
 		}
 
 		template <bool is_init>
@@ -547,7 +624,7 @@ namespace Gpu {
 
 			//? GPU temperature
 			if (gpus_slice[0].supported_functions.temp_info and Config::getB(BoolKey::check_temp)) {
-				long long temp = get_gpu_temp_iohid();
+				long long temp = get_gpu_temp();
 				if (temp > 0)
 					gpus_slice[0].temp.push_back(temp);
 			}
