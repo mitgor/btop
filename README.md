@@ -1,4 +1,6 @@
-# ![btop++](Img/logo.png)
+# ![btop++](Img/logo.png) Optimised
+
+> **Optimised fork of [btop++](https://github.com/aristocratos/btop)** — performance improvements, state machine architecture, working Apple Silicon GPU monitoring, and 336 tests. Drop-in replacement with zero user-visible changes.
 
 <a href="https://repology.org/project/btop/versions">
     <img src="https://repology.org/badge/vertical-allrepos/btop.svg" alt="Packaging status" align="right">
@@ -11,16 +13,83 @@
 ![OpenBSD](https://img.shields.io/badge/-OpenBSD-black?logo=openbsd)
 ![Usage](https://img.shields.io/badge/Usage-System%20resource%20monitor-yellow)
 ![c++23](https://img.shields.io/badge/cpp-c%2B%2B23-green)
-![latest_release](https://img.shields.io/github/v/tag/aristocratos/btop?label=release)
-[![Donate](https://img.shields.io/badge/-Donate-yellow?logo=paypal)](https://paypal.me/aristocratos)
-[![Sponsor](https://img.shields.io/badge/-Sponsor-red?logo=github)](https://github.com/sponsors/aristocratos)
-[![Coffee](https://img.shields.io/badge/-Buy%20me%20a%20Coffee-grey?logo=Ko-fi)](https://ko-fi.com/aristocratos)
-[![btop](https://snapcraft.io/btop/badge.svg)](https://snapcraft.io/btop)
-[![Continuous Build Linux](https://github.com/aristocratos/btop/actions/workflows/continuous-build-linux.yml/badge.svg)](https://github.com/aristocratos/btop/actions/workflows/continuous-build-linux.yml)
-[![Continuous Build macOS](https://github.com/aristocratos/btop/actions/workflows/continuous-build-macos.yml/badge.svg)](https://github.com/aristocratos/btop/actions/workflows/continuous-build-macos.yml)
-[![Continuous Build FreeBSD](https://github.com/aristocratos/btop/actions/workflows/continuous-build-freebsd.yml/badge.svg)](https://github.com/aristocratos/btop/actions/workflows/continuous-build-freebsd.yml)
-[![Continuous Build NetBSD](https://github.com/aristocratos/btop/actions/workflows/continuous-build-netbsd.yml/badge.svg)](https://github.com/aristocratos/btop/actions/workflows/continuous-build-netbsd.yml)
-[![Continuous Build OpenBSD](https://github.com/aristocratos/btop/actions/workflows/continuous-build-openbsd.yml/badge.svg)](https://github.com/aristocratos/btop/actions/workflows/continuous-build-openbsd.yml)
+
+---
+
+## What's Different From Upstream
+
+This fork delivers measurable improvements in performance, architecture, and bug fixes while maintaining 100% compatibility with the original btop. Same features, same visuals, same config files — just faster and more robust.
+
+### Performance (benchmarked on Apple M4 Max, 270 cycles)
+
+| Metric | Upstream | This Fork | Change |
+|--------|----------|-----------|--------|
+| Wall time per frame | 1,687 us | 1,512 us | **-10.4%** |
+| Data collection | 1,560 us | 1,385 us | **-11.2%** |
+| Draw time | 127 us | 127 us | -0.2% |
+
+Key optimisations:
+- **Enum-indexed arrays** replace all `unordered_map<string, T>` lookups (35-132x speedup on hot paths)
+- **Zero-allocation POSIX I/O** replaces `ifstream` for /proc reads (stack buffers, no heap churn)
+- **RingBuffer\<T\>** replaces `deque` for all time-series data (zero steady-state allocations)
+- **Differential terminal rendering** — cell buffer tracks changes, only emits modified cells (~185x cache hit speedup)
+- **Regex-free string processing** — `Fx::uncolor()` single-pass parser replaces `std::regex`
+- **Graph column caching** — avoids redundant recomputation across frames
+- **Atomic bitmask dirty flags** — `PendingDirty` with lock-free `mark()`/`take()` for per-box differential redraws
+- Benchmark infrastructure with nanobench microbenchmarks and `--benchmark` CLI mode
+
+### Architecture: Explicit State Machines
+
+Replaced btop's implicit flag-driven state management (7 `atomic<bool>` = 128 theoretical states, most invalid) with typed finite automata:
+
+```
+App FSM:  Running <-> Resizing <-> Sleeping <-> Quitting -> Error
+                  \-> Reloading -/
+
+Runner FSM:  Idle -> Collecting -> Drawing -> Idle
+                                          \-> Stopping
+
+Menu PDA:  Normal <-> Filtering <-> MenuActive (pushdown automaton with typed stack frames)
+```
+
+- **App FSM**: `std::variant`-based states with compile-time exhaustiveness checking
+- **Runner FSM**: Independent thread FSM (Idle/Collecting/Drawing/Stopping) with typed cross-thread communication
+- **Menu PDA**: Pushdown automaton replacing bitset + dispatch table, with per-frame typed state
+- **Input FSM**: Normal/Filtering/MenuActive states replacing boolean flag routing
+- **Event Queue**: Lock-free SPSC queue decoupling signal handlers from main loop (async-signal-safe)
+- **Unified Redraw**: `DirtyBit` enum + `PendingDirty` atomic accumulator replaces 5 scattered per-namespace bool flags
+
+All transitions are explicit, type-safe, and tested — invalid state combinations are impossible at compile time.
+
+### Bug Fixes
+
+- **GPU load always 0 on macOS** — Ring buffers were never sized when GPU displayed inline in the CPU panel (`show_gpu_info: Auto`), silently dropping all data. Fixed on both macOS and Linux.
+- **Apple Silicon GPU monitoring** — Full support for M1/M2/M3/M4 via IOReport (utilisation, clock speed, power, temperature, unified memory)
+- **Stale static const in calcSizes()** — `freq_range`/`hasCpuHz` were baked at first call and never refreshed on config change
+- **Ctrl+C hang** — Clean quit re-entrancy guard prevents deadlock
+- **Resume-no-redraw** — Screen properly redraws after resume from sleep
+- **RingBuffer zero-capacity push** — `push_back` on uninitialized buffer no longer silently drops data
+
+### Quality
+
+- **336 tests** (unit + FSM + dirty flags + benchmarks) passing across 3 sanitiser configs
+- **Zero sanitiser findings** — ASan, UBSan, and TSan clean
+- **Cross-platform** — All improvements apply to Linux, macOS, FreeBSD, NetBSD, and OpenBSD
+- **PGO build pipeline** available (1.1% additional gain — I/O-bound ceiling)
+
+### Milestones
+
+| Version | Focus | Phases | Key Changes |
+|---------|-------|--------|-------------|
+| v1.0 | Performance | 9 | Enum arrays, POSIX I/O, RingBuffer, differential rendering, benchmarks |
+| v1.1 | Automata Architecture | 6 | App FSM, Runner FSM, event queue, std::variant states |
+| v1.2 | Tech Debt | 4 | Single-writer invariant, SIGTERM routing, test fixes |
+| v1.3 | Menu + Input | 5 | Menu PDA, Input FSM, typed state stack |
+| v1.4 | Render Modernisation | 3 | ThemeKey enum arrays, cpu_old enum arrays |
+| v1.5 | Collect Completion | 2 | Hot-path POSIX I/O, draw function decomposition |
+| v1.6 | Unified Redraw | 4 | DirtyBit bitmask, PendingDirty, 35 collector sites migrated |
+
+---
 
 ## Index
 
