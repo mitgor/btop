@@ -149,6 +149,9 @@ namespace Term {
 	//* Check for a valid tty, save terminal options and set new options
 	bool init();
 
+	//* Re-apply terminal settings (raw mode, mouse, etc.) after system wake
+	void reinit();
+
 	//* Restore terminal options
 	void restore();
 }

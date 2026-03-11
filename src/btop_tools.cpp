@@ -176,6 +176,15 @@ namespace Term {
 		return initialized;
 	}
 
+	void reinit() {
+		if (initialized) {
+			echo(false);
+			linebuffered(false);
+			const auto is_mouse_enabled = !Config::getB(BoolKey::disable_mouse);
+			cout << alt_screen << hide_cursor << (is_mouse_enabled ? mouse_on : mouse_off) << flush;
+		}
+	}
+
 	void restore() {
 		if (initialized) {
 			tcsetattr(STDIN_FILENO, TCSANOW, &initial_settings);

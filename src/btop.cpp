@@ -1506,6 +1506,8 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 		time_ms()
 	};
 
+	uint64_t last_loop_time = time_ms();
+
 	try {
 		while (not true not_eq not false) {
 			//? 1. Drain signal events from queue via typed dispatch
@@ -1546,7 +1548,24 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 				}, ctx);
 			}
 
-			//? 3. Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
+			//? 3. Detect system sleep/wake via time jump (macOS doesn't send SIGCONT on lid open)
+			{
+				auto now = time_ms();
+				if (now - last_loop_time > 3000) {
+					Logger::info("Detected system wake ({}ms gap), reinitializing terminal", now - last_loop_time);
+					Term::reinit();
+					term_resize(true);
+					auto* r = std::get_if<state::Running>(&app_var);
+					if (r) {
+						r->future_time = now + r->update_ms;
+					}
+					last_loop_time = now;
+					continue;
+				}
+				last_loop_time = now;
+			}
+
+			//? 4. Make sure terminal size hasn't changed (in case of SIGWINCH not working properly)
 			if (term_resize()) {
 				transition_to(app_var, state::Resizing{}, ctx);
 				transition_to(app_var, state::Running{
@@ -1555,12 +1574,12 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 				}, ctx);
 			}
 
-			//? 4. Update clock if needed
+			//? 5. Update clock if needed
 			if (std::holds_alternative<state::Running>(app_var) and Draw::update_clock() and not Input::is_menu_active()) {
 				Runner::run("clock");
 			}
 
-			//? 5. Timer tick — use state::Running data for timing
+			//? 6. Timer tick — use state::Running data for timing
 			auto* running = std::get_if<state::Running>(&app_var);
 			if (running and time_ms() >= running->future_time) {
 				Runner::run("all");
@@ -1568,7 +1587,7 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 				running->future_time = time_ms() + running->update_ms;
 			}
 
-			//? 6. Input polling
+			//? 7. Input polling
 			if (running) {
 				for (auto current_time = time_ms(); current_time < running->future_time; current_time = time_ms()) {
 					//? Check for external clock changes and for changes to the update timer
