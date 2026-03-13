@@ -17,8 +17,8 @@ Requirements for advanced performance milestone. Each maps to roadmap phases.
 ### Compiler & Build
 
 - [ ] **BUILD-01**: PGO training workload covers filtering, sorting, menu interactions, resize, and idle
-- [ ] **BUILD-02**: CMake BTOP_NATIVE option enables -march=native for user-compiled builds
-- [ ] **BUILD-03**: Precompiled headers and/or unity build enabled for faster compilation
+- [x] **BUILD-02**: CMake BTOP_NATIVE option enables -march=native for user-compiled builds
+- [x] **BUILD-03**: Precompiled headers and/or unity build enabled for faster compilation
 
 ### Algorithmic
 
@@ -53,25 +53,25 @@ Deferred beyond v1.7.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MEM-01 | — | Pending |
-| MEM-02 | — | Pending |
-| MEM-03 | — | Pending |
-| MEM-04 | — | Pending |
-| BUILD-01 | — | Pending |
-| BUILD-02 | — | Pending |
-| BUILD-03 | — | Pending |
-| ALG-01 | — | Pending |
-| ALG-02 | — | Pending |
-| ALG-03 | — | Pending |
-| IO-01 | — | Pending |
-| IO-02 | — | Pending |
-| IO-03 | — | Pending |
+| MEM-01 | Phase 37 | Pending |
+| MEM-02 | Phase 38 | Pending |
+| MEM-03 | Phase 37 | Pending |
+| MEM-04 | Phase 37 | Pending |
+| BUILD-01 | Phase 35 | Pending |
+| BUILD-02 | Phase 35 | Complete |
+| BUILD-03 | Phase 35 | Complete |
+| ALG-01 | Phase 36 | Pending |
+| ALG-02 | Phase 36 | Pending |
+| ALG-03 | Phase 36 | Pending |
+| IO-01 | Phase 39 | Pending |
+| IO-02 | Phase 39 | Pending |
+| IO-03 | Phase 38 | Pending |
 
 **Coverage:**
 - v1.7 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13
+- Mapped to phases: 13
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-13*
-*Last updated: 2026-03-13 after initial definition*
+*Last updated: 2026-03-13 after roadmap creation*

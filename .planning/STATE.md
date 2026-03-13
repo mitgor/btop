@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
-status: active
-stopped_at: Defining requirements
-last_updated: "2026-03-13T00:00:00.000Z"
-last_activity: 2026-03-13 — Milestone v1.7 started
+status: completed
+stopped_at: Completed 35-02-PLAN.md (Phase 35 complete)
+last_updated: "2026-03-13T22:09:57.346Z"
+last_activity: 2026-03-13 — Completed 35-02 (native CPU + PCH options)
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** v1.7 Advanced Performance
+**Current focus:** v1.7 Advanced Performance — Phase 35 (Build & Compiler)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-13 — Milestone v1.7 started
+Phase: 35 (Build & Compiler) — first of 5 in v1.7
+Plan: 2 of 2 (complete)
+Status: Phase 35 complete
+Last activity: 2026-03-13 — Completed 35-02 (native CPU + PCH options)
+
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -47,6 +49,11 @@ Last activity: 2026-03-13 — Milestone v1.7 started
 
 Full decision log in PROJECT.md Key Decisions table.
 
+- [35-01] 7-phase PGO training workload exercising sort keys, filtering, tree mode, resize, box configs, draw-only
+- [35-01] Moved Clang detection before Step 2 in pgo-build.sh for LLVM_PROFILE_FILE support
+- [35-02] PCH includes only STL/fmt headers (never project headers) to avoid invalidation during development
+- [35-02] CMake options declared early, applied late after targets and includes exist
+
 ### Pending Todos
 
 None.
@@ -57,6 +64,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Defining requirements
+Last session: 2026-03-13T22:09:57.344Z
+Stopped at: Completed 35-02-PLAN.md (Phase 35 complete)
 Resume file: None
