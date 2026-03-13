@@ -4,7 +4,7 @@
 #
 # This script automates the full PGO workflow:
 # 1. Build instrumented binary (profile generation)
-# 2. Run training workload (btop --benchmark 50)
+# 2. Run training workload (btop --pgo-training)
 # 3. Merge profiles (Clang: llvm-profdata; GCC: automatic)
 # 4. Rebuild with profile data (profile use)
 #
@@ -29,18 +29,24 @@ cmake -B build-pgo-gen -G Ninja \
   -DBUILD_TESTING=OFF
 cmake --build build-pgo-gen
 
-# Step 2: Run training workload
-echo ""
-echo "--- Step 2: Running training workload (btop --benchmark 50) ---"
-./build-pgo-gen/btop --benchmark 50
-
-# Step 3: Merge profiles
-echo ""
-echo "--- Step 3: Merging profiles ---"
+# Detect compiler type (needed for Steps 2 and 3)
 IS_CLANG=false
 if "$CXX_COMPILER" --version 2>&1 | grep -qi clang; then
   IS_CLANG=true
 fi
+
+# Step 2: Run PGO training workload
+echo ""
+echo "--- Step 2: Running PGO training workload ---"
+if [ "$IS_CLANG" = true ]; then
+  LLVM_PROFILE_FILE="build-pgo-gen/btop-%p.profraw" ./build-pgo-gen/btop --pgo-training
+else
+  ./build-pgo-gen/btop --pgo-training
+fi
+
+# Step 3: Merge profiles
+echo ""
+echo "--- Step 3: Merging profiles ---"
 
 if [ "$IS_CLANG" = true ]; then
   # Clang: merge .profraw files into .profdata
