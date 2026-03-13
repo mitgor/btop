@@ -59,6 +59,12 @@ endif()
 
 option(BTOP_BENCHMARKS "Build performance benchmarks" OFF)
 
+# Native CPU optimization for local builds
+option(BTOP_NATIVE "Optimize for the build machine's CPU (-march=native)" OFF)
+
+# Precompiled headers for faster builds
+option(BTOP_PCH "Use precompiled headers for faster clean builds" OFF)
+
 if(BTOP_STATIC AND NOT APPLE)
   # Set this before calling find_package
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -202,6 +208,42 @@ endif()
 check_cxx_compiler_flag(-fcf-protection HAS_FCF_PROTECTION)
 if(HAS_FCF_PROTECTION)
   target_compile_options(libbtop PUBLIC -fcf-protection)
+endif()
+
+# Apply native CPU optimization
+if(BTOP_NATIVE)
+  check_cxx_compiler_flag(-march=native HAS_MARCH_NATIVE)
+  if(HAS_MARCH_NATIVE)
+    message(STATUS "Native CPU optimization enabled (-march=native)")
+    target_compile_options(libbtop PUBLIC -march=native)
+    target_compile_options(btop PUBLIC -march=native)
+  else()
+    message(WARNING "Compiler does not support -march=native, ignoring BTOP_NATIVE")
+    set(BTOP_NATIVE OFF)
+  endif()
+endif()
+
+# Apply precompiled headers
+if(BTOP_PCH)
+  target_precompile_headers(libbtop PRIVATE
+    <algorithm>
+    <array>
+    <atomic>
+    <chrono>
+    <cstdint>
+    <filesystem>
+    <fmt/format.h>
+    <iterator>
+    <mutex>
+    <optional>
+    <ranges>
+    <string>
+    <string_view>
+    <utility>
+    <variant>
+    <vector>
+  )
+  message(STATUS "Precompiled headers enabled")
 endif()
 
 target_compile_definitions(libbtop PUBLIC

@@ -8,6 +8,10 @@ An ongoing optimization and architectural improvement effort for btop++, the ter
 
 Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
 
+## Current Milestone: v1.7 Advanced Performance
+
+**Goal:** Push btop's performance further through memory architecture (arena allocators, pre-allocated buffers), compiler optimizations (PGO, native builds), algorithmic improvements (partial sort, SoA layout), and platform-specific I/O (io_uring, IOKit caching, writev).
+
 ## Current State
 
 **Latest shipped:** v1.6 Unified Redraw (2026-03-08)
@@ -55,7 +59,20 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 
 ### Active
 
-(None — define next milestone with `/gsd:new-milestone`)
+#### v1.7 — Advanced Performance
+- [ ] Arena allocator (pmr) for runner thread per-cycle allocation
+- [ ] Pre-allocated draw buffer with fmt::format_to
+- [ ] string_view parsing audit across all platforms
+- [ ] mimalloc evaluation as default allocator
+- [ ] PGO training workload improvement
+- [ ] -march=native CMake option
+- [ ] PCH / unity build for faster compilation
+- [ ] Partial sort for process list
+- [ ] constexpr lookup table audit
+- [ ] SoA sort keys for process sorting
+- [ ] io_uring batched /proc reads (Linux)
+- [ ] macOS IOKit connection caching
+- [ ] writev() scatter-gather terminal output
 
 ### Validated (v1.6)
 - ✓ Replace per-box bool redraw flags with unified DirtyFlags bitset — v1.6
@@ -125,4 +142,4 @@ Achieve measurable, significant reductions in btop's own resource consumption wh
 | File-local redraw in draw functions | Draw self-invalidation (IP change, sort toggle) preserved as file-local bools | ✓ Good — runner passes dirty via parameter, draw functions manage local state |
 
 ---
-*Last updated: 2026-03-08 after v1.6 milestone*
+*Last updated: 2026-03-13 after v1.7 milestone start*

@@ -9,6 +9,7 @@
 - ✅ **v1.4 Render & Collect Modernization** — Phases 25-27 (shipped 2026-03-02)
 - ✅ **v1.5 Render & Collect Completion** — Phases 28-29 (shipped 2026-03-03)
 - ✅ **v1.6 Unified Redraw** — Phases 31-34 (shipped 2026-03-08)
+- 🚧 **v1.7 Advanced Performance** — Phases 35-39 (in progress)
 
 ## Phases
 
@@ -100,3 +101,81 @@ Full details: `milestones/v1.5-ROADMAP.md` | `milestones/v1.5-REQUIREMENTS.md`
 Full details: `milestones/v1.6-ROADMAP.md` | `milestones/v1.6-REQUIREMENTS.md`
 
 </details>
+
+### v1.7 Advanced Performance (In Progress)
+
+**Milestone Goal:** Push btop's performance further through compiler optimizations, algorithmic improvements, memory architecture (arena allocators, pre-allocated buffers), and platform-specific I/O.
+
+- [ ] **Phase 35: Build & Compiler** - PGO training, -march=native, PCH/unity build
+- [ ] **Phase 36: Algorithmic Improvements** - Partial sort, constexpr tables, SoA sort keys
+- [ ] **Phase 37: Allocation & Parsing** - Arena allocator, string_view audit, mimalloc evaluation
+- [ ] **Phase 38: Output Pipeline** - Pre-allocated draw buffer, writev scatter-gather output
+- [ ] **Phase 39: Platform I/O** - io_uring Linux batching, macOS IOKit caching
+
+## Phase Details
+
+### Phase 35: Build & Compiler
+**Goal**: Faster builds and better-optimized binaries without changing runtime code
+**Depends on**: Nothing (first phase of v1.7)
+**Requirements**: BUILD-01, BUILD-02, BUILD-03
+**Success Criteria** (what must be TRUE):
+  1. PGO training workload exercises filtering, sorting, menu interactions, resize, and idle — not just `--benchmark 50`
+  2. User can pass `-DBTOP_NATIVE=ON` to CMake and get a binary compiled with `-march=native`
+  3. Clean build time is measurably reduced via PCH and/or unity build configuration
+**Plans**: 2 plans
+Plans:
+- [ ] 35-01-PLAN.md — PGO training workload (--pgo-training CLI flag + comprehensive training)
+- [ ] 35-02-PLAN.md — CMake options (BTOP_NATIVE + BTOP_PCH)
+
+### Phase 36: Algorithmic Improvements
+**Goal**: Reduce CPU work per cycle through smarter algorithms and compile-time computation
+**Depends on**: Phase 35 (PGO retraining benefits from algorithmic changes being in place, but not strictly required — can run in parallel)
+**Requirements**: ALG-01, ALG-02, ALG-03
+**Success Criteria** (what must be TRUE):
+  1. Process list with 1000+ entries sorts faster when only 50 rows are displayed (partial sort avoids full O(P log P))
+  2. Theme color tables, key mappings, and escape sequence building blocks are constexpr — no runtime initialization
+  3. Process sort operation shows improved cache behavior via SoA key extraction (measurable via benchmark)
+**Plans**: TBD
+
+### Phase 37: Allocation & Parsing
+**Goal**: Eliminate per-cycle heap allocation churn through arena allocation, zero-copy parsing, and allocator evaluation
+**Depends on**: Phase 36 (algorithmic changes should land first so allocation patterns are stable before arena work)
+**Requirements**: MEM-01, MEM-03, MEM-04
+**Success Criteria** (what must be TRUE):
+  1. Runner thread's per-cycle allocations use pmr::monotonic_buffer_resource reset each cycle — no per-object deallocation
+  2. All /proc and sysctl parsing paths use string_view for field extraction — no intermediate std::string copies for substring operations
+  3. mimalloc evaluated via benchmark; adopted as CMake option if >3% gain demonstrated, otherwise documented as not worth it
+  4. All existing tests pass with arena allocator active and string_view parsing changes in place
+**Plans**: TBD
+
+### Phase 38: Output Pipeline
+**Goal**: Zero-copy output path from draw functions to terminal — pre-allocated buffer replaces string concatenation, single syscall per frame
+**Depends on**: Phase 37 (arena allocator provides the memory substrate for pre-allocated buffers)
+**Requirements**: MEM-02, IO-03
+**Success Criteria** (what must be TRUE):
+  1. Draw functions write to a pre-allocated buffer via fmt::format_to instead of returning std::string and concatenating with +=
+  2. Terminal output uses writev() scatter-gather I/O — multiple buffer segments written in a single syscall per frame
+  3. Draw path benchmark shows measurable improvement (fewer allocations, fewer syscalls)
+**Plans**: TBD
+
+### Phase 39: Platform I/O
+**Goal**: Platform-specific I/O optimizations that reduce syscall overhead on Linux and macOS collection paths
+**Depends on**: Phase 37 (string_view parsing from Phase 37 is the foundation for processing io_uring results)
+**Requirements**: IO-01, IO-02
+**Success Criteria** (what must be TRUE):
+  1. Linux builds batch /proc file reads via io_uring with automatic fallback to sequential POSIX I/O on older kernels (<5.1)
+  2. macOS builds cache SMC/IOKit connection handles across collection cycles instead of re-opening each cycle
+  3. Collection benchmark on each platform shows reduced syscall count and/or wall time
+**Plans**: TBD
+
+## Progress
+
+**Execution Order:** 35 -> 36 -> 37 -> 38 -> 39
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 35. Build & Compiler | 0/2 | Not started | - |
+| 36. Algorithmic Improvements | 0/? | Not started | - |
+| 37. Allocation & Parsing | 0/? | Not started | - |
+| 38. Output Pipeline | 0/? | Not started | - |
+| 39. Platform I/O | 0/? | Not started | - |
