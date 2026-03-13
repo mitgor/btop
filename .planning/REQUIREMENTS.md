@@ -16,7 +16,7 @@ Requirements for advanced performance milestone. Each maps to roadmap phases.
 
 ### Compiler & Build
 
-- [ ] **BUILD-01**: PGO training workload covers filtering, sorting, menu interactions, resize, and idle
+- [x] **BUILD-01**: PGO training workload covers filtering, sorting, menu interactions, resize, and idle
 - [x] **BUILD-02**: CMake BTOP_NATIVE option enables -march=native for user-compiled builds
 - [x] **BUILD-03**: Precompiled headers and/or unity build enabled for faster compilation
 
@@ -57,7 +57,7 @@ Deferred beyond v1.7.
 | MEM-02 | Phase 38 | Pending |
 | MEM-03 | Phase 37 | Pending |
 | MEM-04 | Phase 37 | Pending |
-| BUILD-01 | Phase 35 | Pending |
+| BUILD-01 | Phase 35 | Complete |
 | BUILD-02 | Phase 35 | Complete |
 | BUILD-03 | Phase 35 | Complete |
 | ALG-01 | Phase 36 | Pending |
