@@ -34,6 +34,8 @@ namespace Cli {
 		std::optional<std::uint32_t> updates;
 		// Number of collect+draw cycles to run in benchmark mode (0 = normal operation)
 		std::optional<std::uint32_t> benchmark_cycles;
+		// Run comprehensive PGO training workload and exit
+		bool pgo_training {};
 	};
 
 	using Result = std::expected<Cli, std::int32_t>;

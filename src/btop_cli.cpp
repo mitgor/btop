@@ -216,6 +216,11 @@ namespace Cli {
 				continue;
 			}
 
+			if (arg == "--pgo-training") {
+				cli.pgo_training = true;
+				continue;
+			}
+
 			error(fmt::format("Unknown argument '{}{}{}'", YELLOW, arg, RESET));
 			return std::unexpected { 1 };
 		}
@@ -284,6 +289,7 @@ namespace Cli {
 			"  {2}    --no-tty{1}            Force disable tty mode\n"
 			"  {2}-u, --update{1} <ms>       Set an initial update rate in milliseconds\n"
 			"  {2}-b, --benchmark{1} <N>    Run N collect+draw cycles in benchmark mode and exit\n"
+			"  {2}    --pgo-training{1}      Run comprehensive PGO training workload and exit\n"
 			"  {2}    --default-config{1}    Print default config to standard output\n"
 			"  {2}-h, --help{1}              Show this help message and exit\n"
 			"  {2}-V, --version{1}           Show a version message and exit (more with --version)\n",

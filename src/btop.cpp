@@ -1264,6 +1264,169 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 		}
 	}
 
+	//? PGO training mode: comprehensive workload exercising all major code paths
+	if (cli.pgo_training) {
+		// Set terminal dimensions to reasonable defaults (no real terminal)
+		Term::width = 200;
+		Term::height = 50;
+
+		// Initialize platform-dependent data
+		try {
+			Shared::init();
+		} catch (const std::exception& e) {
+			fmt::println(stderr, "PGO training: Shared::init failed: {}", e.what());
+			return 1;
+		}
+
+		// Set up boxes and theme for draw functions
+		Config::set_boxes("cpu mem net proc");
+		Config::set(StringKey::shown_boxes, "cpu mem net proc"s);
+		Theme::updateThemes();
+		Theme::setTheme();
+		Draw::update_reset_colors();
+		Draw::calcSizes();
+
+		// Helper: collect+draw cycle for currently configured boxes
+		auto collect_draw = [](const string& boxes) {
+			if (boxes.contains("cpu")) {
+				auto& cpu_data = Cpu::collect(false);
+#if defined(GPU_SUPPORT)
+				std::vector<Gpu::gpu_info> empty_gpus;
+				Cpu::draw(cpu_data, empty_gpus, true, false);
+#else
+				Cpu::draw(cpu_data, true, false);
+#endif
+			}
+			if (boxes.contains("mem")) {
+				auto& mem_data = Mem::collect(false);
+				Mem::draw(mem_data, true, false);
+			}
+			if (boxes.contains("net")) {
+				auto& net_data = Net::collect(false);
+				Net::draw(net_data, true, false);
+			}
+			if (boxes.contains("proc")) {
+				auto& proc_data = Proc::collect(false);
+				Proc::draw(proc_data, true, false);
+			}
+		};
+
+		// Helper: draw-only cycle (no collect) for current boxes
+		auto draw_only = [](const string& boxes) {
+			if (boxes.contains("cpu")) {
+				auto& cpu_data = Cpu::collect(false);
+#if defined(GPU_SUPPORT)
+				std::vector<Gpu::gpu_info> empty_gpus;
+				Cpu::draw(cpu_data, empty_gpus, false, false);
+#else
+				Cpu::draw(cpu_data, false, false);
+#endif
+			}
+			if (boxes.contains("mem")) {
+				auto& mem_data = Mem::collect(false);
+				Mem::draw(mem_data, false, false);
+			}
+			if (boxes.contains("net")) {
+				auto& net_data = Net::collect(false);
+				Net::draw(net_data, false, false);
+			}
+			if (boxes.contains("proc")) {
+				auto& proc_data = Proc::collect(false);
+				Proc::draw(proc_data, false, false);
+			}
+		};
+
+		int total_cycles = 0;
+
+		try {
+			const string all_boxes = "cpu mem net proc";
+
+			// Phase 1: Baseline collect+draw (10 cycles, default config)
+			fmt::println(stderr, "PGO training phase 1/7: baseline (10 cycles)");
+			for (int i = 0; i < 10; ++i) {
+				collect_draw(all_boxes);
+				++total_cycles;
+			}
+
+			// Phase 2: Different sort keys (2 cycles each)
+			fmt::println(stderr, "PGO training phase 2/7: sort keys");
+			for (const auto& sort_key : {"cpu lazy", "memory", "pid", "program", "threads"}) {
+				Config::set(StringKey::proc_sorting, string(sort_key));
+				for (int i = 0; i < 2; ++i) {
+					collect_draw(all_boxes);
+					++total_cycles;
+				}
+			}
+
+			// Phase 3: Filtering (5 cycles)
+			fmt::println(stderr, "PGO training phase 3/7: filtering");
+			Config::set(StringKey::proc_filter, "bash"s);
+			Config::set(BoolKey::proc_filtering, true);
+			for (int i = 0; i < 5; ++i) {
+				collect_draw(all_boxes);
+				++total_cycles;
+			}
+			Config::set(StringKey::proc_filter, ""s);
+			Config::set(BoolKey::proc_filtering, false);
+
+			// Phase 4: Tree mode (5 cycles)
+			fmt::println(stderr, "PGO training phase 4/7: tree mode");
+			Config::set(BoolKey::proc_tree, true);
+			for (int i = 0; i < 5; ++i) {
+				collect_draw(all_boxes);
+				++total_cycles;
+			}
+			Config::set(BoolKey::proc_tree, false);
+
+			// Phase 5: Resize simulation (2 cycles per size)
+			fmt::println(stderr, "PGO training phase 5/7: resize");
+			struct TermSize { int w; int h; };
+			for (const auto& [w, h] : std::vector<TermSize>{{120, 30}, {200, 50}, {80, 24}}) {
+				Term::width = w;
+				Term::height = h;
+				Draw::calcSizes();
+				for (int i = 0; i < 2; ++i) {
+					collect_draw(all_boxes);
+					++total_cycles;
+				}
+			}
+			// Restore default size
+			Term::width = 200;
+			Term::height = 50;
+			Draw::calcSizes();
+
+			// Phase 6: Different box configurations (2 cycles each)
+			fmt::println(stderr, "PGO training phase 6/7: box configurations");
+			for (const auto& boxes : {"cpu", "proc", "cpu mem", "cpu mem net proc"}) {
+				Config::set_boxes(boxes);
+				Config::set(StringKey::shown_boxes, string(boxes));
+				Draw::calcSizes();
+				for (int i = 0; i < 2; ++i) {
+					collect_draw(string(boxes));
+					++total_cycles;
+				}
+			}
+			// Restore full box config
+			Config::set_boxes("cpu mem net proc");
+			Config::set(StringKey::shown_boxes, "cpu mem net proc"s);
+			Draw::calcSizes();
+
+			// Phase 7: Draw-only cycles (no new data, exercises draw-without-collect path)
+			fmt::println(stderr, "PGO training phase 7/7: draw-only");
+			for (int i = 0; i < 5; ++i) {
+				draw_only(all_boxes);
+				++total_cycles;
+			}
+
+		} catch (const std::exception& e) {
+			fmt::println(stderr, "PGO training failed: {}", e.what());
+			return 1;
+		}
+
+		fmt::println(stderr, "PGO training complete: {} total cycles across 7 phases", total_cycles);
+		return 0;
+	}
+
 	//? Benchmark mode: run N collect+draw cycles without terminal initialization
 	if (cli.benchmark_cycles.has_value()) {
 		const auto cycles = cli.benchmark_cycles.value();
