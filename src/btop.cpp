@@ -605,6 +605,7 @@ namespace Runner {
 			}
 
 			output.clear();
+			if (output.capacity() < 256 * 1024) output.reserve(256 * 1024);
 
 			//* Run collection and draw functions for all boxes
 			try {
@@ -651,13 +652,14 @@ namespace Runner {
 
 						//? Draw box
 						if (not pause_output) {
-							output += Cpu::draw(
+							Cpu::draw(
 								cpu,
 #if defined(GPU_SUPPORT)
 								gpus_ref,
 #endif // GPU_SUPPORT
 								cpu_dirty,
-								conf.no_update
+								conf.no_update,
+								output
 							);
 						}
 
@@ -676,7 +678,7 @@ namespace Runner {
 						//? Draw box
 						if (not pause_output)
 							for (unsigned long i = 0; i < gpu_panels.size(); ++i)
-								output += Gpu::draw(gpus_ref[gpu_panels[i]], i, gpu_dirty, conf.no_update);
+								Gpu::draw(gpus_ref[gpu_panels[i]], i, gpu_dirty, conf.no_update, output);
 
 						if (Global::debug) debug_timer("gpu", draw_done);
 					}
@@ -696,7 +698,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("mem", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Mem::draw(mem, mem_dirty, conf.no_update);
+						if (not pause_output) Mem::draw(mem, mem_dirty, conf.no_update, output);
 
 						if (Global::debug) debug_timer("mem", draw_done);
 					}
@@ -716,7 +718,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("net", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Net::draw(net, net_dirty, conf.no_update);
+						if (not pause_output) Net::draw(net, net_dirty, conf.no_update, output);
 
 						if (Global::debug) debug_timer("net", draw_done);
 					}
@@ -736,7 +738,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("proc", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Proc::draw(proc, proc_dirty, conf.no_update);
+						if (not pause_output) Proc::draw(proc, proc_dirty, conf.no_update, output);
 
 						if (Global::debug) debug_timer("proc", draw_done);
 					}
@@ -1300,52 +1302,55 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 		Draw::calcSizes();
 
 		// Helper: collect+draw cycle for currently configured boxes
-		auto collect_draw = [](const string& boxes) {
+		string pgo_buf;
+		auto collect_draw = [&pgo_buf](const string& boxes) {
+			pgo_buf.clear();
 			if (boxes.contains("cpu")) {
 				auto& cpu_data = Cpu::collect(false);
 #if defined(GPU_SUPPORT)
 				std::vector<Gpu::gpu_info> empty_gpus;
-				Cpu::draw(cpu_data, empty_gpus, true, false);
+				Cpu::draw(cpu_data, empty_gpus, true, false, pgo_buf);
 #else
-				Cpu::draw(cpu_data, true, false);
+				Cpu::draw(cpu_data, true, false, pgo_buf);
 #endif
 			}
 			if (boxes.contains("mem")) {
 				auto& mem_data = Mem::collect(false);
-				Mem::draw(mem_data, true, false);
+				Mem::draw(mem_data, true, false, pgo_buf);
 			}
 			if (boxes.contains("net")) {
 				auto& net_data = Net::collect(false);
-				Net::draw(net_data, true, false);
+				Net::draw(net_data, true, false, pgo_buf);
 			}
 			if (boxes.contains("proc")) {
 				auto& proc_data = Proc::collect(false);
-				Proc::draw(proc_data, true, false);
+				Proc::draw(proc_data, true, false, pgo_buf);
 			}
 		};
 
 		// Helper: draw-only cycle (no collect) for current boxes
-		auto draw_only = [](const string& boxes) {
+		auto draw_only = [&pgo_buf](const string& boxes) {
+			pgo_buf.clear();
 			if (boxes.contains("cpu")) {
 				auto& cpu_data = Cpu::collect(false);
 #if defined(GPU_SUPPORT)
 				std::vector<Gpu::gpu_info> empty_gpus;
-				Cpu::draw(cpu_data, empty_gpus, false, false);
+				Cpu::draw(cpu_data, empty_gpus, false, false, pgo_buf);
 #else
-				Cpu::draw(cpu_data, false, false);
+				Cpu::draw(cpu_data, false, false, pgo_buf);
 #endif
 			}
 			if (boxes.contains("mem")) {
 				auto& mem_data = Mem::collect(false);
-				Mem::draw(mem_data, false, false);
+				Mem::draw(mem_data, false, false, pgo_buf);
 			}
 			if (boxes.contains("net")) {
 				auto& net_data = Net::collect(false);
-				Net::draw(net_data, false, false);
+				Net::draw(net_data, false, false, pgo_buf);
 			}
 			if (boxes.contains("proc")) {
 				auto& proc_data = Proc::collect(false);
-				Proc::draw(proc_data, false, false);
+				Proc::draw(proc_data, false, false, pgo_buf);
 			}
 		};
 
@@ -1486,16 +1491,17 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 				auto collect_end = std::chrono::high_resolution_clock::now();
 
 				// Draw phase (output discarded -- we only measure time)
+				string bench_buf;
 				auto draw_start = std::chrono::high_resolution_clock::now();
 #if defined(GPU_SUPPORT)
 				std::vector<Gpu::gpu_info> empty_gpus;
-				auto cpu_out = Cpu::draw(cpu, empty_gpus, true, false);
+				Cpu::draw(cpu, empty_gpus, true, false, bench_buf);
 #else
-				auto cpu_out = Cpu::draw(cpu, true, false);
+				Cpu::draw(cpu, true, false, bench_buf);
 #endif
-				auto mem_out = Mem::draw(mem, true, false);
-				auto net_out = Net::draw(net, true, false);
-				auto proc_out = Proc::draw(proc, true, false);
+				Mem::draw(mem, true, false, bench_buf);
+				Net::draw(net, true, false, bench_buf);
+				Proc::draw(proc, true, false, bench_buf);
 				auto draw_end = std::chrono::high_resolution_clock::now();
 
 				auto cycle_end = std::chrono::high_resolution_clock::now();
