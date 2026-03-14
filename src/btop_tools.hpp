@@ -37,6 +37,7 @@ tab-size = 4
 #include <unordered_map>
 #include <vector>
 #include <unistd.h>
+#include <sys/uio.h>
 #ifdef __linux__
 #include <fcntl.h>
 #endif
@@ -412,6 +413,9 @@ namespace Tools {
 	//* Write data to stdout via POSIX write(), handling EINTR and partial writes.
 	void write_stdout(const char* data, size_t len);
 	void write_stdout(const std::string& s);
+
+	//* Write scatter-gather iovec array to stdout via writev(), handling EINTR and partial writes.
+	void write_stdout_iov(struct iovec* iov, int iovcnt);
 
 	//* Convert a celsius value to celsius, fahrenheit, kelvin or rankin and return tuple with new value and unit.
 	auto celsius_to(const long long& celsius, const string& scale) -> tuple<long long, string>;

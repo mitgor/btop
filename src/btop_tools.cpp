@@ -30,6 +30,7 @@ tab-size = 4
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/uio.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -599,6 +600,27 @@ namespace Tools {
 
 	void write_stdout(const std::string& s) {
 		write_stdout(s.data(), s.size());
+	}
+
+	void write_stdout_iov(struct iovec* iov, int iovcnt) {
+		while (iovcnt > 0) {
+			ssize_t n = ::writev(STDOUT_FILENO, iov, iovcnt);
+			if (n < 0) {
+				if (errno == EINTR) continue;
+				return;  // Terminal gone or error
+			}
+			// Advance past fully-written segments
+			while (iovcnt > 0 && n >= static_cast<ssize_t>(iov->iov_len)) {
+				n -= iov->iov_len;
+				++iov;
+				--iovcnt;
+			}
+			if (iovcnt > 0 && n > 0) {
+				// Partial write within a segment
+				iov->iov_base = static_cast<char*>(iov->iov_base) + n;
+				iov->iov_len -= n;
+			}
+		}
 	}
 
 	auto celsius_to(const long long& celsius, const string& scale) -> tuple<long long, string> {
