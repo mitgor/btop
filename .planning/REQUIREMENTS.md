@@ -23,7 +23,7 @@ Requirements for advanced performance milestone. Each maps to roadmap phases.
 ### Algorithmic
 
 - [x] **ALG-01**: Process list uses partial sort (std::partial_sort) when display count < total processes
-- [ ] **ALG-02**: Remaining lookup tables moved to constexpr (theme, keys, escape sequences)
+- [x] **ALG-02**: Remaining lookup tables moved to constexpr (theme, keys, escape sequences)
 - [ ] **ALG-03**: Process sort keys extracted to SoA layout for cache-friendly sorting
 
 ### Platform I/O
@@ -61,7 +61,7 @@ Deferred beyond v1.7.
 | BUILD-02 | Phase 35 | Complete |
 | BUILD-03 | Phase 35 | Complete |
 | ALG-01 | Phase 36 | Complete |
-| ALG-02 | Phase 36 | Pending |
+| ALG-02 | Phase 36 | Complete |
 | ALG-03 | Phase 36 | Pending |
 | IO-01 | Phase 39 | Pending |
 | IO-02 | Phase 39 | Pending |

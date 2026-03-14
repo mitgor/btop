@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
 status: in-progress
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-03-14T09:21:55Z"
-last_activity: 2026-03-14 — Completed 36-01 (partial sort for process list)
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-03-14T09:25:00Z"
+last_activity: 2026-03-14 — Completed 36-02 (constexpr escape sequences and lookup tables)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 36 (Algorithmic Improvements) — second of 5 in v1.7
-Plan: 1 of 3
-Status: Plan 36-01 complete
-Last activity: 2026-03-14 — Completed 36-01 (partial sort for process list)
+Plan: 2 of 3
+Status: Plan 36-02 complete
+Last activity: 2026-03-14 — Completed 36-02 (constexpr escape sequences and lookup tables)
 
-Progress: [███-------] 33%
+Progress: [██████----] 67%
 
 ## Performance Metrics
 
@@ -55,6 +55,10 @@ Full decision log in PROJECT.md Key Decisions table.
 - [35-02] CMake options declared early, applied late after targets and includes exist
 - [36-01] Used local proc_info mirror in benchmark to avoid libbtop compilation dependency
 - [36-01] partial_sort is not stable but acceptable - numeric keys rarely tie, list changes every cycle
+- [36-02] Used inline constexpr const char* for Fx/Mv/Term instead of string_view to preserve string+ operator compatibility
+- [36-02] Used linear-scan for Key_escapes lookup instead of binary search (34 entries at human input rate)
+- [36-02] Kept valid_boxes as runtime vector due to conditional #ifdef GPU_SUPPORT entries
+- [36-02] Created static vector copies in menu for constexpr array compatibility with optionsList
 
 ### Pending Todos
 
@@ -66,6 +70,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T09:21:55Z
-Stopped at: Completed 36-01-PLAN.md
+Last session: 2026-03-14T09:25:00Z
+Stopped at: Completed 36-02-PLAN.md
 Resume file: None

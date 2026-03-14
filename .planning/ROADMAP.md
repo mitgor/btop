@@ -137,8 +137,8 @@ Plans:
   3. Process sort operation shows improved cache behavior via SoA key extraction (measurable via benchmark)
 **Plans**: 3 plans
 Plans:
-- [ ] 36-01-PLAN.md — Sort benchmark + partial sort (ALG-01)
-- [ ] 36-02-PLAN.md — Constexpr migration for escape sequences, lookup tables, config arrays (ALG-02)
+- [x] 36-01-PLAN.md — Sort benchmark + partial sort (ALG-01)
+- [x] 36-02-PLAN.md — Constexpr migration for escape sequences, lookup tables, config arrays (ALG-02)
 - [ ] 36-03-PLAN.md — SoA key extraction for cache-friendly numeric sort (ALG-03)
 
 ### Phase 37: Allocation & Parsing
@@ -179,7 +179,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
-| 36. Algorithmic Improvements | 1/3 | In Progress|  |
+| 36. Algorithmic Improvements | 2/3 | In Progress |  |
 | 37. Allocation & Parsing | 0/? | Not started | - |
 | 38. Output Pipeline | 0/? | Not started | - |
 | 39. Platform I/O | 0/? | Not started | - |
