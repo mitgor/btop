@@ -135,7 +135,11 @@ Plans:
   1. Process list with 1000+ entries sorts faster when only 50 rows are displayed (partial sort avoids full O(P log P))
   2. Theme color tables, key mappings, and escape sequence building blocks are constexpr — no runtime initialization
   3. Process sort operation shows improved cache behavior via SoA key extraction (measurable via benchmark)
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 36-01-PLAN.md — Sort benchmark + partial sort (ALG-01)
+- [ ] 36-02-PLAN.md — Constexpr migration for escape sequences, lookup tables, config arrays (ALG-02)
+- [ ] 36-03-PLAN.md — SoA key extraction for cache-friendly numeric sort (ALG-03)
 
 ### Phase 37: Allocation & Parsing
 **Goal**: Eliminate per-cycle heap allocation churn through arena allocation, zero-copy parsing, and allocator evaluation
@@ -174,8 +178,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 35. Build & Compiler | 2/2 | Complete   | 2026-03-13 |
-| 36. Algorithmic Improvements | 0/? | Not started | - |
+| 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
+| 36. Algorithmic Improvements | 0/3 | Not started | - |
 | 37. Allocation & Parsing | 0/? | Not started | - |
 | 38. Output Pipeline | 0/? | Not started | - |
 | 39. Platform I/O | 0/? | Not started | - |
