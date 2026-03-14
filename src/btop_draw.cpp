@@ -1247,7 +1247,7 @@ namespace Cpu {
 				bat_len = current_len;
 
 				out += Mv::to(y, bat_pos) + title_left + Theme::c(ColorKey::title) + Fx::b + "BAT" + bat_symbol + ' ' + str_percent
-					+ (Term::width >= 100 ? Fx::ub + ' ' + bat_meter(percent) + Fx::b : "")
+					+ (Term::width >= 100 ? string(Fx::ub) + ' ' + bat_meter(percent) + Fx::b : "")
 					+ (not str_time.empty() ? ' ' + Theme::c(ColorKey::title) + str_time : "") + (not str_watts.empty() ? " " + Theme::c(ColorKey::title) + Fx::b + str_watts : "") + Fx::ub + title_right;
 			}
 		}
