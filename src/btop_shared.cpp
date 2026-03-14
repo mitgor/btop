@@ -93,6 +93,51 @@ namespace Gpu {
 #endif
 
 namespace Proc {
+
+namespace {
+	struct SortEntry {
+		double key;        // unified key type (cast integers to double for comparison)
+		uint32_t index;    // index into original proc_vec
+	};
+
+	constexpr int SOA_THRESHOLD = 128;  // Below this, AoS sort is fine
+
+	//? SoA key extraction sort: extracts numeric sort keys into a contiguous array
+	//? for cache-friendly comparison (4 entries/cache line vs 1 with AoS).
+	//? Composes with partial_sort for display-limited views.
+	void soa_sort(vector<proc_info>& proc_vec, auto projection, bool ascending, int display_count) {
+		thread_local vector<SortEntry> keys;
+		keys.resize(proc_vec.size());
+
+		// Extract keys into contiguous array
+		for (uint32_t i = 0; i < static_cast<uint32_t>(proc_vec.size()); ++i)
+			keys[i] = {static_cast<double>(projection(proc_vec[i])), i};
+
+		// Determine sort range
+		const int n = (display_count > 0 && display_count < static_cast<int>(keys.size()))
+			? display_count : static_cast<int>(keys.size());
+		auto middle = keys.begin() + n;
+
+		// Sort the compact key array
+		if (ascending)
+			std::partial_sort(keys.begin(), middle, keys.end(),
+				[](const SortEntry& a, const SortEntry& b) { return a.key < b.key; });
+		else
+			std::partial_sort(keys.begin(), middle, keys.end(),
+				[](const SortEntry& a, const SortEntry& b) { return a.key > b.key; });
+
+		// Permute: build sorted front from index array
+		thread_local vector<proc_info> sorted_front;
+		sorted_front.clear();
+		sorted_front.reserve(n);
+		for (auto it = keys.begin(); it != middle; ++it)
+			sorted_front.push_back(std::move(proc_vec[it->index]));
+
+		// Move sorted entries to front of proc_vec
+		for (size_t i = 0; i < sorted_front.size(); ++i)
+			proc_vec[i] = std::move(sorted_front[i]);
+	}
+}
 bool set_priority(pid_t pid, int priority) {
   if (setpriority(PRIO_PROCESS, pid, priority) == 0) {
     return true;
@@ -110,74 +155,90 @@ bool set_priority(pid_t pid, int priority) {
 			? proc_vec.begin() + display_count
 			: proc_vec.end();
 
+		//? SoA sort path: for numeric keys with large process lists (>= SOA_THRESHOLD),
+		//? extract keys into contiguous array for cache-friendly comparison.
+		//? String keys (name, cmd, user) and tree mode bypass SoA since comparison
+		//? still chases string pointers regardless of layout.
+		const bool use_soa = (!tree && static_cast<int>(proc_vec.size()) >= SOA_THRESHOLD);
+
 		if (reverse) {
 			switch (v_index(sort_vector, sorting)) {
-			case 0:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::pid);
+			case 0: // pid (numeric) — reverse=true means ascending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.pid; }, true, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::pid);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::pid);
 				break;
-			case 1:
+			case 1: // name (string) — no SoA
 				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::name);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::name);
 				break;
-			case 2:
+			case 2: // cmd (string) — no SoA
 				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cmd);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cmd);
 				break;
-			case 3:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::threads);
+			case 3: // threads (numeric) — reverse=true means ascending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.threads; }, true, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::threads);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::threads);
 				break;
-			case 4:
+			case 4: // user (string) — no SoA
 				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::user);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::user);
 				break;
-			case 5:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::mem);
+			case 5: // mem (numeric) — reverse=true means ascending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.mem; }, true, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::mem);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::mem);
 				break;
-			case 6:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cpu_p);
+			case 6: // cpu_p (numeric) — reverse=true means ascending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.cpu_p; }, true, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cpu_p);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::cpu_p);
 				break;
-			case 7:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cpu_c);
+			case 7: // cpu_c (numeric) — reverse=true means ascending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.cpu_c; }, true, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cpu_c);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::cpu_c);
 				break;
 			}
 		}
 		else {
 			switch (v_index(sort_vector, sorting)) {
-			case 0:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::pid);
+			case 0: // pid (numeric) — reverse=false means descending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.pid; }, false, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::pid);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::pid);
 				break;
-			case 1:
+			case 1: // name (string) — no SoA
 				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::name);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::name);
 				break;
-			case 2:
+			case 2: // cmd (string) — no SoA
 				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cmd);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::cmd);
 				break;
-			case 3:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::threads);
+			case 3: // threads (numeric) — reverse=false means descending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.threads; }, false, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::threads);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::threads);
 				break;
-			case 4:
+			case 4: // user (string) — no SoA
 				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::user);
 				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::user);
 				break;
-			case 5:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::mem);
+			case 5: // mem (numeric) — reverse=false means descending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.mem; }, false, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::mem);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::mem);
 				break;
-			case 6:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cpu_p);
+			case 6: // cpu_p (numeric) — reverse=false means descending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.cpu_p; }, false, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cpu_p);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cpu_p);
 				break;
-			case 7:
-				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cpu_c);
+			case 7: // cpu_c (numeric) — reverse=false means descending
+				if (use_soa) soa_sort(proc_vec, [](const proc_info& p) { return p.cpu_c; }, false, display_count);
+				else if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cpu_c);
 				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cpu_c);
 				break;
 			}
