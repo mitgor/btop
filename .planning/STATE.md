@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
-status: in_progress
-stopped_at: Completed 38-02-PLAN.md
-last_updated: "2026-03-14T12:17:00.000Z"
-last_activity: 2026-03-14 — Completed 38-02 (writev scatter-gather I/O)
+status: in-progress
+stopped_at: Completed 39-01-PLAN.md
+last_updated: "2026-03-14T14:02:03Z"
+last_activity: 2026-03-14 — Completed 39-01 (SMC/IOKit handle caching)
 progress:
   total_phases: 5
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** v1.7 Advanced Performance — Phase 38 (Output Pipeline)
+**Current focus:** v1.7 Advanced Performance — Phase 39 (Platform I/O)
 
 ## Current Position
 
-Phase: 38 (Output Pipeline) — fourth of 5 in v1.7
-Plan: 2 of 2 (phase complete)
-Status: 38-02 complete — writev scatter-gather I/O for terminal output
-Last activity: 2026-03-14 — Completed 38-02 (writev scatter-gather)
+Phase: 39 (Platform I/O) — fifth of 5 in v1.7
+Plan: 1 of 2
+Status: 39-01 complete — SMC/IOKit handle caching
+Last activity: 2026-03-14 — Completed 39-01 (SMC/IOKit handle caching)
 
 Progress: [██████████] 100%
 
@@ -76,6 +76,10 @@ Full decision log in PROJECT.md Key Decisions table.
 - [38-02] Used iovec[3] inline for hot-path runner frame output for clarity
 - [38-02] Used write_synced lambda for overlay and clock paths to reduce repetition
 - [38-02] Partial write handling advances iovec array rather than falling back to write()
+- [39-01] SMCConnection singleton via Meyers static local — thread-safe lazy init guaranteed by C++11
+- [39-01] Stale SMC connection detection checks kIOReturnNotReady/Aborted/NotResponding, reconnects once
+- [39-01] getGpuTemp() added as public method on SMCConnection to keep SMCReadKey private
+- [39-01] IOHIDEventSystemClient cached as static in getSensors() — never released, CopyServices still per-cycle
 
 ### Pending Todos
 
@@ -87,6 +91,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T12:17:00Z
-Stopped at: Completed 38-02-PLAN.md
+Last session: 2026-03-14T14:02:03Z
+Stopped at: Completed 39-01-PLAN.md
 Resume file: None
