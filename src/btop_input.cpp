@@ -163,7 +163,7 @@ namespace Input {
 		string key = input;
 		if (not key.empty()) {
 			//? Remove escape code prefix if present
-			if (key.length() > 1 and key.at(0) == Fx::e.at(0)) {
+			if (key.length() > 1 and key.at(0) == '\x1b') {
 				key.erase(0, 1);
 			}
 			

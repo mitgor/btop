@@ -70,24 +70,24 @@ using namespace fmt::literals;
 
 //* Collection of escape codes for text style and formatting
 namespace Fx {
-	const string e = "\x1b[";				//* Escape sequence start
-	const string b = e + "1m";				//* Bold on/off
-	const string ub = e + "22m";			//* Bold off
-	const string d = e + "2m";				//* Dark on
-	const string ud = e + "22m";			//* Dark off
-	const string i = e + "3m";				//* Italic on
-	const string ui = e + "23m";			//* Italic off
-	const string ul = e + "4m";				//* Underline on
-	const string uul = e + "24m";			//* Underline off
-	const string bl = e + "5m";				//* Blink on
-	const string ubl = e + "25m";			//* Blink off
-	const string s = e + "9m";				//* Strike/crossed-out on
-	const string us = e + "29m";			//* Strike/crossed-out on/off
+	inline constexpr const char* e = "\x1b[";			//* Escape sequence start
+	inline constexpr const char* b = "\x1b[1m";			//* Bold on
+	inline constexpr const char* ub = "\x1b[22m";		//* Bold off
+	inline constexpr const char* d = "\x1b[2m";			//* Dark on
+	inline constexpr const char* ud = "\x1b[22m";		//* Dark off
+	inline constexpr const char* i = "\x1b[3m";			//* Italic on
+	inline constexpr const char* ui = "\x1b[23m";		//* Italic off
+	inline constexpr const char* ul = "\x1b[4m";		//* Underline on
+	inline constexpr const char* uul = "\x1b[24m";		//* Underline off
+	inline constexpr const char* bl = "\x1b[5m";		//* Blink on
+	inline constexpr const char* ubl = "\x1b[25m";		//* Blink off
+	inline constexpr const char* s = "\x1b[9m";			//* Strike/crossed-out on
+	inline constexpr const char* us = "\x1b[29m";		//* Strike/crossed-out off
 
 	//* Reset foreground/background color and text effects
-	const string reset_base = e + "0m";
+	inline constexpr const char* reset_base = "\x1b[0m";
 
-	//* Reset text effects and restore theme foregrund and background color
+	//* Reset text effects and restore theme foreground and background color
 	extern string reset;
 
 	//* Return a string with all colors and text styling removed
@@ -98,25 +98,25 @@ namespace Fx {
 //* Collection of escape codes and functions for cursor manipulation
 namespace Mv {
 	//* Move cursor to <line>, <column>
-	inline string to(int line, int col) { return Fx::e + to_string(line) + ';' + to_string(col) + 'f'; }
+	inline string to(int line, int col) { return "\x1b[" + to_string(line) + ';' + to_string(col) + 'f'; }
 
 	//* Move cursor right <x> columns
-	inline string r(int x) { return Fx::e + to_string(x) + 'C'; }
+	inline string r(int x) { return "\x1b[" + to_string(x) + 'C'; }
 
 	//* Move cursor left <x> columns
-	inline string l(int x) { return Fx::e + to_string(x) + 'D'; }
+	inline string l(int x) { return "\x1b[" + to_string(x) + 'D'; }
 
 	//* Move cursor up x lines
-	inline string u(int x) { return Fx::e + to_string(x) + 'A'; }
+	inline string u(int x) { return "\x1b[" + to_string(x) + 'A'; }
 
 	//* Move cursor down x lines
-	inline string d(int x) { return Fx::e + to_string(x) + 'B'; }
+	inline string d(int x) { return "\x1b[" + to_string(x) + 'B'; }
 
 	//* Save cursor position
-	const string save = Fx::e + "s";
+	inline constexpr const char* save = "\x1b[s";
 
 	//* Restore saved cursor position
-	const string restore = Fx::e + "u";
+	inline constexpr const char* restore = "\x1b[u";
 }
 
 //* Collection of escape codes and functions for terminal manipulation
@@ -126,19 +126,19 @@ namespace Term {
 	extern atomic<int> height;
 	extern string fg, bg, current_tty;
 
-	const string hide_cursor = Fx::e + "?25l";
-	const string show_cursor = Fx::e + "?25h";
-	const string alt_screen = Fx::e + "?1049h";
-	const string normal_screen = Fx::e + "?1049l";
-	const string clear = Fx::e + "2J" + Fx::e + "0;0f";
-	const string clear_end = Fx::e + "0J";
-	const string clear_begin = Fx::e + "1J";
-	const string mouse_on = Fx::e + "?1002h" + Fx::e + "?1015h" + Fx::e + "?1006h"; //? Enable reporting of mouse position on click and release
-	const string mouse_off = Fx::e + "?1002l" + Fx::e + "?1015l" + Fx::e + "?1006l";
-	const string mouse_direct_on = Fx::e + "?1003h"; //? Enable reporting of mouse position at any movement
-	const string mouse_direct_off = Fx::e + "?1003l";
-	const string sync_start = Fx::e + "?2026h"; //? Start of terminal synchronized output
-	const string sync_end = Fx::e + "?2026l"; //? End of terminal synchronized output
+	inline constexpr const char* hide_cursor = "\x1b[?25l";
+	inline constexpr const char* show_cursor = "\x1b[?25h";
+	inline constexpr const char* alt_screen = "\x1b[?1049h";
+	inline constexpr const char* normal_screen = "\x1b[?1049l";
+	inline constexpr const char* clear = "\x1b[2J\x1b[0;0f";
+	inline constexpr const char* clear_end = "\x1b[0J";
+	inline constexpr const char* clear_begin = "\x1b[1J";
+	inline constexpr const char* mouse_on = "\x1b[?1002h\x1b[?1015h\x1b[?1006h"; //? Enable reporting of mouse position on click and release
+	inline constexpr const char* mouse_off = "\x1b[?1002l\x1b[?1015l\x1b[?1006l";
+	inline constexpr const char* mouse_direct_on = "\x1b[?1003h"; //? Enable reporting of mouse position at any movement
+	inline constexpr const char* mouse_direct_off = "\x1b[?1003l";
+	inline constexpr const char* sync_start = "\x1b[?2026h"; //? Start of terminal synchronized output
+	inline constexpr const char* sync_end = "\x1b[?2026l"; //? End of terminal synchronized output
 
 	//* Returns true if terminal has been resized and updates width and height
 	bool refresh(bool only_check=false);

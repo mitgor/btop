@@ -712,7 +712,7 @@ namespace Draw {
 		string out;
 		size_t c_upos = upos;
 		if (text.empty())
-			return Fx::ul + " " + Fx::uul;
+			return string(Fx::ul) + " " + Fx::uul;
 		if (limit > 0 and ulen(text) + 1 > limit) {
 			try {
 				const size_t half = (size_t)round((double)limit / 2);
@@ -1394,7 +1394,7 @@ namespace Cpu {
 		if (Shared::coreCount >= 100) core_width++;
 		for (const auto& n : iota(0, Shared::coreCount)) {
 			auto enabled = is_cpu_enabled(n);
-			out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c(enabled ? ColorKey::main_fg : ColorKey::inactive_fg) + (Shared::coreCount < 100 ? Fx::b + 'C' + Fx::ub : "")
+			out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c(enabled ? ColorKey::main_fg : ColorKey::inactive_fg) + (Shared::coreCount < 100 ? string(Fx::b) + 'C' + Fx::ub : "")
 				+ ljust(to_string(n), core_width);
 			if ((b_column_size > 0 or extra_width > 0) and cmp_less(n, core_graphs.size()))
 				out += Theme::c(ColorKey::inactive_fg) + graph_bg * (5 * b_column_size + extra_width) + Mv::l(5 * b_column_size + extra_width)

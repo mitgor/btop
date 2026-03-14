@@ -236,7 +236,7 @@ namespace Theme {
 					return "";
 				}
 			}
-			string pre = Fx::e + (depth == "fg" ? "38" : "48") + ";" + (t_to_256 ? "5;" : "2;");
+			string pre = string(Fx::e) + (depth == "fg" ? "38" : "48") + ";" + (t_to_256 ? "5;" : "2;");
 
 			if (hexa.size() == 2) {
 				int h_int = stoi(hexa, nullptr, 16);
@@ -267,7 +267,7 @@ namespace Theme {
 	}
 
 	string dec_to_color(int r, int g, int b, bool t_to_256, const string& depth) {
-		string pre = Fx::e + (depth == "fg" ? "38" : "48") + ";" + (t_to_256 ? "5;" : "2;");
+		string pre = string(Fx::e) + (depth == "fg" ? "38" : "48") + ";" + (t_to_256 ? "5;" : "2;");
 		r = std::clamp(r, 0, 255);
 		g = std::clamp(g, 0, 255);
 		b = std::clamp(b, 0, 255);
