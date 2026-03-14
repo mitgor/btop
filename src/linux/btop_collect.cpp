@@ -17,6 +17,7 @@ tab-size = 4
 */
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <cstdlib>
@@ -562,7 +563,17 @@ namespace Cpu {
 
 		const auto& cpu_sensor = (not Config::getS(StringKey::cpu_sensor).empty() and found_sensors.contains(Config::getS(StringKey::cpu_sensor)) ? Config::getS(StringKey::cpu_sensor) : Cpu::cpu_sensor);
 
-		found_sensors.at(cpu_sensor).temp = stol(readfile(found_sensors.at(cpu_sensor).path, "0")) / 1000;
+		{
+			char temp_buf[32];
+			auto temp_path = found_sensors.at(cpu_sensor).path.string();
+			ssize_t n = Tools::read_proc_file(temp_path.c_str(), temp_buf, sizeof(temp_buf));
+			long long temp_val = 0;
+			if (n > 0) {
+				if (temp_buf[n - 1] == '\n') n--;
+				std::from_chars(temp_buf, temp_buf + n, temp_val);
+			}
+			found_sensors.at(cpu_sensor).temp = temp_val / 1000;
+		}
 		current_cpu.temp.at(0).push_back(found_sensors.at(cpu_sensor).temp);
 		current_cpu.temp_max = found_sensors.at(cpu_sensor).crit;
 		if (current_cpu.temp.at(0).capacity() != 20) current_cpu.temp.at(0).resize(20);
@@ -570,7 +581,17 @@ namespace Cpu {
 		if (Config::getB(BoolKey::show_coretemp) and not cpu_temp_only) {
 			for (vector<string_view> done; const auto& sensor : core_sensors) {
 				if (v_contains(done, sensor)) continue;
-				found_sensors.at(sensor).temp = stol(readfile(found_sensors.at(sensor).path, "0")) / 1000;
+				{
+					char temp_buf[32];
+					auto temp_path = found_sensors.at(sensor).path.string();
+					ssize_t n = Tools::read_proc_file(temp_path.c_str(), temp_buf, sizeof(temp_buf));
+					long long temp_val = 0;
+					if (n > 0) {
+						if (temp_buf[n - 1] == '\n') n--;
+						std::from_chars(temp_buf, temp_buf + n, temp_val);
+					}
+					found_sensors.at(sensor).temp = temp_val / 1000;
+				}
 				done.push_back(sensor);
 			}
 			for (const auto& [core, temp] : core_mapping) {
@@ -622,7 +643,18 @@ namespace Cpu {
         			continue;
     			}
 
-    			double core_hz = stod(readfile(*it, "0.0")) / 1000;
+    			double core_hz = 0.0;
+    			{
+    				char freq_buf[32];
+    				auto freq_path = it->string();
+    				ssize_t freq_n = Tools::read_proc_file(freq_path.c_str(), freq_buf, sizeof(freq_buf));
+    				if (freq_n > 0) {
+    					if (freq_buf[freq_n - 1] == '\n') freq_n--;
+    					double val = 0.0;
+    					auto [ptr, ec] = std::from_chars(freq_buf, freq_buf + freq_n, val);
+    					if (ec == std::errc()) core_hz = val / 1000;
+    				}
+    			}
     			if (core_hz <= 0.0 and ++failed >= 2) {
         			it = Cpu::core_freq.erase(it);
     			} else {
@@ -1123,23 +1155,24 @@ namespace Cpu {
 				}
 
 				//? Expected on kernel 2.6.3> : 0=user, 1=nice, 2=system, 3=idle, 4=iowait, 5=irq, 6=softirq, 7=steal, 8=guest, 9=guest_nice
-				vector<long long> times;
+				std::array<long long, 10> times{};
+				int times_count = 0;
 				long long total_sum = 0;
 				size_t pos = num_start;
 
-				while (pos < line.size()) {
+				while (pos < line.size() and times_count < 10) {
 					long long val = parse_ll(line, pos);
 					if (val < 0) break;
-					times.push_back(val);
+					times[times_count++] = val;
 					total_sum += val;
 				}
-				if (times.size() < 4) throw std::runtime_error("Malformed /proc/stat");
+				if (times_count < 4) throw std::runtime_error("Malformed /proc/stat");
 
 				//? Subtract fields 8-9 and any future unknown fields
-				const long long totals = max(0ll, total_sum - (times.size() > 8 ? std::accumulate(times.begin() + 8, times.end(), 0ll) : 0));
+				const long long totals = max(0ll, total_sum - (times_count > 8 ? std::accumulate(times.begin() + 8, times.begin() + times_count, 0ll) : 0));
 
 				//? Add iowait field if present
-				const long long idles = max(0ll, times.at(3) + (times.size() > 4 ? times.at(4) : 0));
+				const long long idles = max(0ll, times[3] + (times_count > 4 ? times[4] : 0));
 
 				//? Calculate values for totals from first line of stat
 				if (i == 0) {
@@ -1155,15 +1188,13 @@ namespace Cpu {
 					if (cpu.cpu_percent[std::to_underlying(CpuField::total)].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(CpuField::total)].resize(width * 2);
 
 					//? Populate cpu.cpu_percent with all fields from stat
-					for (int ii = 0; const auto& val : times) {
+					for (int ii = 0; ii < times_count and ii < 10; ++ii) {
 						const auto old_idx = static_cast<size_t>(CpuOldField::user) + ii;
-						cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].push_back(clamp((long long)round((double)(val - cpu_old[old_idx]) * 100 / calc_totals), 0ll, 100ll));
-						cpu_old[old_idx] = val;
+						cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].push_back(clamp((long long)round((double)(times[ii] - cpu_old[old_idx]) * 100 / calc_totals), 0ll, 100ll));
+						cpu_old[old_idx] = times[ii];
 
 						//? Reduce size if there are more values than needed for graph
 						if (cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].capacity() != static_cast<size_t>(width * 2)) cpu.cpu_percent[std::to_underlying(cpu_old_to_field[ii])].resize(width * 2);
-
-						if (++ii == 10) break;
 					}
 					continue;
 				}
