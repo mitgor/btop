@@ -110,7 +110,7 @@ Full details: `milestones/v1.6-ROADMAP.md` | `milestones/v1.6-REQUIREMENTS.md`
 - [x] **Phase 36: Algorithmic Improvements** - Partial sort, constexpr tables, SoA sort keys (completed 2026-03-14)
 - [x] **Phase 37: Allocation & Parsing** - Arena allocator, string_view audit, mimalloc evaluation (completed 2026-03-14)
 - [x] **Phase 38: Output Pipeline** - Pre-allocated draw buffer, writev scatter-gather output (completed 2026-03-14)
-- [ ] **Phase 39: Platform I/O** - io_uring Linux batching, macOS IOKit caching
+- [x] **Phase 39: Platform I/O** - io_uring Linux batching, macOS IOKit caching (completed 2026-03-14)
 
 ## Phase Details
 
@@ -192,4 +192,4 @@ Plans:
 | 36. Algorithmic Improvements | 3/3 | Complete    | 2026-03-14 |
 | 37. Allocation & Parsing | 3/3 | Complete    | 2026-03-14 |
 | 38. Output Pipeline | 2/2 | Complete    | 2026-03-14 |
-| 39. Platform I/O | 1/2 | In Progress|  |
+| 39. Platform I/O | 2/2 | Complete   | 2026-03-14 |

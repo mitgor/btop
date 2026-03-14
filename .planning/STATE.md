@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
-status: in-progress
-stopped_at: Completed 39-01-PLAN.md
-last_updated: "2026-03-14T14:02:03Z"
-last_activity: 2026-03-14 — Completed 39-01 (SMC/IOKit handle caching)
+status: completed
+stopped_at: Completed 39-02-PLAN.md
+last_updated: "2026-03-14T14:04:13Z"
+last_activity: 2026-03-14 — Completed 39-02 (io_uring ProcReader)
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 10
   completed_plans: 10
   percent: 100
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 39 (Platform I/O) — fifth of 5 in v1.7
-Plan: 1 of 2
-Status: 39-01 complete — SMC/IOKit handle caching
-Last activity: 2026-03-14 — Completed 39-01 (SMC/IOKit handle caching)
+Plan: 2 of 2 (phase complete)
+Status: 39-02 complete — io_uring ProcReader with POSIX fallback
+Last activity: 2026-03-14 — Completed 39-02 (io_uring ProcReader)
 
 Progress: [██████████] 100%
 
@@ -80,6 +80,10 @@ Full decision log in PROJECT.md Key Decisions table.
 - [39-01] Stale SMC connection detection checks kIOReturnNotReady/Aborted/NotResponding, reconnects once
 - [39-01] getGpuTemp() added as public method on SMCConnection to keep SMCReadKey private
 - [39-01] IOHIDEventSystemClient cached as static in getSensors() — never released, CopyServices still per-cycle
+- [39-02] Static ProcReader instance for io_uring ring reuse across collection cycles
+- [39-02] IOSQE_IO_HARDLINK for read->close link to prevent short-read chain cancellation
+- [39-02] Three-pass loop structure: collect paths, batch read, parse results
+- [39-02] statm reads remain sequential (rare edge case, not worth batching)
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T14:02:03Z
-Stopped at: Completed 39-01-PLAN.md
+Last session: 2026-03-14T14:04:13Z
+Stopped at: Completed 39-02-PLAN.md
 Resume file: None
