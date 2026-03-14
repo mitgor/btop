@@ -23,8 +23,6 @@ tab-size = 4
 #include <IOKit/ps/IOPSKeys.h>
 #include <IOKit/ps/IOPowerSources.h>
 
-#include <stdexcept>
-
 #define VERSION "0.01"
 
 #define KERNEL_INDEX_SMC 2
@@ -98,20 +96,34 @@ typedef struct {
 namespace Cpu {
 	class SMCConnection {
 	   public:
-		SMCConnection();
-		virtual ~SMCConnection();
+		//? Singleton access — connection opened once, reused across all cycles
+		static SMCConnection& instance();
+
+		//? Check if the SMC connection is usable
+		bool is_connected() const;
 
 		long long getTemp(int core);
 
+		//? Read GPU temperature via SMC keys (Tg0j, Tg0S) — handles flt and sp78 types
+		long long getGpuTemp();
+
+		SMCConnection(const SMCConnection&) = delete;
+		SMCConnection& operator=(const SMCConnection&) = delete;
+
+		~SMCConnection();
+
 	   private:
+		SMCConnection();
+
 		kern_return_t SMCReadKey(UInt32Char_t key, SMCVal_t *val);
 		long long getSMCTemp(char *key);
 		kern_return_t SMCCall(int index, SMCKeyData_t *inputStructure, SMCKeyData_t *outputStructure);
 
-		io_connect_t conn;
-		kern_return_t result;
-		mach_port_t masterPort;
-		io_iterator_t iterator;
-		io_object_t device;
+		//? Open the SMC connection. Returns true on success.
+		bool connect();
+		//? Close and reopen the SMC connection. Returns true on success.
+		bool reconnect();
+
+		io_connect_t conn = 0;
 	};
 }  // namespace Cpu

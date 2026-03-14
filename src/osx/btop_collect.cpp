@@ -345,78 +345,7 @@ namespace Gpu {
 
 		//? Read GPU temperature via SMC keys (works on M4 and later where IOHID lacks GPU sensors)
 		static long long get_gpu_temp_smc() {
-			try {
-				CFMutableDictionaryRef matchingDict = IOServiceMatching("AppleSMC");
-				io_iterator_t iter;
-				if (IOServiceGetMatchingServices(0, matchingDict, &iter) != kIOReturnSuccess) return -1;
-				io_object_t dev = IOIteratorNext(iter);
-				IOObjectRelease(iter);
-				if (not dev) return -1;
-				io_connect_t conn;
-				if (IOServiceOpen(dev, mach_task_self(), 0, &conn) != kIOReturnSuccess) {
-					IOObjectRelease(dev);
-					return -1;
-				}
-				IOObjectRelease(dev);
-
-				//? Try GPU junction temperature first (most accurate), then GPU shader
-				for (const char* key : {"Tg0j", "Tg0S"}) {
-					SMCKeyData_t inputStructure{};
-					SMCKeyData_t outputStructure{};
-
-					inputStructure.key = (static_cast<UInt32>(key[0]) << 24)
-						| (static_cast<UInt32>(key[1]) << 16)
-						| (static_cast<UInt32>(key[2]) << 8)
-						| static_cast<UInt32>(key[3]);
-					inputStructure.data8 = 9; // SMC_CMD_READ_KEYINFO
-
-					size_t structSize = sizeof(SMCKeyData_t);
-					size_t outSize = structSize;
-
-					auto result = IOConnectCallStructMethod(conn, 2, &inputStructure, structSize, &outputStructure, &outSize);
-					if (result != kIOReturnSuccess) continue;
-
-					UInt32 dataSize = outputStructure.keyInfo.dataSize;
-					UInt32 dataTypeRaw = outputStructure.keyInfo.dataType;
-					if (dataSize == 0) continue;
-					inputStructure.keyInfo.dataSize = dataSize;
-					inputStructure.data8 = 5; // SMC_CMD_READ_BYTES
-
-					outSize = structSize;
-					result = IOConnectCallStructMethod(conn, 2, &inputStructure, structSize, &outputStructure, &outSize);
-					if (result != kIOReturnSuccess) continue;
-
-					//? Decode temperature based on SMC data type (saved before READ_BYTES overwrote it)
-					double tempVal = 0;
-					char dataType[5];
-					dataType[0] = static_cast<char>((dataTypeRaw >> 24) & 0xFF);
-					dataType[1] = static_cast<char>((dataTypeRaw >> 16) & 0xFF);
-					dataType[2] = static_cast<char>((dataTypeRaw >> 8) & 0xFF);
-					dataType[3] = static_cast<char>(dataTypeRaw & 0xFF);
-					dataType[4] = 0;
-
-					if (std::strcmp(dataType, "flt ") == 0 and dataSize == 4) {
-						//? IEEE 754 single-precision float (M4 and newer)
-						float f;
-						std::memcpy(&f, outputStructure.bytes, 4);
-						tempVal = static_cast<double>(f);
-					} else if (std::strcmp(dataType, DATATYPE_SP78) == 0) {
-						//? sp78: signed 8.8 fixed point (older chips)
-						int intValue = outputStructure.bytes[0] * 256 + static_cast<unsigned char>(outputStructure.bytes[1]);
-						tempVal = intValue / 256.0;
-					} else {
-						continue;
-					}
-
-					long long temp = static_cast<long long>(std::round(tempVal));
-					if (temp > 0 and temp < 150) {
-						IOServiceClose(conn);
-						return temp;
-					}
-				}
-				IOServiceClose(conn);
-			} catch (...) {}
-			return -1;
+			return Cpu::SMCConnection::instance().getGpuTemp();
 		}
 
 		//? Read GPU temperature via IOHIDEventSystem thermal sensors
@@ -862,29 +791,30 @@ namespace Cpu {
 #endif
 				// try SMC (intel)
 				Logger::debug("checking intel");
-				try {
-					SMCConnection smcCon;
-					Logger::debug("SMC connection established");
-					long long t = smcCon.getTemp(-1);  // check if we have package T
-					if (t > -1) {
-						Logger::debug("intel sensors found");
-						got_sensors = true;
-						t = smcCon.getTemp(0);
-						if (t == -1) {
-							// for some macs the core offset is 1 - check if we get a sane value with 1
-							if (smcCon.getTemp(1) > -1) {
-								Logger::debug("intel sensors with offset 1");
-								core_offset = 1;
+				{
+					auto& smcCon = Cpu::SMCConnection::instance();
+					if (smcCon.is_connected()) {
+						Logger::debug("SMC connection established");
+						long long t = smcCon.getTemp(-1);  // check if we have package T
+						if (t > -1) {
+							Logger::debug("intel sensors found");
+							got_sensors = true;
+							t = smcCon.getTemp(0);
+							if (t == -1) {
+								// for some macs the core offset is 1 - check if we get a sane value with 1
+								if (smcCon.getTemp(1) > -1) {
+									Logger::debug("intel sensors with offset 1");
+									core_offset = 1;
+								}
 							}
+						} else {
+							Logger::debug("no intel sensors found");
+							got_sensors = false;
 						}
 					} else {
-						Logger::debug("no intel sensors found");
+						Logger::debug("SMC not available");
 						got_sensors = false;
 					}
-				} catch (std::runtime_error &e) {
-					Logger::debug("SMC not available: {}", e.what());
-					// ignore, we don't have temp (common in VMs)
-					got_sensors = false;
 				}
 #if __MAC_OS_X_VERSION_MIN_REQUIRED > 101504
 			}
@@ -895,15 +825,15 @@ namespace Cpu {
 
 	void update_sensors() {
 		current_cpu.temp_max = 95;  // we have no idea how to get the critical temp
-		try {
-			if (macM1) {
+		if (macM1) {
 #if __MAC_OS_X_VERSION_MIN_REQUIRED > 101504
-				ThermalSensors sensors;
-				if (current_cpu.temp.at(0).capacity() != 20) current_cpu.temp.at(0).resize(20);
-				current_cpu.temp.at(0).push_back(sensors.getSensors());
+			ThermalSensors sensors;
+			if (current_cpu.temp.at(0).capacity() != 20) current_cpu.temp.at(0).resize(20);
+			current_cpu.temp.at(0).push_back(sensors.getSensors());
 #endif
-			} else {
-				SMCConnection smcCon;
+		} else {
+			auto& smcCon = Cpu::SMCConnection::instance();
+			if (smcCon.is_connected()) {
 				int threadsPerCore = Shared::coreCount / Shared::physicalCoreCount;
 				long long packageT = smcCon.getTemp(-1); // -1 returns package T
 				if (current_cpu.temp.at(0).capacity() != 20) current_cpu.temp.at(0).resize(20);
@@ -916,10 +846,9 @@ namespace Cpu {
 						current_cpu.temp.at(core + 1).push_back(temp);
 					}
 				}
+			} else {
+				got_sensors = false;
 			}
-		} catch (std::runtime_error &e) {
-			got_sensors = false;
-			Logger::error("failed getting CPU temp");
 		}
 	}
 

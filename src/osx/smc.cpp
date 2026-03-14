@@ -18,6 +18,11 @@ tab-size = 4
 
 #include "smc.hpp"
 
+#include <cstring>
+#include <cmath>
+
+#include "../btop_log.hpp"
+
 static constexpr size_t MaxIndexCount = sizeof("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ") - 1;
 static constexpr const char *KeyIndexes = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -46,41 +51,80 @@ static void _ultostr(char *str, UInt32 val) {
 
 namespace Cpu {
 
-	SMCConnection::SMCConnection() {
+	SMCConnection& SMCConnection::instance() {
+		static SMCConnection conn;
+		return conn;
+	}
+
+	bool SMCConnection::is_connected() const {
+		return conn != 0;
+	}
+
+	bool SMCConnection::connect() {
 		CFMutableDictionaryRef matchingDictionary = IOServiceMatching("AppleSMC");
-		result = IOServiceGetMatchingServices(0, matchingDictionary, &iterator);
+		io_iterator_t iterator;
+		kern_return_t result = IOServiceGetMatchingServices(0, matchingDictionary, &iterator);
 		if (result != kIOReturnSuccess) {
-			throw std::runtime_error("failed to get AppleSMC");
+			Logger::warning("SMC: failed to get AppleSMC matching services");
+			return false;
 		}
 
-		device = IOIteratorNext(iterator);
+		io_object_t device = IOIteratorNext(iterator);
 		IOObjectRelease(iterator);
 		if (device == 0) {
-			throw std::runtime_error("failed to get SMC device");
+			Logger::warning("SMC: no AppleSMC device found");
+			return false;
 		}
 
 		result = IOServiceOpen(device, mach_task_self(), 0, &conn);
 		IOObjectRelease(device);
 		if (result != kIOReturnSuccess) {
-			throw std::runtime_error("failed to get SMC connection");
+			Logger::warning("SMC: failed to open connection");
+			conn = 0;
+			return false;
+		}
+		return true;
+	}
+
+	bool SMCConnection::reconnect() {
+		if (conn != 0) {
+			IOServiceClose(conn);
+			conn = 0;
+		}
+		return connect();
+	}
+
+	SMCConnection::SMCConnection() {
+		if (not connect()) {
+			Logger::warning("SMC: initial connection failed — temperature readings unavailable");
 		}
 	}
+
 	SMCConnection::~SMCConnection() {
-		IOServiceClose(conn);
+		if (conn != 0) {
+			IOServiceClose(conn);
+			conn = 0;
+		}
 	}
 
 	long long SMCConnection::getSMCTemp(char *key) {
 		SMCVal_t val;
-		kern_return_t result;
-		result = SMCReadKey(key, &val);
-		if (result == kIOReturnSuccess) {
-			if (val.dataSize > 0) {
-				if (strcmp(val.dataType, DATATYPE_SP78) == 0) {
-					// convert sp78 value to temperature
-					int intValue = val.bytes[0] * 256 + (unsigned char)val.bytes[1];
-					return static_cast<long long>(intValue / 256.0);
-				}
+		kern_return_t result = SMCReadKey(key, &val);
+
+		//? If the connection went stale (e.g. after sleep/wake), reconnect and retry once
+		if (result == kIOReturnNotReady || result == kIOReturnAborted || result == kIOReturnNotResponding) {
+			Logger::debug("SMC: stale connection detected (result={}), reconnecting", result);
+			if (reconnect()) {
+				result = SMCReadKey(key, &val);
 			}
+		}
+
+		if (result != kIOReturnSuccess || val.dataSize == 0) return -1;
+
+		if (strcmp(val.dataType, DATATYPE_SP78) == 0) {
+			// convert sp78 value to temperature
+			int intValue = val.bytes[0] * 256 + (unsigned char)val.bytes[1];
+			return static_cast<long long>(intValue / 256.0);
 		}
 		return -1;
 	}
@@ -105,6 +149,46 @@ namespace Cpu {
 			result = getSMCTemp(key);
 		}
 		return result;
+	}
+
+	long long SMCConnection::getGpuTemp() {
+		if (not is_connected()) return -1;
+
+		//? Try GPU junction temperature first (most accurate), then GPU shader
+		for (const char* gpuKey : {"Tg0j", "Tg0S"}) {
+			UInt32Char_t smcKey;
+			std::memcpy(smcKey, gpuKey, 5);
+
+			SMCVal_t val;
+			kern_return_t result = SMCReadKey(smcKey, &val);
+
+			//? Handle stale connection after sleep/wake
+			if (result == kIOReturnNotReady || result == kIOReturnAborted || result == kIOReturnNotResponding) {
+				if (reconnect()) {
+					result = SMCReadKey(smcKey, &val);
+				}
+			}
+
+			if (result != kIOReturnSuccess || val.dataSize == 0) continue;
+
+			double tempVal = 0;
+			if (std::strcmp(val.dataType, "flt ") == 0 && val.dataSize == 4) {
+				//? IEEE 754 single-precision float (M4 and newer)
+				float f;
+				std::memcpy(&f, val.bytes, 4);
+				tempVal = static_cast<double>(f);
+			} else if (std::strcmp(val.dataType, DATATYPE_SP78) == 0) {
+				//? sp78: signed 8.8 fixed point (older chips)
+				int intValue = val.bytes[0] * 256 + static_cast<unsigned char>(val.bytes[1]);
+				tempVal = intValue / 256.0;
+			} else {
+				continue;
+			}
+
+			long long temp = static_cast<long long>(std::round(tempVal));
+			if (temp > 0 && temp < 150) return temp;
+		}
+		return -1;
 	}
 
 	kern_return_t SMCConnection::SMCReadKey(UInt32Char_t key, SMCVal_t *val) {
