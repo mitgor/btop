@@ -9,7 +9,7 @@ Requirements for advanced performance milestone. Each maps to roadmap phases.
 
 ### Memory & Allocation
 
-- [ ] **MEM-01**: Runner thread uses arena allocator (pmr::monotonic_buffer_resource) reset each collect/draw cycle
+- [x] **MEM-01**: Runner thread uses arena allocator (pmr::monotonic_buffer_resource) reset each collect/draw cycle
 - [ ] **MEM-02**: Draw functions write to pre-allocated output buffer via fmt::format_to instead of string concatenation
 - [ ] **MEM-03**: All /proc and sysctl parsing uses string_view — zero intermediate string copies
 - [x] **MEM-04**: mimalloc evaluated as default allocator; adopted if benchmark shows >3% gain
@@ -53,7 +53,7 @@ Deferred beyond v1.7.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MEM-01 | Phase 37 | Pending |
+| MEM-01 | Phase 37 | Complete |
 | MEM-02 | Phase 38 | Pending |
 | MEM-03 | Phase 37 | Pending |
 | MEM-04 | Phase 37 | Complete |

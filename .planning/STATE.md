@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
 status: completed
-stopped_at: Completed 37-03-PLAN.md
-last_updated: "2026-03-14T11:29:16.527Z"
-last_activity: 2026-03-14 — Completed 36-03 (SoA key extraction for cache-friendly sorting)
+stopped_at: Completed 37-02-PLAN.md (Phase 37 complete)
+last_updated: "2026-03-14T11:32:29Z"
+last_activity: 2026-03-14 — Completed 37-02 (zero-copy /proc and /sys parsing)
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 100
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 
 ## Current Position
 
-Phase: 37 (Allocation & Parsing) — third of 5 in v1.7
+Phase: 37 (Allocation & Parsing) — third of 5 in v1.7 — COMPLETE
 Plan: 3 of 3
-Status: Plan 37-03 complete (mimalloc evaluation documented)
-Last activity: 2026-03-14 — Completed 37-03 (mimalloc evaluation and CMake option)
+Status: Phase 37 complete — all 3 plans finished
+Last activity: 2026-03-14 — Completed 37-02 (zero-copy /proc and /sys parsing)
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -63,6 +63,12 @@ Full decision log in PROJECT.md Key Decisions table.
 - [36-03] thread_local vectors for SortEntry and sorted_front avoid re-allocation each cycle
 - [36-03] SOA_THRESHOLD=128 validated by benchmark showing SoA wins even at N=64
 - [Phase 37]: mimalloc NOT adopted as default (1.6% gain below 3% threshold); BTOP_MIMALLOC opt-in CMake option provided
+- [37-01] Used new_delete_resource() upstream fallback for arena safety during development
+- [37-01] Placed cycle_arena.release() after safety checks, before COLLECTING STATE marker
+- [37-01] 64KB arena buffer with alignas(64) for cache-line alignment
+- [37-02] Used std::array<long long, 10> for CPU stat times instead of pmr::vector (compile-time sized)
+- [37-02] Created local read_sysfs_* helper lambdas in update_battery() instead of file-scope functions
+- [37-02] Removed try/catch around battery numeric reads -- from_chars returns error code, cleaner flow
 
 ### Pending Todos
 
@@ -74,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T11:29:16.525Z
-Stopped at: Completed 37-03-PLAN.md
+Last session: 2026-03-14T11:32:00Z
+Stopped at: Completed 37-01-PLAN.md
 Resume file: None
