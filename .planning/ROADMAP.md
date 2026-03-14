@@ -109,7 +109,7 @@ Full details: `milestones/v1.6-ROADMAP.md` | `milestones/v1.6-REQUIREMENTS.md`
 - [x] **Phase 35: Build & Compiler** - PGO training, -march=native, PCH/unity build (completed 2026-03-13)
 - [x] **Phase 36: Algorithmic Improvements** - Partial sort, constexpr tables, SoA sort keys (completed 2026-03-14)
 - [x] **Phase 37: Allocation & Parsing** - Arena allocator, string_view audit, mimalloc evaluation (completed 2026-03-14)
-- [ ] **Phase 38: Output Pipeline** - Pre-allocated draw buffer, writev scatter-gather output
+- [x] **Phase 38: Output Pipeline** - Pre-allocated draw buffer, writev scatter-gather output (completed 2026-03-14)
 - [ ] **Phase 39: Platform I/O** - io_uring Linux batching, macOS IOKit caching
 
 ## Phase Details
@@ -188,5 +188,5 @@ Plans:
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
 | 36. Algorithmic Improvements | 3/3 | Complete    | 2026-03-14 |
 | 37. Allocation & Parsing | 3/3 | Complete    | 2026-03-14 |
-| 38. Output Pipeline | 1/2 | In Progress|  |
+| 38. Output Pipeline | 2/2 | Complete   | 2026-03-14 |
 | 39. Platform I/O | 0/? | Not started | - |

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
 status: in_progress
-stopped_at: Completed 38-01-PLAN.md
-last_updated: "2026-03-14T12:09:48.000Z"
-last_activity: 2026-03-14 — Completed 38-01 (pre-allocated output buffer for draw functions)
+stopped_at: Completed 38-02-PLAN.md
+last_updated: "2026-03-14T12:17:00.000Z"
+last_activity: 2026-03-14 — Completed 38-02 (writev scatter-gather I/O)
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
-  percent: 90
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 38 (Output Pipeline) — fourth of 5 in v1.7
-Plan: 1 of 2
-Status: 38-01 complete — pre-allocated output buffer for draw functions
-Last activity: 2026-03-14 — Completed 38-01 (pre-allocated output buffer)
+Plan: 2 of 2 (phase complete)
+Status: 38-02 complete — writev scatter-gather I/O for terminal output
+Last activity: 2026-03-14 — Completed 38-02 (writev scatter-gather)
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -73,6 +73,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - [38-01] Pre-reserve 256KB in runner loop, clear each cycle -- capacity preserved across frames
 - [38-01] Left Graph::operator() internal buffering unchanged per research recommendation
 - [38-01] Net::draw out = box changed to out += box for correct append semantics with shared buffer
+- [38-02] Used iovec[3] inline for hot-path runner frame output for clarity
+- [38-02] Used write_synced lambda for overlay and clock paths to reduce repetition
+- [38-02] Partial write handling advances iovec array rather than falling back to write()
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T12:09:48Z
-Stopped at: Completed 38-01-PLAN.md
+Last session: 2026-03-14T12:17:00Z
+Stopped at: Completed 38-02-PLAN.md
 Resume file: None

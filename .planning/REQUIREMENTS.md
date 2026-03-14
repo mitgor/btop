@@ -30,7 +30,7 @@ Requirements for advanced performance milestone. Each maps to roadmap phases.
 
 - [ ] **IO-01**: Linux /proc reads batched via io_uring with fallback to sequential POSIX I/O
 - [ ] **IO-02**: macOS SMC/IOKit connection handles cached across collection cycles
-- [ ] **IO-03**: Terminal output uses writev() scatter-gather I/O — single syscall per frame
+- [x] **IO-03**: Terminal output uses writev() scatter-gather I/O — single syscall per frame
 
 ## Future Requirements
 
@@ -65,7 +65,7 @@ Deferred beyond v1.7.
 | ALG-03 | Phase 36 | Complete |
 | IO-01 | Phase 39 | Pending |
 | IO-02 | Phase 39 | Pending |
-| IO-03 | Phase 38 | Pending |
+| IO-03 | Phase 38 | Complete |
 
 **Coverage:**
 - v1.7 requirements: 13 total
