@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
-status: completed
-stopped_at: Completed 35-02-PLAN.md (Phase 35 complete)
-last_updated: "2026-03-13T22:09:57.346Z"
-last_activity: 2026-03-13 — Completed 35-02 (native CPU + PCH options)
+status: in-progress
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-03-14T09:21:55Z"
+last_activity: 2026-03-14 — Completed 36-01 (partial sort for process list)
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 100
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** v1.7 Advanced Performance — Phase 35 (Build & Compiler)
+**Current focus:** v1.7 Advanced Performance — Phase 36 (Algorithmic Improvements)
 
 ## Current Position
 
-Phase: 35 (Build & Compiler) — first of 5 in v1.7
-Plan: 2 of 2 (complete)
-Status: Phase 35 complete
-Last activity: 2026-03-13 — Completed 35-02 (native CPU + PCH options)
+Phase: 36 (Algorithmic Improvements) — second of 5 in v1.7
+Plan: 1 of 3
+Status: Plan 36-01 complete
+Last activity: 2026-03-14 — Completed 36-01 (partial sort for process list)
 
-Progress: [██████████] 100%
+Progress: [███-------] 33%
 
 ## Performance Metrics
 
@@ -53,6 +53,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [35-01] Moved Clang detection before Step 2 in pgo-build.sh for LLVM_PROFILE_FILE support
 - [35-02] PCH includes only STL/fmt headers (never project headers) to avoid invalidation during development
 - [35-02] CMake options declared early, applied late after targets and includes exist
+- [36-01] Used local proc_info mirror in benchmark to avoid libbtop compilation dependency
+- [36-01] partial_sort is not stable but acceptable - numeric keys rarely tie, list changes every cycle
 
 ### Pending Todos
 
@@ -64,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T22:09:57.344Z
-Stopped at: Completed 35-02-PLAN.md (Phase 35 complete)
+Last session: 2026-03-14T09:21:55Z
+Stopped at: Completed 36-01-PLAN.md
 Resume file: None
