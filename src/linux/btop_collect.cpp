@@ -56,6 +56,7 @@ tab-size = 4
 #include "../btop_log.hpp"
 #include "../btop_shared.hpp"
 #include "../btop_tools.hpp"
+#include "io_uring_reader.hpp"
 
 #if defined(GPU_SUPPORT)
 	// Redefining C++ keywords fortunately has a warning in clang, however it's unavoidable here
@@ -3165,7 +3166,26 @@ namespace Proc {
 				}
 			}
 
-			//? Iterate over all pids in /proc
+			//? ProcReader for batched /proc/[pid]/stat reads via io_uring (falls back to POSIX)
+			static Linux::ProcReader proc_reader;
+			static bool proc_reader_logged = false;
+			if (not proc_reader_logged) {
+				Logger::debug("ProcReader: using " + std::string(proc_reader.using_io_uring() ? "io_uring" : "POSIX fallback"));
+				proc_reader_logged = true;
+			}
+
+			//? Per-PID data for batched stat reads
+			struct PidStatEntry {
+				size_t pid;
+				decltype(proc_map)::iterator it;
+				char path[64];
+				char buf[4096];
+			};
+
+			//? Collection pass: iterate PIDs, handle no_cache reads, build stat read requests
+			std::vector<PidStatEntry> pid_entries;
+			pid_entries.reserve(proc_map.size() + 64);
+
 			for (const auto& d: fs::directory_iterator(Shared::procPath)) {
 				if (Runner::is_stopping())
 					return current_procs;
@@ -3195,13 +3215,13 @@ namespace Proc {
 
 				auto& new_proc = it->second;
 
-				//? Stack buffers for POSIX /proc reads (zero heap allocation)
+				//? Stack buffers for sequential /proc reads (cache-miss only)
 				char buf[4096];
 				char path_buf[64];
 				const int prefix_len = snprintf(path_buf, sizeof(path_buf), "/proc/%zu/", pid);
 				ssize_t n;
 
-				//? Get program name, command and username
+				//? Get program name, command and username (infrequent — sequential read)
 				if (no_cache) {
 					memcpy(path_buf + prefix_len, "comm", 5);
 					n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
@@ -3264,12 +3284,35 @@ namespace Proc {
 					}
 				}
 
-				//? Parse /proc/[pid]/stat
-				memcpy(path_buf + prefix_len, "stat", 5);
-				n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
-				if (n <= 0) continue;
+				//? Add to batch for stat read
+				auto& entry = pid_entries.emplace_back();
+				entry.pid = pid;
+				entry.it = it;
+				snprintf(entry.path, sizeof(entry.path), "/proc/%zu/stat", pid);
+			}
 
-				std::string_view stat_view(buf, n);
+			//? Batch read all /proc/[pid]/stat files via ProcReader
+			const int req_count = static_cast<int>(pid_entries.size());
+			std::vector<Linux::ProcReader::ReadRequest> stat_reqs(req_count);
+			for (int i = 0; i < req_count; ++i) {
+				stat_reqs[i].path = pid_entries[i].path;
+				stat_reqs[i].buffer = pid_entries[i].buf;
+				stat_reqs[i].buf_size = sizeof(pid_entries[i].buf);
+				stat_reqs[i].result = -1;
+			}
+
+			if (req_count > 0) {
+				proc_reader.submit_batch(stat_reqs.data(), req_count);
+			}
+
+			//? Parse pass: process batched stat results
+			for (int i = 0; i < req_count; ++i) {
+				if (stat_reqs[i].result <= 0) continue; // process vanished or read failed
+
+				auto& new_proc = pid_entries[i].it->second;
+				const size_t pid = pid_entries[i].pid;
+
+				std::string_view stat_view(pid_entries[i].buf, stat_reqs[i].result);
 
 				//? Find last ')' to skip comm field (which may contain spaces or parens)
 				auto comm_end = stat_view.rfind(')');
@@ -3361,10 +3404,12 @@ namespace Proc {
 
 				//? Get RSS memory from /proc/[pid]/statm if value from /proc/[pid]/stat looks wrong
 				if (new_proc.mem >= totalMem) {
-					memcpy(path_buf + prefix_len, "statm", 6);
-					n = Tools::read_proc_file(path_buf, buf, sizeof(buf));
+					char statm_path[64];
+					char statm_buf[4096];
+					snprintf(statm_path, sizeof(statm_path), "/proc/%zu/statm", pid);
+					ssize_t n = Tools::read_proc_file(statm_path, statm_buf, sizeof(statm_buf));
 					if (n <= 0) continue;
-					std::string_view statm_view(buf, n);
+					std::string_view statm_view(statm_buf, n);
 					auto space_pos = statm_view.find(' ');
 					if (space_pos != std::string_view::npos) {
 						auto rss_start = space_pos + 1;
