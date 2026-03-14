@@ -1515,15 +1515,16 @@ namespace Cpu {
 	}
 #endif // GPU_SUPPORT
 
-    string draw(
+    void draw(
 		const cpu_info& cpu,
 #if defined(GPU_SUPPORT)
 		const vector<Gpu::gpu_info>& gpus,
 #endif // GPU_SUPPORT
 		bool force_redraw,
-		bool data_same
+		bool data_same,
+		string& out
 	) {
-		if (Runner::is_stopping()) return "";
+		if (Runner::is_stopping()) return;
 		if (force_redraw) redraw = true;
 		bool show_temps = (Config::getB(BoolKey::check_temp) and got_sensors);
 		bool show_watts = (Config::getB(BoolKey::show_cpu_watts) and supports_watts);
@@ -1557,12 +1558,10 @@ namespace Cpu {
 		const string& title_right = Theme::c(ColorKey::cpu_box) + (cpu_bottom ? Symbols::title_right_down : Symbols::title_right);
 		if (cpu.cpu_percent[std::to_underlying(CpuField::total)].empty()
 			or safeVal(cpu.core_percent, 0).empty()
-			or (show_temps and safeVal(cpu.temp, 0).empty())) return "";
+			or (show_temps and safeVal(cpu.temp, 0).empty())) return;
 		if (cpu.cpu_percent[std::to_underlying(CpuField::total)].empty()
 			or safeVal(cpu.core_percent, 0).empty()
-			or (show_temps and safeVal(cpu.temp, 0).empty())) return "";
-		string out;
-		out.reserve(width * height * 16);  // ~16 bytes/visible char: escape codes + cursor moves
+			or (show_temps and safeVal(cpu.temp, 0).empty())) return;
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
@@ -1613,7 +1612,7 @@ namespace Cpu {
 	#endif
 
 		redraw = false;
-		return out + Fx::reset;
+		out += Fx::reset;
 	}
 
 }
@@ -1639,8 +1638,8 @@ namespace Gpu {
 	vector<Draw::Meter> enc_meter_vec = {};
 	vector<string> box = {};
 
-    string draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same) {
-		if (Runner::is_stopping()) return "";
+    void draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same, string& out) {
+		if (Runner::is_stopping()) return;
 
 		auto& b_x = b_x_vec[index];
 		auto& b_y = b_y_vec[index];
@@ -1663,9 +1662,7 @@ namespace Gpu {
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_gpu));
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
         auto single_graph = !Config::getB(BoolKey::gpu_mirror_graph);
-		string out;
 		int height = gpu_b_height_offsets[index] + 4;
-		out.reserve(width * height * 16);  // ~16 bytes/visible char: escape codes + cursor moves
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw[index]) {
@@ -1807,7 +1804,7 @@ namespace Gpu {
 		}
 
 		redraw[index] = false;
-		return out + Fx::reset;
+		out += Fx::reset;
 	}
 
 }
@@ -1828,8 +1825,8 @@ namespace Mem {
 	std::unordered_map<string, Draw::Meter> disk_meters_free;
 	std::unordered_map<string, Draw::Graph> io_graphs;
 
-	string draw(const mem_info& mem, bool force_redraw, bool data_same) {
-		if (Runner::is_stopping()) return "";
+	void draw(const mem_info& mem, bool force_redraw, bool data_same, string& out) {
+		if (Runner::is_stopping()) return;
 		if (force_redraw) redraw = true;
 		auto show_swap = Config::getB(BoolKey::show_swap);
 		auto swap_disk = Config::getB(BoolKey::swap_disk);
@@ -1842,8 +1839,6 @@ namespace Mem {
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS(StringKey::graph_symbol_mem));
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto totalMem = Mem::get_totalMem();
-		string out;
-		out.reserve(height * width * 12);  // ~12 bytes/visible char: moderate escape density for mem/disk
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
@@ -2077,7 +2072,7 @@ namespace Mem {
 		}
 
 		redraw = false;
-		return out + Fx::reset;
+		out += Fx::reset;
 	}
 
 }
@@ -2093,8 +2088,8 @@ namespace Net {
 	std::unordered_map<string, Draw::Graph> graphs;
 	string box;
 
-	string draw(const net_info& net, bool force_redraw, bool data_same) {
-		if (Runner::is_stopping()) return "";
+	void draw(const net_info& net, bool force_redraw, bool data_same, string& out) {
+		if (Runner::is_stopping()) return;
 		if (force_redraw) redraw = true;
 		auto net_sync = Config::getB(BoolKey::net_sync);
 		auto net_auto = Config::getB(BoolKey::net_auto);
@@ -2106,8 +2101,6 @@ namespace Net {
 			old_ip = ip_addr;
 			redraw = true;
 		}
-		string out;
-		out.reserve(width * height * 10);  // ~10 bytes/visible char: sparse graphs with few color changes
 		const string title_left = Theme::c(ColorKey::net_box) + Fx::ub + Symbols::title_left;
 		const string title_right = Theme::c(ColorKey::net_box) + Fx::ub + Symbols::title_right;
 		const int i_size = min((int)selected_iface.size(), MAX_IFNAMSIZ);
@@ -2116,11 +2109,13 @@ namespace Net {
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
-			out = box;
+			out += box;
 			//? Graphs
 			graphs.clear();
-			if (net.bandwidth[std::to_underlying(NetDir::download)].empty() or net.bandwidth[std::to_underlying(NetDir::upload)].empty())
-				return out + Fx::reset;
+			if (net.bandwidth[std::to_underlying(NetDir::download)].empty() or net.bandwidth[std::to_underlying(NetDir::upload)].empty()) {
+				out += Fx::reset;
+				return;
+			}
 
 			graphs["download"] = Draw::Graph{
 				width - b_width - 2, u_graph_height, GradientKey::download,
@@ -2192,7 +2187,7 @@ namespace Net {
 		}
 
 		redraw = false;
-		return out + Fx::reset;
+		out += Fx::reset;
 	}
 
 }
@@ -2825,8 +2820,8 @@ namespace Proc {
 		}
 	}
 
-	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
-		if (Runner::is_stopping()) return "";
+	void draw(const vector<proc_info>& plist, bool force_redraw, bool data_same, string& out) {
+		if (Runner::is_stopping()) return;
 		auto proc_tree = Config::getB(BoolKey::proc_tree);
 		bool show_detailed = (Config::getB(BoolKey::show_detailed) and cmp_equal(Proc::detailed.last_pid, Config::getI(IntKey::detailed_pid)));
 		bool proc_gradient = (Config::getB(BoolKey::proc_gradient) and not Config::getB(BoolKey::lowcolor));
@@ -2853,8 +2848,6 @@ namespace Proc {
 		auto totalMem = Mem::get_totalMem();
 		int numpids = Proc::numpids;
 		if (force_redraw) redraw = true;
-		string out;
-		out.reserve(width * height * 18);  // ~18 bytes/visible char: dense per-process rows with many color changes
 
 		//? Follow logic, banner state, selection edge cases
 		draw_proc_follow_logic(plist, proc_tree, numpids, select_max,
@@ -2898,7 +2891,7 @@ namespace Proc {
 			selected_name.clear();
 		}
 		redraw = false;
-		return out + Fx::reset;
+		out += Fx::reset;
 	}
 
 }

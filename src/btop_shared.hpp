@@ -568,7 +568,7 @@ namespace Gpu {
     auto collect(bool no_update = false) -> vector<gpu_info>&;
 
 	//* Draw contents of gpu box using <gpus> as source
-  	string draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same);
+  	void draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same, string& out);
 }
 
 #endif // GPU_SUPPORT
@@ -597,13 +597,14 @@ namespace Cpu {
 	auto collect(bool no_update = false) -> cpu_info&;
 
 	//* Draw contents of cpu box using <cpu> as source
-    string draw(
+    void draw(
 		const cpu_info& cpu,
 #if defined(GPU_SUPPORT)
 		const vector<Gpu::gpu_info>& gpu,
 #endif
-		bool force_redraw = false,
-		bool data_same = false
+		bool force_redraw,
+		bool data_same,
+		string& out
 	);
 
 	//* Parse /proc/cpu info for mapping of core ids
@@ -657,7 +658,7 @@ namespace Mem {
 	auto collect(bool no_update = false) -> mem_info&;
 
 	//* Draw contents of mem box using <mem> as source
-	string draw(const mem_info& mem, bool force_redraw = false, bool data_same = false);
+	void draw(const mem_info& mem, bool force_redraw, bool data_same, string& out);
 
 }
 
@@ -708,7 +709,7 @@ namespace Net {
 	auto collect(bool no_update=false) -> net_info&;
 
 	//* Draw contents of net box using <net> as source
-	string draw(const net_info& net, bool force_redraw = false, bool data_same = false);
+	void draw(const net_info& net, bool force_redraw, bool data_same, string& out);
 }
 
 namespace Proc {
@@ -797,7 +798,7 @@ namespace Proc {
 	int selection(const std::string_view cmd_key);
 
 	//* Draw contents of proc box using <plist> as data source
-	string draw(const vector<proc_info>& plist, bool force_redraw = false, bool data_same = false);
+	void draw(const vector<proc_info>& plist, bool force_redraw, bool data_same, string& out);
 
 	struct tree_proc {
 		std::reference_wrapper<proc_info> entry;
