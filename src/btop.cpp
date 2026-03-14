@@ -631,6 +631,7 @@ namespace Runner {
 					gpus = Gpu::collect(conf.no_update);
 					if (Global::debug) debug_timer("gpu", collect_done);
 				}
+				const bool gpu_dirty_eff = gpu_dirty or not conf.no_update;
 				auto& gpus_ref = gpus;
 #endif // GPU_SUPPORT
 
@@ -680,7 +681,7 @@ namespace Runner {
 						//? Draw box
 						if (not pause_output)
 							for (unsigned long i = 0; i < gpu_panels.size(); ++i)
-								Gpu::draw(gpus_ref[gpu_panels[i]], i, gpu_dirty, conf.no_update, output);
+								Gpu::draw(gpus_ref[gpu_panels[i]], i, gpu_dirty_eff, conf.no_update, output);
 
 						if (Global::debug) debug_timer("gpu", draw_done);
 					}
@@ -844,18 +845,25 @@ namespace Runner {
 				}
 
 				string diff_output;
-				if (screen_buffer.needs_full() || force_full) {
+				const bool do_full = screen_buffer.needs_full() || force_full;
+				if (do_full) {
 					Draw::full_emit(screen_buffer, diff_output);
 					screen_buffer.clear_force_full();
 				} else {
 					Draw::diff_and_emit(screen_buffer, diff_output);
 				}
 
-				struct iovec iov[3];
+				struct iovec iov[5];
 				int iovcnt = 0;
 				if (term_sync) {
 					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_start);
 					iov[iovcnt].iov_len = std::strlen(Term::sync_start);
+					iovcnt++;
+				}
+				//? Clear terminal before full redraw to erase stale content after resize
+				if (do_full) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::clear);
+					iov[iovcnt].iov_len = std::strlen(Term::clear);
 					iovcnt++;
 				}
 				iov[iovcnt].iov_base = const_cast<char*>(diff_output.data());
