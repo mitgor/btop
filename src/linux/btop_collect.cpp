@@ -887,27 +887,61 @@ namespace Cpu {
 		long seconds = -1;
 		float watts = -1;
 
+		//? Helper lambdas for zero-copy sysfs reads (stack buffer, no heap allocation)
+		auto read_sysfs_int = [](const fs::path& p, int fallback) -> int {
+			char buf[32];
+			auto ps = p.string();
+			ssize_t n = Tools::read_proc_file(ps.c_str(), buf, sizeof(buf));
+			if (n <= 0) return fallback;
+			if (buf[n - 1] == '\n') n--;
+			int val = fallback;
+			std::from_chars(buf, buf + n, val);
+			return val;
+		};
+		auto read_sysfs_ll = [](const fs::path& p, long long fallback) -> long long {
+			char buf[32];
+			auto ps = p.string();
+			ssize_t n = Tools::read_proc_file(ps.c_str(), buf, sizeof(buf));
+			if (n <= 0) return fallback;
+			if (buf[n - 1] == '\n') n--;
+			long long val = fallback;
+			std::from_chars(buf, buf + n, val);
+			return val;
+		};
+		auto read_sysfs_double = [](const fs::path& p, double fallback) -> double {
+			char buf[32];
+			auto ps = p.string();
+			ssize_t n = Tools::read_proc_file(ps.c_str(), buf, sizeof(buf));
+			if (n <= 0) return fallback;
+			if (buf[n - 1] == '\n') n--;
+			double val = fallback;
+			std::from_chars(buf, buf + n, val);
+			return val;
+		};
+		auto read_sysfs_float = [](const fs::path& p, float fallback) -> float {
+			char buf[32];
+			auto ps = p.string();
+			ssize_t n = Tools::read_proc_file(ps.c_str(), buf, sizeof(buf));
+			if (n <= 0) return fallback;
+			if (buf[n - 1] == '\n') n--;
+			float val = fallback;
+			std::from_chars(buf, buf + n, val);
+			return val;
+		};
+
 		//? Try to get battery percentage
 		if (percent < 0) {
-			try {
-				percent = stoi(readfile(b.base_dir / "capacity", "-1"));
-			}
-			catch (const std::invalid_argument&) { }
-			catch (const std::out_of_range&) { }
+			percent = read_sysfs_int(b.base_dir / "capacity", -1);
 		}
 		if (b.use_energy_or_charge and percent < 0) {
-			try {
-				percent = round(100.0 * stod(readfile(b.energy_now, "-1")) / stod(readfile(b.energy_full, "1")));
-			}
-			catch (const std::invalid_argument&) { }
-			catch (const std::out_of_range&) { }
+			double now = read_sysfs_double(b.energy_now, -1);
+			double full = read_sysfs_double(b.energy_full, 1);
+			if (now >= 0 and full > 0) percent = round(100.0 * now / full);
 		}
 		if (b.use_energy_or_charge and percent < 0) {
-			try {
-				percent = round(100.0 * stod(readfile(b.charge_now, "-1")) / stod(readfile(b.charge_full, "1")));
-			}
-			catch (const std::invalid_argument&) { }
-			catch (const std::out_of_range&) { }
+			double now = read_sysfs_double(b.charge_now, -1);
+			double full = read_sysfs_double(b.charge_full, 1);
+			if (now >= 0 and full > 0) percent = round(100.0 * now / full);
 		}
 		if (percent < 0) {
 			has_battery = false;
@@ -915,11 +949,25 @@ namespace Cpu {
 		}
 
 		//? Get charging/discharging status
-		string status = str_to_lower(readfile(b.base_dir / "status", "unknown"));
+		string status;
+		{
+			char status_buf[32];
+			auto status_path = (b.base_dir / "status").string();
+			ssize_t status_n = Tools::read_proc_file(status_path.c_str(), status_buf, sizeof(status_buf));
+			if (status_n > 0) {
+				if (status_buf[status_n - 1] == '\n') status_n--;
+				status = str_to_lower(string(status_buf, status_n));
+			} else {
+				status = "unknown";
+			}
+		}
 		if (status == "unknown" and not b.online.empty()) {
-			const auto online = readfile(b.online, "0");
-			if (online == "1" and percent < 100) status = "charging";
-			else if (online == "1") status = "full";
+			char online_buf[8];
+			auto online_path = b.online.string();
+			ssize_t on = Tools::read_proc_file(online_path.c_str(), online_buf, sizeof(online_buf));
+			std::string_view online_sv = (on > 0) ? std::string_view(online_buf, (online_buf[on - 1] == '\n') ? on - 1 : on) : std::string_view("0");
+			if (online_sv == "1" and percent < 100) status = "charging";
+			else if (online_sv == "1") status = "full";
 			else status = "discharging";
 		}
 
@@ -927,47 +975,35 @@ namespace Cpu {
 		if (not is_in(status, "charging", "full")) {
 			if (b.use_energy_or_charge ) {
 				if (not b.power_now.empty()) {
-					try {
-						seconds = abs(round(stod(readfile(b.energy_now, "0")) / stod(readfile(b.power_now, "1")) * 3600));
-					}
-					catch (const std::invalid_argument&) { }
-					catch (const std::out_of_range&) { }
+					double e_now = read_sysfs_double(b.energy_now, 0);
+					double p_now = read_sysfs_double(b.power_now, 1);
+					if (p_now != 0) seconds = abs(round(e_now / p_now * 3600));
 				}
 				else if (not b.current_now.empty()) {
-					try {
-						seconds = abs(round(stod(readfile(b.charge_now, "0")) / stod(readfile(b.current_now, "1")) * 3600));
-					}
-					catch (const std::invalid_argument&) { }
-					catch (const std::out_of_range&) { }
+					double c_now = read_sysfs_double(b.charge_now, 0);
+					double i_now = read_sysfs_double(b.current_now, 1);
+					if (i_now != 0) seconds = abs(round(c_now / i_now * 3600));
 				}
 			}
 
 			if (seconds < 0 and fs::exists(b.base_dir / "time_to_empty")) {
-				try {
-					seconds = stoll(readfile(b.base_dir / "time_to_empty", "0")) * 60;
-				}
-				catch (const std::invalid_argument&) { }
-				catch (const std::out_of_range&) { }
+				seconds = read_sysfs_ll(b.base_dir / "time_to_empty", 0) * 60;
 			}
 		}
 		//? Or get seconds to full
 		else if(is_in(status, "charging")) {
 			if (b.use_energy_or_charge ) {
 				if (not b.power_now.empty()) {
-					try {
-						seconds = (round(stod(readfile(b.energy_full , "0")) - round(stod(readfile(b.energy_now, "0"))))
-									/ abs(stod(readfile(b.power_now, "1"))) * 3600);
-					}
-					catch (const std::invalid_argument&) { }
-					catch (const std::out_of_range&) { }
+					double e_full = read_sysfs_double(b.energy_full, 0);
+					double e_now = read_sysfs_double(b.energy_now, 0);
+					double p_now = read_sysfs_double(b.power_now, 1);
+					if (std::abs(p_now) > 0) seconds = round(e_full - e_now) / std::abs(p_now) * 3600;
 				}
 				else if (not b.current_now.empty()) {
-					try {
-						seconds = (round(stod(readfile(b.charge_full , "0")) - stod(readfile(b.charge_now, "0")))
-									/ std::abs(stod(readfile(b.current_now, "1"))) * 3600);
-					}
-					catch (const std::invalid_argument&) { }
-					catch (const std::out_of_range&) { }
+					double c_full = read_sysfs_double(b.charge_full, 0);
+					double c_now = read_sysfs_double(b.charge_now, 0);
+					double i_now = read_sysfs_double(b.current_now, 1);
+					if (std::abs(i_now) > 0) seconds = round(c_full - c_now) / std::abs(i_now) * 3600;
 				}
 			}
 		}
@@ -975,20 +1011,11 @@ namespace Cpu {
 		//? Get power draw
 		if (b.use_power) {
 			if (not b.power_now.empty()) {
-				try {
-					watts = stof(readfile(b.power_now, "-1")) / 1000000.0F;
-				}
-				catch (const std::invalid_argument&) { }
-				catch (const std::out_of_range&) { }
+				watts = read_sysfs_float(b.power_now, -1) / 1000000.0F;
 			}
 			else if (not b.voltage_now.empty() and not b.current_now.empty()) {
-				try {
-					watts = stof(readfile(b.current_now, "-1")) / 1000000.0F * stof(readfile(b.voltage_now, "1")) / 1000000.0F;
-				}
-				catch (const std::invalid_argument&) { }
-				catch (const std::out_of_range&) { }
+				watts = read_sysfs_float(b.current_now, -1) / 1000000.0F * read_sysfs_float(b.voltage_now, 1) / 1000000.0F;
 			}
-
 		}
 
 		return {percent, watts, seconds, status};
