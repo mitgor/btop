@@ -75,11 +75,16 @@ double getValue(IOHIDServiceClientRef sc) {
 }  // extern C
 
 long long Cpu::ThermalSensors::getSensors() {
-	CFDictionaryRef thermalSensors = matching(0xff00, 5);  // 65280_10 = FF00_16
-														   // thermalSensors's PrimaryUsagePage should be 0xff00 for M1 chip, instead of 0xff05
-														   // can be checked by ioreg -lfx
-	IOHIDEventSystemClientRef system = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
-	IOHIDEventSystemClientSetMatching(system, thermalSensors);
+	//? Cache the matching dictionary and IOHID client across calls — created once, never released
+	static CFDictionaryRef thermalMatch = matching(0xff00, 5);  // 65280_10 = FF00_16
+	static IOHIDEventSystemClientRef system = []() {
+		auto s = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
+		if (s) IOHIDEventSystemClientSetMatching(s, thermalMatch);
+		return s;
+	}();
+	if (!system) return 0ll;
+
+	//? CopyServices is called each cycle — the sensor list can change
 	CFArrayRef matchingsrvs = IOHIDEventSystemClientCopyServices(system);
 	std::vector<double> temps;
 	if (matchingsrvs) {
@@ -106,8 +111,6 @@ long long Cpu::ThermalSensors::getSensors() {
 		}
 		CFRelease(matchingsrvs);
 	}
-	CFRelease(system);
-	CFRelease(thermalSensors);
 	if (temps.empty()) return 0ll;
 	return round(std::accumulate(temps.begin(), temps.end(), 0ll) / temps.size());
 }
