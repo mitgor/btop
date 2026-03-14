@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
-status: in-progress
-stopped_at: Completed 36-03-PLAN.md
-last_updated: "2026-03-14T09:32:49Z"
+status: completed
+stopped_at: Completed 37-03-PLAN.md
+last_updated: "2026-03-14T11:29:16.527Z"
 last_activity: 2026-03-14 — Completed 36-03 (SoA key extraction for cache-friendly sorting)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 8
+  completed_plans: 6
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** v1.7 Advanced Performance — Phase 36 (Algorithmic Improvements)
+**Current focus:** v1.7 Advanced Performance — Phase 37 (Allocation & Parsing)
 
 ## Current Position
 
-Phase: 36 (Algorithmic Improvements) — second of 5 in v1.7 — COMPLETE
+Phase: 37 (Allocation & Parsing) — third of 5 in v1.7
 Plan: 3 of 3
-Status: Phase 36 complete — all 3 plans finished
-Last activity: 2026-03-14 — Completed 36-03 (SoA key extraction for cache-friendly sorting)
+Status: Plan 37-03 complete (mimalloc evaluation documented)
+Last activity: 2026-03-14 — Completed 37-03 (mimalloc evaluation and CMake option)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [36-03] Used double as unified key type for SoA extraction (integers cast to double for uniform comparison)
 - [36-03] thread_local vectors for SortEntry and sorted_front avoid re-allocation each cycle
 - [36-03] SOA_THRESHOLD=128 validated by benchmark showing SoA wins even at N=64
+- [Phase 37]: mimalloc NOT adopted as default (1.6% gain below 3% threshold); BTOP_MIMALLOC opt-in CMake option provided
 
 ### Pending Todos
 
@@ -73,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T09:32:49Z
-Stopped at: Completed 36-03-PLAN.md (Phase 36 complete)
+Last session: 2026-03-14T11:29:16.525Z
+Stopped at: Completed 37-03-PLAN.md
 Resume file: None
