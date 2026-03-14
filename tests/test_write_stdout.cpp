@@ -20,6 +20,7 @@ tab-size = 4
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <sys/uio.h>
 
 #include "btop_tools.hpp"
 
@@ -120,4 +121,131 @@ TEST(WriteStdout, CharPointerOverload) {
 
 	ASSERT_EQ(n, 16);
 	EXPECT_EQ(string(buf, n), "raw pointer test");
+}
+
+TEST(WritevStdout, SingleSegment) {
+	int pipefd[2];
+	ASSERT_EQ(pipe(pipefd), 0);
+	int saved_stdout = dup(STDOUT_FILENO);
+	dup2(pipefd[1], STDOUT_FILENO);
+	close(pipefd[1]);
+
+	string data = "single segment test";
+	struct iovec iov[1];
+	iov[0].iov_base = data.data();
+	iov[0].iov_len = data.size();
+	Tools::write_stdout_iov(iov, 1);
+
+	dup2(saved_stdout, STDOUT_FILENO);
+	close(saved_stdout);
+
+	char buf[256];
+	ssize_t n = read(pipefd[0], buf, sizeof(buf));
+	close(pipefd[0]);
+
+	ASSERT_EQ(n, static_cast<ssize_t>(data.size()));
+	EXPECT_EQ(string(buf, n), data);
+}
+
+TEST(WritevStdout, MultipleSegments) {
+	int pipefd[2];
+	ASSERT_EQ(pipe(pipefd), 0);
+	int saved_stdout = dup(STDOUT_FILENO);
+	dup2(pipefd[1], STDOUT_FILENO);
+	close(pipefd[1]);
+
+	string seg1 = "AAA";
+	string seg2 = "BBB";
+	string seg3 = "CCC";
+	struct iovec iov[3];
+	iov[0].iov_base = seg1.data();
+	iov[0].iov_len = seg1.size();
+	iov[1].iov_base = seg2.data();
+	iov[1].iov_len = seg2.size();
+	iov[2].iov_base = seg3.data();
+	iov[2].iov_len = seg3.size();
+	Tools::write_stdout_iov(iov, 3);
+
+	dup2(saved_stdout, STDOUT_FILENO);
+	close(saved_stdout);
+
+	char buf[256];
+	ssize_t n = read(pipefd[0], buf, sizeof(buf));
+	close(pipefd[0]);
+
+	ASSERT_EQ(n, 9);
+	EXPECT_EQ(string(buf, n), "AAABBBCCC");
+}
+
+TEST(WritevStdout, EmptySegment) {
+	int pipefd[2];
+	ASSERT_EQ(pipe(pipefd), 0);
+	int saved_stdout = dup(STDOUT_FILENO);
+	dup2(pipefd[1], STDOUT_FILENO);
+	close(pipefd[1]);
+
+	string seg1 = "HEAD";
+	string seg2;  // empty
+	string seg3 = "TAIL";
+	struct iovec iov[3];
+	iov[0].iov_base = seg1.data();
+	iov[0].iov_len = seg1.size();
+	iov[1].iov_base = seg2.data();
+	iov[1].iov_len = seg2.size();
+	iov[2].iov_base = seg3.data();
+	iov[2].iov_len = seg3.size();
+	Tools::write_stdout_iov(iov, 3);
+
+	dup2(saved_stdout, STDOUT_FILENO);
+	close(saved_stdout);
+
+	char buf[256];
+	ssize_t n = read(pipefd[0], buf, sizeof(buf));
+	close(pipefd[0]);
+
+	ASSERT_EQ(n, 8);
+	EXPECT_EQ(string(buf, n), "HEADTAIL");
+}
+
+TEST(WritevStdout, LargeScatterGather) {
+	int pipefd[2];
+	ASSERT_EQ(pipe(pipefd), 0);
+	int saved_stdout = dup(STDOUT_FILENO);
+	dup2(pipefd[1], STDOUT_FILENO);
+	close(pipefd[1]);
+
+	// 3 segments totaling ~96KB -- exceeds pipe buffer
+	string seg1(32 * 1024, 'A');
+	string seg2(32 * 1024, 'B');
+	string seg3(32 * 1024, 'C');
+	struct iovec iov[3];
+	iov[0].iov_base = seg1.data();
+	iov[0].iov_len = seg1.size();
+	iov[1].iov_base = seg2.data();
+	iov[1].iov_len = seg2.size();
+	iov[2].iov_base = seg3.data();
+	iov[2].iov_len = seg3.size();
+
+	// Reader thread drains the pipe while writer may block
+	string result;
+	result.reserve(seg1.size() + seg2.size() + seg3.size());
+	std::thread reader([&result, read_fd = pipefd[0]] {
+		char buf[4096];
+		ssize_t n;
+		while ((n = read(read_fd, buf, sizeof(buf))) > 0) {
+			result.append(buf, n);
+		}
+	});
+
+	Tools::write_stdout_iov(iov, 3);
+
+	dup2(saved_stdout, STDOUT_FILENO);
+	close(saved_stdout);
+
+	reader.join();
+	close(pipefd[0]);
+
+	string expected = seg1 + seg2 + seg3;
+	EXPECT_EQ(result.size(), expected.size());
+	EXPECT_EQ(result, expected);
 }
