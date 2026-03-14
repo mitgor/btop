@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
 status: in-progress
-stopped_at: Completed 36-02-PLAN.md
-last_updated: "2026-03-14T09:25:00Z"
-last_activity: 2026-03-14 — Completed 36-02 (constexpr escape sequences and lookup tables)
+stopped_at: Completed 36-03-PLAN.md
+last_updated: "2026-03-14T09:32:49Z"
+last_activity: 2026-03-14 — Completed 36-03 (SoA key extraction for cache-friendly sorting)
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 
 ## Current Position
 
-Phase: 36 (Algorithmic Improvements) — second of 5 in v1.7
-Plan: 2 of 3
-Status: Plan 36-02 complete
-Last activity: 2026-03-14 — Completed 36-02 (constexpr escape sequences and lookup tables)
+Phase: 36 (Algorithmic Improvements) — second of 5 in v1.7 — COMPLETE
+Plan: 3 of 3
+Status: Phase 36 complete — all 3 plans finished
+Last activity: 2026-03-14 — Completed 36-03 (SoA key extraction for cache-friendly sorting)
 
-Progress: [██████----] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -59,6 +59,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - [36-02] Used linear-scan for Key_escapes lookup instead of binary search (34 entries at human input rate)
 - [36-02] Kept valid_boxes as runtime vector due to conditional #ifdef GPU_SUPPORT entries
 - [36-02] Created static vector copies in menu for constexpr array compatibility with optionsList
+- [36-03] Used double as unified key type for SoA extraction (integers cast to double for uniform comparison)
+- [36-03] thread_local vectors for SortEntry and sorted_front avoid re-allocation each cycle
+- [36-03] SOA_THRESHOLD=128 validated by benchmark showing SoA wins even at N=64
 
 ### Pending Todos
 
@@ -70,6 +73,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T09:25:00Z
-Stopped at: Completed 36-02-PLAN.md
+Last session: 2026-03-14T09:32:49Z
+Stopped at: Completed 36-03-PLAN.md (Phase 36 complete)
 Resume file: None

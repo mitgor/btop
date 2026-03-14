@@ -107,7 +107,7 @@ Full details: `milestones/v1.6-ROADMAP.md` | `milestones/v1.6-REQUIREMENTS.md`
 **Milestone Goal:** Push btop's performance further through compiler optimizations, algorithmic improvements, memory architecture (arena allocators, pre-allocated buffers), and platform-specific I/O.
 
 - [x] **Phase 35: Build & Compiler** - PGO training, -march=native, PCH/unity build (completed 2026-03-13)
-- [ ] **Phase 36: Algorithmic Improvements** - Partial sort, constexpr tables, SoA sort keys
+- [x] **Phase 36: Algorithmic Improvements** - Partial sort, constexpr tables, SoA sort keys (completed 2026-03-14)
 - [ ] **Phase 37: Allocation & Parsing** - Arena allocator, string_view audit, mimalloc evaluation
 - [ ] **Phase 38: Output Pipeline** - Pre-allocated draw buffer, writev scatter-gather output
 - [ ] **Phase 39: Platform I/O** - io_uring Linux batching, macOS IOKit caching
@@ -179,7 +179,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
-| 36. Algorithmic Improvements | 2/3 | In Progress |  |
+| 36. Algorithmic Improvements | 3/3 | Complete   | 2026-03-14 |
 | 37. Allocation & Parsing | 0/? | Not started | - |
 | 38. Output Pipeline | 0/? | Not started | - |
 | 39. Platform I/O | 0/? | Not started | - |
