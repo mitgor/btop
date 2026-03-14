@@ -188,5 +188,5 @@ Plans:
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
 | 36. Algorithmic Improvements | 3/3 | Complete    | 2026-03-14 |
 | 37. Allocation & Parsing | 3/3 | Complete    | 2026-03-14 |
-| 38. Output Pipeline | 0/2 | Not started | - |
+| 38. Output Pipeline | 1/2 | In Progress|  |
 | 39. Platform I/O | 0/? | Not started | - |

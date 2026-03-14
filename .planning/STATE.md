@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Advanced Performance
-status: completed
-stopped_at: Completed 37-02-PLAN.md (Phase 37 complete)
-last_updated: "2026-03-14T11:32:29Z"
-last_activity: 2026-03-14 — Completed 37-02 (zero-copy /proc and /sys parsing)
+status: in_progress
+stopped_at: Completed 38-01-PLAN.md
+last_updated: "2026-03-14T12:09:48.000Z"
+last_activity: 2026-03-14 — Completed 38-01 (pre-allocated output buffer for draw functions)
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 7
-  percent: 100
+  total_plans: 10
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Achieve measurable, significant reductions in btop's own resource consumption while evolving the architecture toward explicit, testable state machines that eliminate invalid state combinations.
-**Current focus:** v1.7 Advanced Performance — Phase 37 (Allocation & Parsing)
+**Current focus:** v1.7 Advanced Performance — Phase 38 (Output Pipeline)
 
 ## Current Position
 
-Phase: 37 (Allocation & Parsing) — third of 5 in v1.7 — COMPLETE
-Plan: 3 of 3
-Status: Phase 37 complete — all 3 plans finished
-Last activity: 2026-03-14 — Completed 37-02 (zero-copy /proc and /sys parsing)
+Phase: 38 (Output Pipeline) — fourth of 5 in v1.7
+Plan: 1 of 2
+Status: 38-01 complete — pre-allocated output buffer for draw functions
+Last activity: 2026-03-14 — Completed 38-01 (pre-allocated output buffer)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -69,6 +69,10 @@ Full decision log in PROJECT.md Key Decisions table.
 - [37-02] Used std::array<long long, 10> for CPU stat times instead of pmr::vector (compile-time sized)
 - [37-02] Created local read_sysfs_* helper lambdas in update_battery() instead of file-scope functions
 - [37-02] Removed try/catch around battery numeric reads -- from_chars returns error code, cleaner flow
+- [38-01] Used string& out parameter (not return value) to eliminate per-draw-function allocation
+- [38-01] Pre-reserve 256KB in runner loop, clear each cycle -- capacity preserved across frames
+- [38-01] Left Graph::operator() internal buffering unchanged per research recommendation
+- [38-01] Net::draw out = box changed to out += box for correct append semantics with shared buffer
 
 ### Pending Todos
 
@@ -80,6 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T11:32:29Z
-Stopped at: Completed 37-02-PLAN.md (Phase 37 complete)
+Last session: 2026-03-14T12:09:48Z
+Stopped at: Completed 38-01-PLAN.md
 Resume file: None
