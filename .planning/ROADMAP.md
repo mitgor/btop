@@ -164,7 +164,10 @@ Plans:
   1. Draw functions write to a pre-allocated buffer via fmt::format_to instead of returning std::string and concatenating with +=
   2. Terminal output uses writev() scatter-gather I/O — multiple buffer segments written in a single syscall per frame
   3. Draw path benchmark shows measurable improvement (fewer allocations, fewer syscalls)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 38-01-PLAN.md — Pre-allocated output buffer for draw functions (MEM-02)
+- [ ] 38-02-PLAN.md — writev() scatter-gather I/O for terminal output (IO-03)
 
 ### Phase 39: Platform I/O
 **Goal**: Platform-specific I/O optimizations that reduce syscall overhead on Linux and macOS collection paths
@@ -184,6 +187,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
 | 36. Algorithmic Improvements | 3/3 | Complete    | 2026-03-14 |
-| 37. Allocation & Parsing | 3/3 | Complete   | 2026-03-14 |
-| 38. Output Pipeline | 0/? | Not started | - |
+| 37. Allocation & Parsing | 3/3 | Complete    | 2026-03-14 |
+| 38. Output Pipeline | 0/2 | Not started | - |
 | 39. Platform I/O | 0/? | Not started | - |
