@@ -177,7 +177,10 @@ Plans:
   1. Linux builds batch /proc file reads via io_uring with automatic fallback to sequential POSIX I/O on older kernels (<5.1)
   2. macOS builds cache SMC/IOKit connection handles across collection cycles instead of re-opening each cycle
   3. Collection benchmark on each platform shows reduced syscall count and/or wall time
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 39-01-PLAN.md — macOS SMC/IOKit handle caching (IO-02)
+- [ ] 39-02-PLAN.md — Linux io_uring ProcReader with POSIX fallback (IO-01)
 
 ## Progress
 
@@ -188,5 +191,5 @@ Plans:
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
 | 36. Algorithmic Improvements | 3/3 | Complete    | 2026-03-14 |
 | 37. Allocation & Parsing | 3/3 | Complete    | 2026-03-14 |
-| 38. Output Pipeline | 2/2 | Complete   | 2026-03-14 |
-| 39. Platform I/O | 0/? | Not started | - |
+| 38. Output Pipeline | 2/2 | Complete    | 2026-03-14 |
+| 39. Platform I/O | 0/2 | Not started | - |
