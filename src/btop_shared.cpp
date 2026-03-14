@@ -100,29 +100,86 @@ bool set_priority(pid_t pid, int priority) {
   return false;
 }
 
-	void proc_sorter(vector<proc_info>& proc_vec, const string& sorting, bool reverse, bool tree) {
+	void proc_sorter(vector<proc_info>& proc_vec, const string& sorting, bool reverse, bool tree, int display_count) {
+		//? Use partial_sort when we only need the top display_count entries (O(N log K) vs O(N log N)).
+		//? Falls back to stable_sort for tree mode (needs full ordering) and first cycle (display_count=0).
+		const bool use_partial = (display_count > 0
+								 && display_count < static_cast<int>(proc_vec.size())
+								 && !tree);
+		auto middle = use_partial
+			? proc_vec.begin() + display_count
+			: proc_vec.end();
+
 		if (reverse) {
 			switch (v_index(sort_vector, sorting)) {
-			case 0: rng::stable_sort(proc_vec, rng::less{}, &proc_info::pid); 		break;
-			case 1: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::name);		break;
-			case 2: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cmd); 		break;
-			case 3: rng::stable_sort(proc_vec, rng::less{}, &proc_info::threads);	break;
-			case 4: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::user); 		break;
-			case 5: rng::stable_sort(proc_vec, rng::less{}, &proc_info::mem); 		break;
-			case 6: rng::stable_sort(proc_vec, rng::less{}, &proc_info::cpu_p);		break;
-			case 7: rng::stable_sort(proc_vec, rng::less{}, &proc_info::cpu_c);		break;
+			case 0:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::pid);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::pid);
+				break;
+			case 1:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::name);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::name);
+				break;
+			case 2:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cmd);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cmd);
+				break;
+			case 3:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::threads);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::threads);
+				break;
+			case 4:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::user);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::user);
+				break;
+			case 5:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::mem);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::mem);
+				break;
+			case 6:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cpu_p);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::cpu_p);
+				break;
+			case 7:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cpu_c);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::cpu_c);
+				break;
 			}
 		}
 		else {
 			switch (v_index(sort_vector, sorting)) {
-			case 0: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::pid); 		break;
-			case 1: rng::stable_sort(proc_vec, rng::less{}, &proc_info::name);		break;
-			case 2: rng::stable_sort(proc_vec, rng::less{}, &proc_info::cmd); 		break;
-			case 3: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::threads);	break;
-			case 4: rng::stable_sort(proc_vec, rng::less{}, &proc_info::user);		break;
-			case 5: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::mem); 		break;
-			case 6: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cpu_p);   	break;
-			case 7: rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cpu_c);   	break;
+			case 0:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::pid);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::pid);
+				break;
+			case 1:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::name);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::name);
+				break;
+			case 2:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::cmd);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::cmd);
+				break;
+			case 3:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::threads);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::threads);
+				break;
+			case 4:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::less{}, &proc_info::user);
+				else rng::stable_sort(proc_vec, rng::less{}, &proc_info::user);
+				break;
+			case 5:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::mem);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::mem);
+				break;
+			case 6:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cpu_p);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cpu_p);
+				break;
+			case 7:
+				if (use_partial) rng::partial_sort(proc_vec.begin(), middle, proc_vec.end(), rng::greater{}, &proc_info::cpu_c);
+				else rng::stable_sort(proc_vec, rng::greater{}, &proc_info::cpu_c);
+				break;
 			}
 		}
 

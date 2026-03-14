@@ -1199,7 +1199,7 @@ namespace Proc {
 
 		//* Sort processes
 		if ((sorted_change or tree_mode_change) or (not no_update and not pause_proc_list)) {
-			proc_sorter(current_procs, sorting, reverse, tree);
+			proc_sorter(current_procs, sorting, reverse, tree, Proc::select_max);
 		}
 
 		//* Generate tree view if enabled

@@ -806,7 +806,7 @@ namespace Proc {
 	bool set_priority(pid_t pid, int priority);
 
 	//* Sort vector of proc_info's
-	void proc_sorter(vector<proc_info>& proc_vec, const string& sorting, bool reverse, bool tree = false);
+	void proc_sorter(vector<proc_info>& proc_vec, const string& sorting, bool reverse, bool tree = false, int display_count = 0);
 
 	//* Recursive sort of process tree
 	void tree_sort(vector<tree_proc>& proc_vec, const string& sorting, bool reverse, bool paused,
