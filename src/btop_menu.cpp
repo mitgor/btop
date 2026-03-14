@@ -1281,28 +1281,41 @@ static PDAResult optionsMenu(std::string_view key, menu::OptionsFrame& frame) {
 		auto& selPred = frame.selPred;
 
  		enum Predispositions { isBool, isInt, isString, is2D, isBrowsable, isEditable};
+		//? Static vector copies of constexpr arrays for menu browsable options
+		static const vector<string> sort_vector_menu{Proc::sort_vector.begin(), Proc::sort_vector.end()};
+		static const vector<string> valid_graph_symbols_menu{Config::valid_graph_symbols.begin(), Config::valid_graph_symbols.end()};
+		static const vector<string> valid_graph_symbols_def_menu{Config::valid_graph_symbols_def.begin(), Config::valid_graph_symbols_def.end()};
+		static const vector<string> temp_scales_menu{Config::temp_scales.begin(), Config::temp_scales.end()};
+		static const vector<string> base_10_bitrate_menu{Config::base_10_bitrate_values.begin(), Config::base_10_bitrate_values.end()};
+		static const vector<string> disable_preset_menu{Config::disable_preset_options.begin(), Config::disable_preset_options.end()};
+	#ifdef __linux__
+		static const vector<string> freq_modes_menu{Config::freq_modes.begin(), Config::freq_modes.end()};
+	#endif
+	#ifdef GPU_SUPPORT
+		static const vector<string> show_gpu_values_menu{Config::show_gpu_values.begin(), Config::show_gpu_values.end()};
+	#endif
 		static const std::unordered_map<string, std::reference_wrapper<const vector<string>>> optionsList = {
 			{"color_theme", std::cref(Theme::themes)},
 			{"log_level", std::cref(Logger::log_levels)},
-			{"temp_scale", std::cref(Config::temp_scales)},
+			{"temp_scale", std::cref(temp_scales_menu)},
 		#ifdef __linux__
-			{"freq_mode", std::cref(Config::freq_modes)},
+			{"freq_mode", std::cref(freq_modes_menu)},
 		#endif
-			{"proc_sorting", std::cref(Proc::sort_vector)},
-			{"graph_symbol", std::cref(Config::valid_graph_symbols)},
-			{"graph_symbol_cpu", std::cref(Config::valid_graph_symbols_def)},
-			{"graph_symbol_mem", std::cref(Config::valid_graph_symbols_def)},
-			{"graph_symbol_net", std::cref(Config::valid_graph_symbols_def)},
-			{"graph_symbol_proc", std::cref(Config::valid_graph_symbols_def)},
+			{"proc_sorting", std::cref(sort_vector_menu)},
+			{"graph_symbol", std::cref(valid_graph_symbols_menu)},
+			{"graph_symbol_cpu", std::cref(valid_graph_symbols_def_menu)},
+			{"graph_symbol_mem", std::cref(valid_graph_symbols_def_menu)},
+			{"graph_symbol_net", std::cref(valid_graph_symbols_def_menu)},
+			{"graph_symbol_proc", std::cref(valid_graph_symbols_def_menu)},
 			{"cpu_graph_upper", std::cref(Cpu::available_fields)},
 			{"cpu_graph_lower", std::cref(Cpu::available_fields)},
 			{"cpu_sensor", std::cref(Cpu::available_sensors)},
 			{"selected_battery", std::cref(Config::available_batteries)},
-	        {"base_10_bitrate", std::cref(Config::base_10_bitrate_values)},
-			{"disable_presets", std::cref(Config::disable_preset_options)},
+	        {"base_10_bitrate", std::cref(base_10_bitrate_menu)},
+			{"disable_presets", std::cref(disable_preset_menu)},
 		#ifdef GPU_SUPPORT
-			{"show_gpu_info", std::cref(Config::show_gpu_values)},
-			{"graph_symbol_gpu", std::cref(Config::valid_graph_symbols_def)},
+			{"show_gpu_info", std::cref(show_gpu_values_menu)},
+			{"graph_symbol_gpu", std::cref(valid_graph_symbols_def_menu)},
 		#endif
 		};
 		auto tty_mode = Config::getB(BoolKey::tty_mode);

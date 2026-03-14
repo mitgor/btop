@@ -2934,7 +2934,8 @@ namespace Proc {
 		}
 
 		//? Expand process status from single char to explanative string
-		detailed.status = (proc_states.contains(detailed.entry.state)) ? proc_states.at(detailed.entry.state) : "Unknown";
+		auto state_sv = proc_state_name(detailed.entry.state);
+		detailed.status = state_sv.empty() ? "Unknown" : string(state_sv);
 
 		ifstream d_read;
 		string short_str;

@@ -45,21 +45,21 @@ using Config::StringKey;
 
 namespace Input {
 
-	//* Map for translating key codes to readable values
-	const std::unordered_map<string, string> Key_escapes = {
+	//* Constexpr array for translating key codes to readable values
+	static constexpr std::pair<std::string_view, std::string_view> Key_escapes[] = {
 		{"\033",	"escape"},
 		{"\x12",	"ctrl_r"},
 		{"\n",		"enter"},
 		{" ",		"space"},
 		{"\x7f",	"backspace"},
 		{"\x08",	"backspace"},
-		{"[A", 		"up"},
+		{"[A",		"up"},
 		{"OA",		"up"},
-		{"[B", 		"down"},
+		{"[B",		"down"},
 		{"OB",		"down"},
-		{"[D", 		"left"},
+		{"[D",		"left"},
 		{"OD",		"left"},
-		{"[C", 		"right"},
+		{"[C",		"right"},
 		{"OC",		"right"},
 		{"[2~",		"insert"},
 		{"[4h",		"insert"},
@@ -84,8 +84,15 @@ namespace Input {
 		{"[20~",	"f9"},
 		{"[21~",	"f10"},
 		{"[23~",	"f11"},
-		{"[24~",	"f12"}
+		{"[24~",	"f12"},
 	};
+
+	//* Linear scan lookup for key escape (34 entries at human input rate)
+	inline std::string_view lookup_key_escape(std::string_view key) {
+		for (const auto& [k, v] : Key_escapes)
+			if (k == key) return v;
+		return {};
+	}
 
 	sigset_t signal_mask;
 	std::atomic<bool> polling (false);
@@ -224,8 +231,8 @@ namespace Input {
 				}
 
 			}
-			else if (auto it = Key_escapes.find(key); it != Key_escapes.end())
-				key = it->second;
+			else if (auto mapped = lookup_key_escape(key); !mapped.empty())
+				key = mapped;
 			else if (ulen(key) > 1)
 				key.clear();
 
@@ -380,14 +387,14 @@ namespace Input {
 					int cur_i = v_index(Proc::sort_vector, Config::getS(StringKey::proc_sorting));
 					if (--cur_i < 0)
 						cur_i = Proc::sort_vector.size() - 1;
-					Config::set(StringKey::proc_sorting, Proc::sort_vector.at(cur_i));
+					Config::set(StringKey::proc_sorting, string(Proc::sort_vector.at(cur_i)));
 					Config::set(BoolKey::update_following, true);
 				}
 				else if (key == "right" or (vim_keys and key == "l")) {
 					int cur_i = v_index(Proc::sort_vector, Config::getS(StringKey::proc_sorting));
 					if (std::cmp_greater(++cur_i, Proc::sort_vector.size() - 1))
 						cur_i = 0;
-					Config::set(StringKey::proc_sorting, Proc::sort_vector.at(cur_i));
+					Config::set(StringKey::proc_sorting, string(Proc::sort_vector.at(cur_i)));
 					Config::set(BoolKey::update_following, true);
 				}
 				else if (is_in(key, "f", "/")) {

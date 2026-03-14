@@ -205,10 +205,10 @@ namespace Tools {
 		return str;
 	}
 
-	//* Check if vector <vec> contains value <find_val>
-	template <typename T, typename T2>
-	inline bool v_contains(const vector<T>& vec, const T2& find_val) {
-		return std::ranges::find(vec, find_val) != vec.end();
+	//* Check if range <rng> contains value <find_val>
+	template <std::ranges::input_range R, typename T2>
+	inline bool v_contains(const R& rng, const T2& find_val) {
+		return std::ranges::find(rng, find_val) != std::ranges::end(rng);
 	}
 
 	//* Check if string <str> contains string <find_val>, while ignoring case
@@ -221,10 +221,10 @@ namespace Tools {
 		return it != str.end();
 	}
 
-	//* Return index of <find_val> from vector <vec>, returns size of <vec> if <find_val> is not present
-	template <typename T>
-	inline size_t v_index(const vector<T>& vec, const T& find_val) {
-		return std::ranges::distance(vec.begin(), std::ranges::find(vec, find_val));
+	//* Return index of <find_val> from range <rng>, returns size of <rng> if <find_val> is not present
+	template <std::ranges::input_range R, typename T>
+	inline size_t v_index(const R& rng, const T& find_val) {
+		return std::ranges::distance(std::ranges::begin(rng), std::ranges::find(rng, find_val));
 	}
 
 	//* Compare <first> with all following values

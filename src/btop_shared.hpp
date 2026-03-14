@@ -723,7 +723,7 @@ namespace Proc {
 	extern int scroll_pos;
 	extern string selected_name;
 	//? Contains the valid sorting options for processes
-	const vector<string> sort_vector = {
+	inline constexpr std::array<std::string_view, 8> sort_vector = {
 		"pid",
 		"name",
 		"command",
@@ -735,19 +735,21 @@ namespace Proc {
 	};
 
 	//? Translation from process state char to explanative string
-	const std::unordered_map<char, string> proc_states = {
-		{'R', "Running"},
-		{'S', "Sleeping"},
-		{'D', "Waiting"},
-		{'Z', "Zombie"},
-		{'T', "Stopped"},
-		{'t', "Tracing"},
-		{'X', "Dead"},
-		{'x', "Dead"},
-		{'K', "Wakekill"},
-		{'W', "Unknown"},
-		{'P', "Parked"}
-	};
+	inline constexpr std::string_view proc_state_name(char state) {
+		switch (state) {
+			case 'R': return "Running";
+			case 'S': return "Sleeping";
+			case 'D': return "Waiting";
+			case 'Z': return "Zombie";
+			case 'T': return "Stopped";
+			case 't': return "Tracing";
+			case 'X': case 'x': return "Dead";
+			case 'K': return "Wakekill";
+			case 'W': return "Unknown";
+			case 'P': return "Parked";
+			default: return "";
+		}
+	}
 
 	//* Container for process information
 	struct proc_info {
