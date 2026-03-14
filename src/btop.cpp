@@ -45,6 +45,7 @@ tab-size = 4
 #include <regex>
 #include <chrono>
 #include <utility>
+#include <memory_resource>
 #include <semaphore>
 
 #ifdef __APPLE__
@@ -539,6 +540,15 @@ namespace Runner {
 
 		std::lock_guard lock {mtx};
 
+		//? Per-cycle arena: monotonic bump allocator for cycle-local temporaries.
+		//? Released with O(1) release() at the start of each cycle -- no per-object deallocation.
+		//? Uses new_delete_resource() upstream as safety fallback during development.
+		alignas(64) static std::byte arena_storage[65536];
+		static std::pmr::monotonic_buffer_resource cycle_arena{
+			arena_storage, sizeof(arena_storage),
+			std::pmr::new_delete_resource()
+		};
+
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
 		while (Global::app_state.load() != AppStateTag::Quitting) {
 			// === IDLE STATE ===
@@ -557,6 +567,9 @@ namespace Runner {
 				sleep_ms(1);
 				continue;
 			}
+
+			//? Release per-cycle arena -- O(1) reset, all prior cycle allocations invalidated.
+			cycle_arena.release();
 
 			// === COLLECTING STATE ===
 			Global::runner_state_tag.store(Global::RunnerStateTag::Collecting, std::memory_order_release);
