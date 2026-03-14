@@ -65,6 +65,9 @@ option(BTOP_NATIVE "Optimize for the build machine's CPU (-march=native)" OFF)
 # Precompiled headers for faster builds
 option(BTOP_PCH "Use precompiled headers for faster clean builds" OFF)
 
+# Optional mimalloc allocator (benchmarked at ~1.6% improvement, below 3% adoption threshold)
+option(BTOP_MIMALLOC "Use mimalloc as the default allocator (optional, ~1.6% benchmark improvement)" OFF)
+
 if(BTOP_STATIC AND NOT APPLE)
   # Set this before calling find_package
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -244,6 +247,13 @@ if(BTOP_PCH)
     <vector>
   )
   message(STATUS "Precompiled headers enabled")
+endif()
+
+# Optional mimalloc allocator
+if(BTOP_MIMALLOC)
+    find_package(mimalloc REQUIRED)
+    target_link_libraries(libbtop mimalloc-static)
+    message(STATUS "btop: Using mimalloc as default allocator")
 endif()
 
 target_compile_definitions(libbtop PUBLIC

@@ -150,7 +150,11 @@ Plans:
   2. All /proc and sysctl parsing paths use string_view for field extraction — no intermediate std::string copies for substring operations
   3. mimalloc evaluated via benchmark; adopted as CMake option if >3% gain demonstrated, otherwise documented as not worth it
   4. All existing tests pass with arena allocator active and string_view parsing changes in place
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 37-01-PLAN.md — Arena allocator setup in runner loop + unit tests (MEM-01)
+- [ ] 37-02-PLAN.md — string_view audit for CPU stat, battery, sensor, CPU freq parsing (MEM-03)
+- [ ] 37-03-PLAN.md — mimalloc evaluation documentation + CMake option (MEM-04)
 
 ### Phase 38: Output Pipeline
 **Goal**: Zero-copy output path from draw functions to terminal — pre-allocated buffer replaces string concatenation, single syscall per frame
@@ -179,7 +183,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 35. Build & Compiler | 2/2 | Complete    | 2026-03-13 |
-| 36. Algorithmic Improvements | 3/3 | Complete   | 2026-03-14 |
-| 37. Allocation & Parsing | 0/? | Not started | - |
+| 36. Algorithmic Improvements | 3/3 | Complete    | 2026-03-14 |
+| 37. Allocation & Parsing | 0/3 | Not started | - |
 | 38. Output Pipeline | 0/? | Not started | - |
 | 39. Platform I/O | 0/? | Not started | - |
