@@ -38,7 +38,9 @@ tab-size = 4
 #include <numeric>
 #include <ranges>
 #include <unistd.h>
+#include <sys/uio.h>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <exception>
 #include <tuple>
@@ -849,12 +851,22 @@ namespace Runner {
 					Draw::diff_and_emit(screen_buffer, diff_output);
 				}
 
-				string frame_buf;
-				frame_buf.reserve(diff_output.size() + 32);
-				if (term_sync) frame_buf += Term::sync_start;
-				frame_buf += diff_output;
-				if (term_sync) frame_buf += Term::sync_end;
-				Tools::write_stdout(frame_buf);
+				struct iovec iov[3];
+				int iovcnt = 0;
+				if (term_sync) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_start);
+					iov[iovcnt].iov_len = std::strlen(Term::sync_start);
+					iovcnt++;
+				}
+				iov[iovcnt].iov_base = const_cast<char*>(diff_output.data());
+				iov[iovcnt].iov_len = diff_output.size();
+				iovcnt++;
+				if (term_sync) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_end);
+					iov[iovcnt].iov_len = std::strlen(Term::sync_end);
+					iovcnt++;
+				}
+				Tools::write_stdout_iov(iov, iovcnt);
 
 				screen_buffer.swap();
 			}
@@ -896,25 +908,47 @@ namespace Runner {
 
 		if (box == "overlay") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
-			{
-				string buf;
-				buf.reserve(Global::overlay.size() + 32);
-				if (term_sync) buf += Term::sync_start;
-				buf += Global::overlay;
-				if (term_sync) buf += Term::sync_end;
-				Tools::write_stdout(buf);
-			}
+			auto write_synced = [term_sync](const string& content) {
+				struct iovec iov[3];
+				int iovcnt = 0;
+				if (term_sync) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_start);
+					iov[iovcnt].iov_len = std::strlen(Term::sync_start);
+					iovcnt++;
+				}
+				iov[iovcnt].iov_base = const_cast<char*>(content.data());
+				iov[iovcnt].iov_len = content.size();
+				iovcnt++;
+				if (term_sync) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_end);
+					iov[iovcnt].iov_len = std::strlen(Term::sync_end);
+					iovcnt++;
+				}
+				Tools::write_stdout_iov(iov, iovcnt);
+			};
+			write_synced(Global::overlay);
 		}
 		else if (box == "clock") {
 			const bool term_sync = Config::getB(BoolKey::terminal_sync);
-			{
-				string buf;
-				buf.reserve(Global::clock.size() + 32);
-				if (term_sync) buf += Term::sync_start;
-				buf += Global::clock;
-				if (term_sync) buf += Term::sync_end;
-				Tools::write_stdout(buf);
-			}
+			auto write_synced = [term_sync](const string& content) {
+				struct iovec iov[3];
+				int iovcnt = 0;
+				if (term_sync) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_start);
+					iov[iovcnt].iov_len = std::strlen(Term::sync_start);
+					iovcnt++;
+				}
+				iov[iovcnt].iov_base = const_cast<char*>(content.data());
+				iov[iovcnt].iov_len = content.size();
+				iovcnt++;
+				if (term_sync) {
+					iov[iovcnt].iov_base = const_cast<char*>(Term::sync_end);
+					iov[iovcnt].iov_len = std::strlen(Term::sync_end);
+					iovcnt++;
+				}
+				Tools::write_stdout_iov(iov, iovcnt);
+			};
+			write_synced(Global::clock);
 		}
 		else {
 			Config::unlock();
