@@ -1076,7 +1076,6 @@ namespace Cpu {
 		graph_up_height = (single_graph ? height - 2 : ceil((double)(height - 2) / 2) - (mid_line and height % 2 != 0));
 		graph_low_height = height - 2 - graph_up_height - mid_line;
 		const int button_y = cpu_bottom ? y + height - 1 : y;
-		out += box;
 
 		//? Buttons on title
 		out += Mv::to(button_y, x + 10) + title_left + Theme::c(ColorKey::hi_fg) + Fx::b + 'm' + Theme::c(ColorKey::title) + "enu" + Fx::ub + title_right;
@@ -1563,6 +1562,9 @@ namespace Cpu {
 			or safeVal(cpu.core_percent, 0).empty()
 			or (show_temps and safeVal(cpu.temp, 0).empty())) return;
 
+			//? Always output the box frame to prevent differential rendering from erasing it
+		out += box;
+
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
 			draw_cpu_redraw(out, cpu,
@@ -1664,10 +1666,11 @@ namespace Gpu {
         auto single_graph = !Config::getB(BoolKey::gpu_mirror_graph);
 		int height = gpu_b_height_offsets[index] + 4;
 
+		//? Always output the box frame to prevent differential rendering from erasing it
+		out += box[index];
+
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw[index]) {
-			out += box[index];
-
 			graph_up_height = single_graph ? b_height_vec[index] : (b_height_vec[index] + 1) / 2;
 			int graph_low_height = single_graph ? 0 : b_height_vec[index] - graph_up_height;
 
@@ -1840,9 +1843,11 @@ namespace Mem {
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto totalMem = Mem::get_totalMem();
 
+		//? Always output the box frame to prevent differential rendering from erasing it
+		out += box;
+
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
-			out += box;
 			mem_meters.clear();
 			mem_graphs.clear();
 			disk_meters_free.clear();
@@ -2107,9 +2112,11 @@ namespace Net {
 		const long long down_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::download)] : ((long long)(Config::getI(IntKey::net_download)) << 20) / 8);
 		const long long up_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::upload)] : ((long long)(Config::getI(IntKey::net_upload)) << 20) / 8);
 
+		//? Always output the box frame to prevent differential rendering from erasing it
+		out += box;
+
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
-			out += box;
 			//? Graphs
 			graphs.clear();
 			if (net.bandwidth[std::to_underlying(NetDir::download)].empty() or net.bandwidth[std::to_underlying(NetDir::upload)].empty()) {
@@ -2362,7 +2369,6 @@ namespace Proc {
 		bool follow_process, bool pause_proc_list, bool vim_keys, bool mem_bytes,
 		bool show_graphs, int followed_pid, bool should_selection_return_to_followed,
 		const string& graph_symbol, bool tty_mode) {
-		out = box;
 		const string title_left = Theme::c(ColorKey::proc_box) + Symbols::title_left;
 		const string title_right = Theme::c(ColorKey::proc_box) + Symbols::title_right;
 		const string title_left_down = Theme::c(ColorKey::proc_box) + Symbols::title_left_down;
@@ -2853,6 +2859,9 @@ namespace Proc {
 		draw_proc_follow_logic(plist, proc_tree, numpids, select_max,
 			follow_process, followed_pid, followed, should_selection_return_to_followed,
 			pause_proc_list, proc_banner_shown);
+
+		//? Always output the box frame to prevent differential rendering from erasing it
+		out += box;
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
