@@ -1778,12 +1778,13 @@ static void transition_to(AppStateVar& current, AppStateVar next, TransitionCtx&
 				if (now - last_loop_time > 3000) {
 					Logger::info("Detected system wake ({}ms gap), reinitializing terminal", now - last_loop_time);
 					Term::reinit();
-					term_resize(true);
-					auto* r = std::get_if<state::Running>(&app_var);
-					if (r) {
-						r->future_time = now + r->update_ms;
-					}
-					last_loop_time = now;
+					//? Full resize cycle: recalc sizes, clear screen buffer, force full redraw
+					transition_to(app_var, state::Resizing{}, ctx);
+					transition_to(app_var, state::Running{
+						static_cast<uint64_t>(Config::getI(IntKey::update_ms)),
+						time_ms()
+					}, ctx);
+					last_loop_time = time_ms();
 					continue;
 				}
 				last_loop_time = now;
