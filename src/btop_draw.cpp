@@ -1562,11 +1562,9 @@ namespace Cpu {
 			or safeVal(cpu.core_percent, 0).empty()
 			or (show_temps and safeVal(cpu.temp, 0).empty())) return;
 
-			//? Always output the box frame to prevent differential rendering from erasing it
-		out += box;
-
-		//* Redraw elements not needed to be updated every cycle
+			//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
+			out += box;
 			draw_cpu_redraw(out, cpu,
 #if defined(GPU_SUPPORT)
 				gpus,
@@ -1666,11 +1664,9 @@ namespace Gpu {
         auto single_graph = !Config::getB(BoolKey::gpu_mirror_graph);
 		int height = gpu_b_height_offsets[index] + 4;
 
-		//? Always output the box frame to prevent differential rendering from erasing it
-		out += box[index];
-
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw[index]) {
+			out += box[index];
 			graph_up_height = single_graph ? b_height_vec[index] : (b_height_vec[index] + 1) / 2;
 			int graph_low_height = single_graph ? 0 : b_height_vec[index] - graph_up_height;
 
@@ -1843,11 +1839,9 @@ namespace Mem {
 		auto& graph_bg = Draw::graph_bg_symbol(graph_symbol);
 		auto totalMem = Mem::get_totalMem();
 
-		//? Always output the box frame to prevent differential rendering from erasing it
-		out += box;
-
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
+			out += box;
 			mem_meters.clear();
 			mem_graphs.clear();
 			disk_meters_free.clear();
@@ -2112,11 +2106,9 @@ namespace Net {
 		const long long down_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::download)] : ((long long)(Config::getI(IntKey::net_download)) << 20) / 8);
 		const long long up_max = (net_auto ? (long long)graph_max[std::to_underlying(NetDir::upload)] : ((long long)(Config::getI(IntKey::net_upload)) << 20) / 8);
 
-		//? Always output the box frame to prevent differential rendering from erasing it
-		out += box;
-
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
+			out += box;
 			//? Graphs
 			graphs.clear();
 			if (net.bandwidth[std::to_underlying(NetDir::download)].empty() or net.bandwidth[std::to_underlying(NetDir::upload)].empty()) {
@@ -2860,11 +2852,9 @@ namespace Proc {
 			follow_process, followed_pid, followed, should_selection_return_to_followed,
 			pause_proc_list, proc_banner_shown);
 
-		//? Always output the box frame to prevent differential rendering from erasing it
-		out += box;
-
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
+			out += box;
 			draw_proc_header(out, y, height, show_detailed, proc_tree,
 				follow_process, pause_proc_list, vim_keys, mem_bytes,
 				show_graphs, followed_pid, should_selection_return_to_followed,
